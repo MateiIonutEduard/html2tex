@@ -54,7 +54,7 @@ html2tex-lib/
 
 ```bash
 # Clone and configure
-git clone <repository-url> && cd html2tex-lib
+git clone https://github.com/MateiIonutEduard/html2tex-lib.git && cd html2tex-lib
 mkdir build && cd build
 
 # Configure (auto-detects compiler)
@@ -65,3 +65,47 @@ cmake --build . --config Release --parallel
 
 # Install (optional)
 cmake --install . --prefix /usr/local
+```
+
+### Platform-Specific Builds
+- Linux (GCC/Clang)
+
+```bash
+# Default GCC
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Clang
+CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Debug build with symbols
+cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-g3 -O0"
+
+# Release with LTO
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+```
+
+- Mac OSX (Clang)
+
+```bash
+# Universal build (Intel + Apple Silicon)
+cmake .. -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+
+# macOS deployment target
+cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"
+```
+
+- Windows
+
+```powershell
+# Visual Studio 2022 (64-bit)
+cmake .. -G "Visual Studio 17 2022" -A x64
+
+# Visual Studio 2019 (32-bit)
+cmake .. -G "Visual Studio 16 2019" -A Win32
+
+# MinGW (GCC)
+cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+
+# Ninja (fast builds)
+cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+```
