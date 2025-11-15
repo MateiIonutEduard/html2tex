@@ -67,3 +67,39 @@ static char* parse_quoted_string(ParserState* state) {
 
     return str;
 }
+
+static HTMLAttribute* parse_attributes(ParserState* state) {
+    HTMLAttribute* head = NULL;
+    HTMLAttribute** current = &head;
+
+    while (state->position < state->length) {
+        skip_whitespace(state);
+
+        if (state->input[state->position] == '>' ||
+            state->input[state->position] == '/')
+            break;
+
+        char* key = parse_tag_name(state);
+        if (!key) break;
+
+        skip_whitespace(state);
+        char* value = NULL;
+
+        if (state->position < state->length && state->input[state->position] == '=') {
+            state->position++;
+            skip_whitespace(state);
+            value = parse_quoted_string(state);
+        }
+
+        HTMLAttribute* attr = malloc(sizeof(HTMLAttribute));
+        attr->key = key;
+
+        attr->value = value;
+        attr->next = NULL;
+
+        *current = attr;
+        current = &(*current)->next;
+    }
+
+    return head;
+}
