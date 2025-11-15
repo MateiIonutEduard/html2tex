@@ -34,3 +34,34 @@ html2tex-lib/
 ├── html2tex.lib # Windows static library
 └── libhtml2tex.a # Unix static library
 ```
+
+### Design Philosophy
+
+- **C Core**: Zero-overhead parsing and conversion
+- **C++ Wrapper**: Modern RAII interface with exception safety
+- **Static Linking**: Single binary deployment, no runtime dependencies
+- **Cross-Platform**: Consistent behavior across all supported platforms
+
+## Quick Start
+
+### Prerequisites
+
+- **CMake 3.16+** - Build system generator
+- **C99 Compiler** - GCC, Clang, or MSVC
+- **C++11 Compiler** - (Optional, for C++ wrapper)
+
+### Build & Install
+
+```bash
+# Clone and configure
+git clone <repository-url> && cd html2tex-lib
+mkdir build && cd build
+
+# Configure (auto-detects compiler)
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build . --config Release --parallel
+
+# Install (optional)
+cmake --install . --prefix /usr/local
