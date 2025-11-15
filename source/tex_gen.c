@@ -35,3 +35,16 @@ static void append_char(LaTeXConverter* converter, char c) {
     converter->output[converter->output_size++] = c;
     converter->output[converter->output_size] = '\0';
 }
+
+static char* get_attribute(HTMLAttribute* attrs, const char* key) {
+    HTMLAttribute* current = attrs;
+
+    while (current) {
+        if (strcmp(current->key, key) == 0)
+            return current->value;
+
+        current = current->next;
+    }
+
+    return NULL;
+}
