@@ -39,7 +39,7 @@ int main() {
 ### C++ Wrapper
 
 ```cpp
-#include "HtmlToLatexConverter.hpp"
+#include "HtmlToLatexConverter.h"
 using namespace std;
 
 int main() {
