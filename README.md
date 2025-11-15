@@ -17,3 +17,20 @@
 - Academic publishing tools
 - Content management systems
 - Automated report generation
+
+## Architecture
+
+```css
+html2tex-lib/
+├── include/ # Public interfaces
+│ ├── html2tex.h # C API (stable ABI)
+│ └── HtmlToLatexConverter.hpp # C++ RAII wrapper
+├── source/ # Implementation
+│ ├── html_parser.c # Recursive descent HTML parser
+│ ├── html2tex.c # Core conversion engine
+│ ├── tex_gen.c # LaTeX generator
+│ └── HtmlToLatexConverter.cpp # C++ binding layer
+└── bin/Release/ # Built artifacts
+├── html2tex.lib # Windows static library
+└── libhtml2tex.a # Unix static library
+```
