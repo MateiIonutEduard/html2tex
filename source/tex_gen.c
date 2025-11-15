@@ -72,6 +72,17 @@ static void escape_latex(LaTeXConverter* converter, const char* text) {
     }
 }
 
+static void convert_node(LaTeXConverter* converter, HTMLNode* node);
+
+static void convert_children(LaTeXConverter* converter, HTMLNode* node) {
+    HTMLNode* child = node->children;
+
+    while (child) {
+        convert_node(converter, child);
+        child = child->next;
+    }
+}
+
 static void begin_environment(LaTeXConverter* converter, const char* env) {
     append_string(converter, "\\begin{");
     append_string(converter, env);
@@ -82,4 +93,103 @@ static void end_environment(LaTeXConverter* converter, const char* env) {
     append_string(converter, "\\end{");
     append_string(converter, env);
     append_string(converter, "}\n");
+}
+
+static void convert_node(LaTeXConverter* converter, HTMLNode* node) {
+    if (!node) return;
+
+    /* handle text nodes */
+    if (!node->tag && node->content) {
+        escape_latex(converter, node->content);
+        return;
+    }
+
+    if (!node->tag) 
+        return;
+
+    /* handle different HTML tags */
+    if (strcmp(node->tag, "p") == 0) {
+        append_string(converter, "\n");
+        convert_children(converter, node);
+        append_string(converter, "\n\n");
+    }
+    else if (strcmp(node->tag, "h1") == 0) {
+        append_string(converter, "\\section{");
+        convert_children(converter, node);
+        append_string(converter, "}\n\n");
+    }
+    else if (strcmp(node->tag, "h2") == 0) {
+        append_string(converter, "\\subsection{");
+        convert_children(converter, node);
+        append_string(converter, "}\n\n");
+    }
+    else if (strcmp(node->tag, "h3") == 0) {
+        append_string(converter, "\\subsubsection{");
+        convert_children(converter, node);
+        append_string(converter, "}\n\n");
+    }
+    else if (strcmp(node->tag, "b") == 0 || strcmp(node->tag, "strong") == 0) {
+        append_string(converter, "\\textbf{");
+        convert_children(converter, node);
+        append_string(converter, "}");
+    }
+    else if (strcmp(node->tag, "i") == 0 || strcmp(node->tag, "em") == 0) {
+        append_string(converter, "\\textit{");
+        convert_children(converter, node);
+        append_string(converter, "}");
+    }
+    else if (strcmp(node->tag, "u") == 0) {
+        append_string(converter, "\\underline{");
+        convert_children(converter, node);
+        append_string(converter, "}");
+    }
+    else if (strcmp(node->tag, "code") == 0) {
+        append_string(converter, "\\texttt{");
+        convert_children(converter, node);
+        append_string(converter, "}");
+    }
+    else if (strcmp(node->tag, "a") == 0) {
+        char* href = get_attribute(node->attributes,
+            "href");
+
+        if (href) {
+            append_string(converter, "\\href{");
+            escape_latex(converter, href);
+            append_string(converter, "}{");
+
+            convert_children(converter, node);
+            append_string(converter, "}");
+        }
+        else
+            convert_children(converter, node);
+    }
+    else if (strcmp(node->tag, "ul") == 0) {
+        begin_environment(converter, "itemize");
+        convert_children(converter, node);
+
+        end_environment(converter, "itemize");
+        append_string(converter, "\n");
+    }
+    else if (strcmp(node->tag, "ol") == 0) {
+        begin_environment(converter, "enumerate");
+        convert_children(converter, node);
+
+        end_environment(converter, "enumerate");
+        append_string(converter, "\n");
+    }
+    else if (strcmp(node->tag, "li") == 0) {
+        append_string(converter, "\\item ");
+        convert_children(converter, node);
+        append_string(converter, "\n");
+    }
+    else if (strcmp(node->tag, "br") == 0)
+        append_string(converter, "\\\\\n");
+    else if (strcmp(node->tag, "hr") == 0)
+        append_string(converter, "\\hrulefill\n\n");
+    else if (strcmp(node->tag, "div") == 0 || strcmp(node->tag, "span") == 0)
+        convert_children(converter, node);
+    else {
+        /* unknown tag, just convert children */
+        convert_children(converter, node);
+    }
 }
