@@ -1,111 +1,124 @@
 # html2tex-lib
 
-> **High-Performance HTML to LaTeX Conversion Engine**  
-> A battle-tested, zero-dependency C/C++ static library for robust HTML to LaTeX document conversion.
+**Lightning-fast HTML to LaTeX conversion in C/C++**  
+Zero-dependency static library for robust document conversion across all platforms.
 
-[![CMake](https://img.shields.io/badge/CMake-3.16+-brightgreen.svg)](https://cmake.org/)
-[![C Standard](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
-[![C++ Standard](https://img.shields.io/badge/C++-11-blue.svg)](https://en.cppreference.com/w/cpp/11)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://en.wikipedia.org/wiki/Cross-platform)
+[![C99](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
+[![C++11](https://img.shields.io/badge/C++-11-blue.svg)](https://en.cppreference.com/w/cpp/11)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://en.wikipedia.org/wiki/Cross-platform)
 
-## Overview
-
-`html2tex-lib` is a production-grade library designed for developers who need reliable, high-performance HTML to LaTeX conversion. Built with a pure C core for maximum efficiency and wrapped with a modern C++ interface for developer convenience.
-
-**Perfect for:**
-- Document processing pipelines
-- Academic publishing tools
-- Content management systems
-- Automated report generation
-
-## Architecture
-
-```css
-html2tex-lib/
-├── include/ # Public interfaces
-│ ├── html2tex.h # C API (stable ABI)
-│ └── HtmlToLatexConverter.hpp # C++ RAII wrapper
-├── source/ # Implementation
-│ ├── html_parser.c # Recursive descent HTML parser
-│ ├── html2tex.c # Core conversion engine
-│ ├── tex_gen.c # LaTeX generator
-│ └── HtmlToLatexConverter.cpp # C++ binding layer
-└── bin/Release/ # Built artifacts
-├── html2tex.lib # Windows static library
-└── libhtml2tex.a # Unix static library
-```
-
-### Design Philosophy
-
-- **C Core**: Zero-overhead parsing and conversion
-- **C++ Wrapper**: Modern RAII interface with exception safety
-- **Static Linking**: Single binary deployment, no runtime dependencies
-- **Cross-Platform**: Consistent behavior across all supported platforms
-
-## Quick Start
-
-### Prerequisites
-
-- **CMake 3.16+** - Build system generator
-- **C99 Compiler** - GCC, Clang, or MSVC
-- **C++11 Compiler** - (Optional, for C++ wrapper)
-
-### Build & Install
+## 🚀 Quick Start
 
 ```bash
-# Clone and configure
+# Clone & build
 git clone https://github.com/MateiIonutEduard/html2tex-lib.git && cd html2tex-lib
 mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release --parallel
+```
 
-# Configure (auto-detects compiler)
+## 💻 Usage
+### C API
+
+```c
+#include "html2tex.h"
+int main() {
+  LaTeXConverter* converter = html2tex_create();
+  char* latex = html2tex_convert(converter, "<p>This is <b>bold</b> text</p>");
+  
+  if (latex) {
+      printf("%s\n", latex);
+      free(latex);
+  }
+
+  html2tex_destroy(converter);
+  return 0;
+}
+```
+
+### C++ Wrapper
+
+```cpp
+#include "HtmlToLatexConverter.hpp"
+using namespace std;
+
+int main() {
+  HtmlToLatexConverter converter;
+  string latex = converter.convert("<p>This is <b>bold</b> text</p>");
+
+  cout << latex << endl;
+  return 0;
+}
+```
+
+## 🔧 Integration
+
+### Method 1: Direct File Inclusion
+Copy these files to your project:
+* `include/HtmlToLatexConverter.h`
+* `source/HtmlToLatexConverter.cpp`
+* Built static library from `bin/Release/`
+
+### CMakeLists.txt:
+
+```cmake
+# Add C++ wrapper source
+target_sources(your_target PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/HtmlToLatexConverter.cpp
+)
+
+# Include headers
+target_include_directories(your_target PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/include
+)
+
+# Link against C library
+target_link_libraries(your_target PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/lib/html2tex
+)
+```
+
+### Method 2: CMake Package
+
+```cmake
+find_package(html2tex REQUIRED)
+target_link_libraries(your_target PUBLIC html2tex::html2tex)
+```
+
+### Method 3: Subdirectory
+
+```cmake
+add_subdirectory(third_party/html2tex-lib)
+target_link_libraries(your_target PUBLIC html2tex)
+target_include_directories(your_target PUBLIC 
+    third_party/html2tex-lib/include
+)
+```
+
+## 🖥️ Platform Support
+* Windows: MSVC 2019+, MinGW-w64 (`.lib`/`.a`)
+* Linux: GCC 9+, Clang 10+ (`.a`)
+* Mac OSX: Clang (Xcode 12+) (`.a`)
+
+## 🛠️ Advanced Build
+
+```bash
+# Linux/Mac OSX
 cmake .. -DCMAKE_BUILD_TYPE=Release
 
-# Build
-cmake --build . --config Release --parallel
+# Windows (VS2022)
+cmake .. -G "Visual Studio 17 2022" -A x64
 
-# Install (optional)
+# Debug build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+
+# Install system-wide
 cmake --install . --prefix /usr/local
 ```
 
-### Platform-Specific Builds
-- Linux (GCC/Clang)
-
-```bash
-# Default GCC
-cmake .. -DCMAKE_BUILD_TYPE=Release
-
-# Clang
-CC=clang CXX=clang++ cmake .. -DCMAKE_BUILD_TYPE=Release
-
-# Debug build with symbols
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-g3 -O0"
-
-# Release with LTO
-cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
-```
-
-- Mac OSX (Clang)
-
-```bash
-# Universal build (Intel + Apple Silicon)
-cmake .. -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
-
-# macOS deployment target
-cmake .. -DCMAKE_OSX_DEPLOYMENT_TARGET="11.0"
-```
-
-- Windows
-
-```powershell
-# Visual Studio 2022 (64-bit)
-cmake .. -G "Visual Studio 17 2022" -A x64
-
-# Visual Studio 2019 (32-bit)
-cmake .. -G "Visual Studio 16 2019" -A Win32
-
-# MinGW (GCC)
-cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
-
-# Ninja (fast builds)
-cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
-```
+## 🎯 Why html2tex-lib?
+* 🔄 Zero Dependencies - Pure C/C++, no external libs
+* ⚡ High Performance - Optimized parsing and conversion
+* 🎯 Cross-Platform - Consistent behavior everywhere
+* 🔧 Dual Interface - C API + modern C++ wrapper
+* 📦 Static Linking - Single binary deployment
