@@ -98,7 +98,7 @@ target_include_directories(your_target PUBLIC
 ## 🖥️ Platform Support
 * Windows: MSVC 2019+, MinGW-w64 (`.lib`/`.a`)
 * Linux: GCC 9+, Clang 10+ (`.a`)
-* Mac OSX: Clang (Xcode 12+) (`.a`)
+* Mac OSX: Clang (Xcode 12+) (`.a`)<br/>
 
 ## 🛠️ Advanced Build
 
@@ -121,4 +121,15 @@ cmake --install . --prefix /usr/local
 * ⚡ High Performance - Optimized parsing and conversion
 * 🎯 Cross-Platform - Consistent behavior everywhere
 * 🔧 Dual Interface - C API + modern C++ wrapper
-* 📦 Static Linking - Single binary deployment
+* 📦 Static Linking - Single binary deployment<br/>
+
+## 🛡️ Compatibility Notes
+
+- ✅ **Full HTML5 Support** - Complete coverage for listed elements
+- 🔒 **Automatic Escaping** - Intelligent LaTeX character handling  
+- 🏗️ **Nested Element Support** - Robust scope management
+- 🌐 **Cross-Platform Consistency** - Identical behavior everywhere
+- 🔧 **Extensible Mappings** - Custom conversions via source code
+- 💡 **Graceful Degradation** - Unsupported elements preserved as content<br/>
+
+**Note:** Unsupported **HTML** elements are gracefully ignored while preserving all content.
