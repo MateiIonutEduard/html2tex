@@ -103,3 +103,36 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
 
     return head;
 }
+
+static char* parse_text_content(ParserState* state) {
+    size_t start = state->position;
+    size_t length = 0;
+
+    while (state->position < state->length) {
+        if (state->input[state->position] == '<')
+            break;
+
+        state->position++;
+        length++;
+    }
+
+    if (length == 0) return NULL;
+    char* text = malloc(length + 1);
+
+    strncpy(text, state->input + start, length);
+    text[length] = '\0';
+
+    /* trim whitespace */
+    while (length > 0 && isspace(text[length - 1]))
+        text[--length] = '\0';
+
+    size_t start_trim = 0;
+
+    while (start_trim < length && isspace(text[start_trim]))
+        start_trim++;
+
+    if (start_trim > 0)
+        memmove(text, text + start_trim, length - start_trim + 1);
+
+    return text[0] ? text : NULL;
+}
