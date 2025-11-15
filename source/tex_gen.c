@@ -71,3 +71,15 @@ static void escape_latex(LaTeXConverter* converter, const char* text) {
         }
     }
 }
+
+static void begin_environment(LaTeXConverter* converter, const char* env) {
+    append_string(converter, "\\begin{");
+    append_string(converter, env);
+    append_string(converter, "}\n");
+}
+
+static void end_environment(LaTeXConverter* converter, const char* env) {
+    append_string(converter, "\\end{");
+    append_string(converter, env);
+    append_string(converter, "}\n");
+}
