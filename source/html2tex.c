@@ -22,3 +22,12 @@ LaTeXConverter* html2tex_create(void) {
     converter->error_message[0] = '\0';
     return converter;
 }
+
+void html2tex_destroy(LaTeXConverter* converter) {
+    if (!converter) return;
+
+    if (converter->output)
+        free(converter->output);
+
+    free(converter);
+}
