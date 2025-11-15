@@ -48,3 +48,26 @@ static char* get_attribute(HTMLAttribute* attrs, const char* key) {
 
     return NULL;
 }
+
+static void escape_latex(LaTeXConverter* converter, const char* text) {
+    if (!text) return;
+
+    for (const char* p = text; *p; p++) {
+        switch (*p) {
+        case '\\': append_string(converter, "\\textbackslash{}"); break;
+        case '{': append_string(converter, "\\{"); break;
+        case '}': append_string(converter, "\\}"); break;
+        case '&': append_string(converter, "\\&"); break;
+        case '%': append_string(converter, "\\%"); break;
+        case '$': append_string(converter, "\\$"); break;
+        case '#': append_string(converter, "\\#"); break;
+        case '_': append_string(converter, "\\_"); break;
+        case '^': append_string(converter, "\\^{}"); break;
+        case '~': append_string(converter, "\\~{}"); break;
+        case '<': append_string(converter, "\\textless{}"); break;
+        case '>': append_string(converter, "\\textgreater{}"); break;
+        case '\n': append_string(converter, "\\\\"); break;
+        default: append_char(converter, *p); break;
+        }
+    }
+}
