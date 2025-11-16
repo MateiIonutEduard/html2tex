@@ -184,7 +184,7 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
 void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     if (!node) return;
 
-    /* handle text nodes */
+    /* handle text nodes - including those with only whitespace */
     if (!node->tag && node->content) {
         escape_latex(converter, node->content);
         return;
