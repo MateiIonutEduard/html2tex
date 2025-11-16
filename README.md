@@ -104,16 +104,25 @@ target_include_directories(your_target PUBLIC
 
 ```bash
 # Linux/Mac OSX
+mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+cmake --install . --prefix /usr/local
 
 # Windows (VS2022)
+mkdir build && cd build
 cmake .. -G "Visual Studio 17 2022" -A x64
+cmake --build . --config Release
+cmake --install . --prefix "C:\Libraries\html2tex"
 
 # Debug build
+mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
+cmake --build . --config Debug
+cmake --install . --prefix /usr/local
 
 # Install system-wide
-cmake --install . --prefix /usr/local
+cmake --install . --prefix /path/to/custom/install
 ```
 
 ## 🎯 Why html2tex?
