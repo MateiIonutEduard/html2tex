@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(html2tex-lib
+project(html2tex
     VERSION 1.0.0
     LANGUAGES C
     DESCRIPTION "HTML to LaTeX Converter - C Static Library"
@@ -40,7 +40,7 @@ else()
 endif()
 
 # Print configuration
-message(STATUS "Building html2tex-lib ${PROJECT_VERSION}")
+message(STATUS "Building html2tex ${PROJECT_VERSION}")
 message(STATUS "System: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "Architecture: ${ARCH_NAME}")
 message(STATUS "C Compiler: ${C_COMPILER}")
