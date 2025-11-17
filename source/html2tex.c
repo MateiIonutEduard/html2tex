@@ -18,7 +18,15 @@ LaTeXConverter* html2tex_create(void) {
     converter->state.in_list = 0;
     converter->state.table_counter = 0;
 
+    converter->state.in_table = 0;
+    converter->state.in_table_row = 0;
+
+    converter->state.in_table_cell = 0;
+    converter->state.table_columns = 0;
+
+    converter->state.current_column = 0;
     converter->error_code = 0;
+
     converter->error_message[0] = '\0';
     return converter;
 }
