@@ -181,6 +181,86 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
     free(hex_color);
 }
 
+static void begin_table(LaTeXConverter* converter) {
+    converter->state.table_counter++;
+    converter->state.in_table = 1;
+
+    converter->state.table_columns = 0;
+    converter->state.current_column = 0;
+
+    append_string(converter, "\\begin{table}[htbp]\n\\centering\n");
+    append_string(converter, "\\begin{tabular}");
+}
+
+static void end_table(LaTeXConverter* converter) {
+    append_string(converter, "\\end{tabular}\n");
+    append_string(converter, "\\caption{Table ");
+
+    char counter_str[16];
+    snprintf(counter_str, sizeof(counter_str), "%d", converter->state.table_counter);
+
+    append_string(converter, counter_str);
+    append_string(converter, "}\n");
+
+    append_string(converter, "\\end{table}\n\n");
+    converter->state.in_table = 0;
+
+    converter->state.in_table_row = 0;
+    converter->state.in_table_cell = 0;
+}
+
+static void begin_table_row(LaTeXConverter* converter) {
+    converter->state.in_table_row = 1;
+    converter->state.current_column = 0;
+
+    if (converter->state.current_column == 0) 
+        append_string(converter, "\n");
+    else append_string(converter, " \\\\\n");
+}
+
+static void end_table_row(LaTeXConverter* converter) {
+    converter->state.in_table_row = 0;
+}
+
+static void begin_table_cell(LaTeXConverter* converter, int is_header) {
+    converter->state.in_table_cell = 1;
+    converter->state.current_column++;
+
+    if (converter->state.current_column > 1)
+        append_string(converter, " & ");
+
+    if (is_header)
+        append_string(converter, "\\textbf{");
+}
+
+static void end_table_cell(LaTeXConverter* converter, int is_header) {
+    if (is_header)
+        append_string(converter, "}");
+
+    converter->state.in_table_cell = 0;
+}
+
+static int count_table_columns(HTMLNode* node) {
+    if (!node || !node->children) return 1;
+    HTMLNode* first_row = node->children;
+
+    while (first_row && (!first_row->tag || strcmp(first_row->tag, "tr") != 0))
+        first_row = first_row->next;
+
+    if (!first_row) return 1;
+    int columns = 0;
+    HTMLNode* cell = first_row->children;
+
+    while (cell) {
+        if (cell->tag && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0))
+            columns++;
+
+        cell = cell->next;
+    }
+
+    return columns > 0 ? columns : 1;
+}
+
 void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     if (!node) return;
 
@@ -354,6 +434,36 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         append_string(converter, "\\hrulefill\n\n");
     else if (strcmp(node->tag, "div") == 0)
         convert_children(converter, node);
+    /* table support */
+    else if (strcmp(node->tag, "table") == 0) {
+        int columns = count_table_columns(node);
+        converter->state.table_columns = columns;
+
+        begin_table(converter);
+        append_string(converter, "{");
+
+        for (int i = 0; i < columns; i++)
+            append_string(converter, "l");
+
+        append_string(converter, "}\n");
+        convert_children(converter, node);
+        end_table(converter);
+    }
+    else if (strcmp(node->tag, "tr") == 0) {
+        begin_table_row(converter);
+        convert_children(converter, node);
+        end_table_row(converter);
+    }
+    else if (strcmp(node->tag, "td") == 0) {
+        begin_table_cell(converter, 0);
+        convert_children(converter, node);
+        end_table_cell(converter, 0);
+    }
+    else if (strcmp(node->tag, "th") == 0) {
+        begin_table_cell(converter, 1);
+        convert_children(converter, node);
+        end_table_cell(converter, 1);
+        }
     else {
         /* unknown tag, just convert children */
         convert_children(converter, node);
