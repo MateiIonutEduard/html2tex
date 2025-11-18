@@ -112,6 +112,17 @@ static char* extract_color_from_style(const char* style, const char* property) {
             char* value = colon + 1;
             while (*value == ' ') value++;
 
+            /* handle !important in CSS values */
+            char* important_pos = strstr(value, "!important");
+
+            if (important_pos) {
+                /* trim trailing whitespace */
+                *important_pos = '\0';
+                
+                char* end = value + strlen(value) - 1;
+                while (end > value && isspace(*end)) *end-- = '\0';
+            }
+
             if (strcmp(prop, property) == 0) {
                 char* result = strdup(value);
                 free(style_copy);
@@ -388,6 +399,15 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
 
     if (!node->tag) return;
 
+    // CSS properties parsing and application
+    CSSProperties* css_props = NULL;
+
+    char* style_attr = get_attribute(node->attributes, "style");
+    if (style_attr) css_props = parse_css_style(style_attr);
+
+    // apply CSS properties before element content
+    if (css_props) apply_css_properties(converter, css_props, node->tag);
+
     /* handle different HTML tags */
     if (strcmp(node->tag, "p") == 0) {
         append_string(converter, "\n");
@@ -433,88 +453,30 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         /* parse color attribute and style background-color */
         char* color_attr = get_attribute(node->attributes, "color");
         char* style_attr = get_attribute(node->attributes, "style");
-
-        /* direct color attribute */
-        char* text_color = color_attr;
-        char* bg_color = NULL;
-
-        /* extract background color from style if present */
+        char* text_color = NULL;
+        
+        /* extract text color from style if present */
         if (style_attr)
-            bg_color = extract_color_from_style(style_attr, "background-color");
-
-        int has_text_color = (text_color != NULL);
-        int has_bg_color = (bg_color != NULL);
-
-        /* apply colors with proper LaTeX nesting */
-        if (has_bg_color && has_text_color) {
-            /* both colors: background first, then text color */
-            apply_color(converter, bg_color, 1);
-            apply_color(converter, text_color, 0);
-
+            text_color = extract_color_from_style(style_attr, "color");
+        
+        if(css_props && text_color) {
+            /* ignore the color attribute, just convert content */
             convert_children(converter, node);
-            append_string(converter, "}}");
         }
-        else if (has_bg_color) {
-            /* only background color */
-            apply_color(converter, bg_color, 1);
+        else if (css_props && !text_color) {
+            /* inline CSS exists, but do not contain color property */
+            if(color_attr) apply_color(converter, color_attr, 0);
 
             convert_children(converter, node);
             append_string(converter, "}");
-        }
-        else if (has_text_color) {
-            /* only text color */
-            apply_color(converter, text_color, 0);
-
-            convert_children(converter, node);
-            append_string(converter, "}");
-        }
-        else {
-            /* no color specified, just convert content */
-            convert_children(converter, node);
         }
 
         /* clean up allocated memory */
-        if (bg_color) free(bg_color);
+        if (text_color) free(text_color);
     }
-    else if (strcmp(node->tag, "span") == 0) {
-        /* handle span tags with inline styles */
-        char* style_attr = get_attribute(node->attributes, "style");
-
-        if (style_attr) {
-            char* text_color = extract_color_from_style(style_attr, "color");
-            char* bg_color = extract_color_from_style(style_attr, "background-color");
-
-            int has_text_color = (text_color != NULL);
-            int has_bg_color = (bg_color != NULL);
-
-            /* apply colors */
-            if (has_bg_color && has_text_color) {
-                apply_color(converter, bg_color, 1);
-                apply_color(converter, text_color, 0);
-
-                convert_children(converter, node);
-                append_string(converter, "}}");
-            }
-            else if (has_bg_color) {
-                apply_color(converter, bg_color, 1);
-                convert_children(converter, node);
-                append_string(converter, "}");
-            }
-            else if (has_text_color) {
-                apply_color(converter, text_color, 0);
-                convert_children(converter, node);
-                append_string(converter, "}");
-            }
-            else
-                convert_children(converter, node);
-
-            /* clean up */
-            if (text_color) free(text_color);
-            if (bg_color) free(bg_color);
-        }
-        else
-            convert_children(converter, node);
-    }
+    else if (strcmp(node->tag, "span") == 0)
+        /* CSS properties handle styling, just convert content */
+        convert_children(converter, node);
     else if (strcmp(node->tag, "a") == 0) {
         char* href = get_attribute(node->attributes, "href");
 
@@ -565,20 +527,21 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
 
         end_table(converter);
     }
+    // added explicit caption handling
     else if (strcmp(node->tag, "caption") == 0) {
-        /* Handle table caption */
+        /* handle table caption */
         if (converter->state.in_table) {
-            /* Free any existing caption */
+            /* free any existing caption */
             if (converter->state.table_caption) {
                 free(converter->state.table_caption);
                 converter->state.table_caption = NULL;
             }
 
-            /* Extract caption text */
+            /* extract caption text */
             converter->state.table_caption = extract_caption_text(node);
         }
         else {
-            /* If not in table, just convert as normal text */
+            /* if not in table, just convert as normal text */
             convert_children(converter, node);
         }
     }
@@ -644,5 +607,11 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     else {
         /* unknown tag, just convert children */
         convert_children(converter, node);
+    }
+
+    // end CSS properties after element content
+    if (css_props) {
+        end_css_properties(converter, css_props, node->tag);
+        free_css_properties(css_props);
     }
 }
