@@ -445,6 +445,40 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
     }
 }
 
+/* end CSS properties (close environments and braces) */
+void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name) {
+    if (!converter || !props) return;
+    int is_block = is_block_element(tag_name);
+
+    /* close all open braces */
+    for (int i = 0; i < converter->state.css_braces; i++)
+        append_string(converter, "}");
+
+    converter->state.css_braces = 0;
+
+    /* close text alignment environments */
+    if (is_block) {
+        if (converter->state.css_environments & 1) /* center */
+            append_string(converter, "\\end{center}\n");
+        else if (converter->state.css_environments & 2) /* flushright */
+            append_string(converter, "\\end{flushright}\n");
+        else if (converter->state.css_environments & 4) /* flushleft */
+            append_string(converter, "\\end{flushleft}\n");
+
+        /* apply bottom margin */
+        if (converter->state.pending_margin_bottom > 0) {
+            char margin_cmd[32];
+            snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n",
+                converter->state.pending_margin_bottom);
+
+            append_string(converter, margin_cmd);
+            converter->state.pending_margin_bottom = 0;
+        }
+    }
+
+    converter->state.css_environments = 0;
+}
+
 /* free CSS properties */
 void free_css_properties(CSSProperties* props) {
     if (!props) return;
