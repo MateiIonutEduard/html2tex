@@ -37,3 +37,22 @@ static char* clean_css_value(char* value) {
 
     return cleaned;
 }
+
+/* check if element is block-level */
+int is_block_element(const char* tag_name) {
+    if (!tag_name) return 0;
+
+    const char* block_tags[] = {
+        "div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
+        "ul", "ol", "li", "table", "tr", "td", "th",
+        "blockquote", "section", "article", "header", "footer",
+        "nav", "aside", "main", "figure", "figcaption", NULL
+    };
+
+    for (int i = 0; block_tags[i]; i++) {
+        if (strcmp(tag_name, block_tags[i]) == 0)
+            return 1;
+    }
+
+    return 0;
+}
