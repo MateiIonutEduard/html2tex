@@ -50,7 +50,6 @@ extern "C" {
 		char* table_caption;
     };
 	
-		
 	struct CSSProperties {
 		char* font_weight;
 		char* font_style;
