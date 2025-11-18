@@ -169,3 +169,43 @@ CSSProperties* parse_css_style(const char* style_str) {
     free(copy);
     return props;
 }
+
+/* free CSS properties */
+void free_css_properties(CSSProperties* props) {
+    if (!props) return;
+    free(props->font_weight);
+
+    free(props->font_style);
+    free(props->font_family);
+
+    free(props->font_size);
+    free(props->color);
+
+    free(props->background_color);
+    free(props->text_align);
+
+    free(props->text_decoration);
+    free(props->margin_top);
+
+    free(props->margin_bottom);
+    free(props->margin_left);
+
+    free(props->margin_right);
+    free(props->padding_top);
+
+    free(props->padding_bottom);
+    free(props->padding_left);
+
+    free(props->padding_right);
+    free(props->width);
+
+    free(props->height);
+    free(props->border);
+
+    free(props->border_color);
+    free(props->display);
+
+    free(props->float_pos);
+    free(props->vertical_align);
+    free(props);
+}
