@@ -27,7 +27,22 @@ LaTeXConverter* html2tex_create(void) {
     converter->state.current_column = 0;
     converter->state.table_caption = NULL;
 
+    /* initialize CSS state tracking */
+    converter->state.css_braces = 0;
+    converter->state.css_environments = 0;
+
+    converter->state.pending_margin_bottom = 0;
+    converter->state.has_bold = 0;
+
+    converter->state.has_italic = 0;
+    converter->state.has_underline = 0;
+
+    converter->state.has_color = 0;
+    converter->state.has_background = 0;
+
+    converter->state.has_font_family = 0;
     converter->error_code = 0;
+
     converter->error_message[0] = '\0';
     return converter;
 }
@@ -54,6 +69,9 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         converter->state.table_caption = NULL;
     }
 
+    /* Reset CSS state */
+    reset_css_state(converter);
+
     /* add LaTeX document preamble */
     append_string(converter, "\\documentclass{article}\n");
     append_string(converter, "\\usepackage{hyperref}\n");
@@ -61,7 +79,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     append_string(converter, "\\usepackage{ulem}\n");
     append_string(converter, "\\usepackage[table]{xcolor}\n");
 
-	append_string(converter, "\\usepackage{tabularx}\n");
+    append_string(converter, "\\usepackage{tabularx}\n");
     append_string(converter, "\\begin{document}\n\n");
 
     /* parse HTML and convert */

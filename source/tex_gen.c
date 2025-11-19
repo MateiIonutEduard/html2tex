@@ -118,7 +118,7 @@ static char* extract_color_from_style(const char* style, const char* property) {
             if (important_pos) {
                 /* trim trailing whitespace */
                 *important_pos = '\0';
-                
+
                 char* end = value + strlen(value) - 1;
                 while (end > value && isspace(*end)) *end-- = '\0';
             }
@@ -215,20 +215,22 @@ static void end_table(LaTeXConverter* converter) {
         append_string(converter, "\\end{tabular}\n");
 
         if (converter->state.table_caption) {
+            /* output the pre-formatted caption without escaping */
             append_string(converter, "\\caption{");
-            escape_latex(converter, converter->state.table_caption);
+
+            append_string(converter, converter->state.table_caption);
             append_string(converter, "}\n");
 
-            /* free the caption memory */
             free(converter->state.table_caption);
             converter->state.table_caption = NULL;
         }
         else {
             /* fallback to default caption */
             append_string(converter, "\\caption{Table ");
-            char counter_str[16];
 
+            char counter_str[16];
             snprintf(counter_str, sizeof(counter_str), "%d", converter->state.table_counter);
+
             append_string(converter, counter_str);
             append_string(converter, "}\n");
         }
@@ -402,11 +404,14 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     // CSS properties parsing and application
     CSSProperties* css_props = NULL;
 
-    char* style_attr = get_attribute(node->attributes, "style");
-    if (style_attr) css_props = parse_css_style(style_attr);
+    // skip CSS processing for caption nodes in tables to prevent state leakage
+    if (!(converter->state.in_table && node->tag && strcmp(node->tag, "caption") == 0)) {
+        char* style_attr = get_attribute(node->attributes, "style");
+        if (style_attr) css_props = parse_css_style(style_attr);
 
-    // apply CSS properties before element content
-    if (css_props) apply_css_properties(converter, css_props, node->tag);
+        /* apply CSS properties before element content */
+        if (css_props) apply_css_properties(converter, css_props, node->tag);
+    }
 
     /* handle different HTML tags */
     if (strcmp(node->tag, "p") == 0) {
@@ -430,14 +435,33 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         append_string(converter, "}\n\n");
     }
     else if (strcmp(node->tag, "b") == 0 || strcmp(node->tag, "strong") == 0) {
-        append_string(converter, "\\textbf{");
-        convert_children(converter, node);
-        append_string(converter, "}");
+        /* only apply bold if CSS hasn't already applied it */
+        if (!converter->state.has_bold) {
+            append_string(converter, "\\textbf{");
+            convert_children(converter, node);
+            append_string(converter, "}");
+        }
+        else {
+            /* CSS already applied bold, just convert children */
+            convert_children(converter, node);
+            /* don't reset the bold flag here - let the parent element handle it */
+            /* this prevents premature resetting of CSS state */
+        }
     }
     else if (strcmp(node->tag, "i") == 0 || strcmp(node->tag, "em") == 0) {
-        append_string(converter, "\\textit{");
-        convert_children(converter, node);
-        append_string(converter, "}");
+        /* only apply italic if CSS hasn't already applied it */
+        if (!converter->state.has_italic) {
+            append_string(converter, "\\textit{");
+            convert_children(converter, node);
+            append_string(converter, "}");
+        }
+        else {
+            /* CSS already applied italic, just convert children */
+            convert_children(converter, node);
+
+            /* reset the italic flag */
+            converter->state.has_italic = 0;
+        }
     }
     else if (strcmp(node->tag, "u") == 0) {
         append_string(converter, "\\underline{");
@@ -454,18 +478,18 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         char* color_attr = get_attribute(node->attributes, "color");
         char* style_attr = get_attribute(node->attributes, "style");
         char* text_color = NULL;
-        
+
         /* extract text color from style if present */
         if (style_attr)
             text_color = extract_color_from_style(style_attr, "color");
-        
-        if(css_props && text_color) {
+
+        if (css_props && text_color) {
             /* ignore the color attribute, just convert content */
             convert_children(converter, node);
         }
         else if (css_props && !text_color) {
             /* inline CSS exists, but do not contain color property */
-            if(color_attr) apply_color(converter, color_attr, 0);
+            if (color_attr) apply_color(converter, color_attr, 0);
 
             convert_children(converter, node);
             append_string(converter, "}");
@@ -514,6 +538,9 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         convert_children(converter, node);
     /* table support */
     else if (strcmp(node->tag, "table") == 0) {
+        /* reset CSS state before table */
+        reset_css_state(converter);
+
         int columns = count_table_columns(node);
         begin_table(converter, columns);
 
@@ -525,7 +552,9 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
             child = child->next;
         }
 
+        /* reset CSS state after table */
         end_table(converter);
+        reset_css_state(converter);
     }
     // added explicit caption handling
     else if (strcmp(node->tag, "caption") == 0) {
@@ -537,30 +566,96 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                 converter->state.table_caption = NULL;
             }
 
-            /* extract caption text */
-            converter->state.table_caption = extract_caption_text(node);
+            /* skip CSS processing for caption to prevent state leakage */
+            /* extract raw caption text */
+            char* raw_caption = extract_caption_text(node);
+
+            if (raw_caption) {
+                /* parse CSS properties separately without affecting converter state */
+                CSSProperties* css_props = NULL;
+
+                char* style_attr = get_attribute(node->attributes, "style");
+                if (style_attr) css_props = parse_css_style(style_attr);
+
+                /* apply CSS formatting directly to caption without converter */
+                if (css_props) {
+                    size_t buffer_size = strlen(raw_caption) * 2 + 256;
+                    char* formatted_caption = malloc(buffer_size);
+
+                    if (formatted_caption) {
+                        formatted_caption[0] = '\0';
+
+                        /* apply color if present */
+                        if (css_props->color) {
+                            char* hex_color = css_color_to_hex(css_props->color);
+                            if (hex_color && strcmp(hex_color, "000000") != 0) {
+                                strcat(formatted_caption, "\\textcolor[HTML]{");
+                                strcat(formatted_caption, hex_color);
+                                strcat(formatted_caption, "}{");
+                                free(hex_color);
+                            }
+                        }
+
+                        /* apply bold if present */
+                        int has_bold = 0;
+                        if (css_props->font_weight &&
+                            (strcmp(css_props->font_weight, "bold") == 0 ||
+                                strcmp(css_props->font_weight, "bolder") == 0)) {
+                            strcat(formatted_caption, "\\textbf{");
+                            has_bold = 1;
+                        }
+
+                        /* add the actual caption text */
+                        strcat(formatted_caption, raw_caption);
+
+                        /* close formatting braces in reverse order */
+                        if (has_bold)
+                            strcat(formatted_caption, "}");
+
+                        if (css_props->color) {
+                            char* hex_color = css_color_to_hex(css_props->color);
+
+                            if (hex_color && strcmp(hex_color, "000000") != 0) {
+                                strcat(formatted_caption, "}");
+                                free(hex_color);
+                            }
+                        }
+
+                        converter->state.table_caption = formatted_caption;
+                    }
+                    free_css_properties(css_props);
+                }
+                else
+                    /* no CSS, just use raw caption */
+                    converter->state.table_caption = raw_caption;
+            }
+
+            /* skip children conversion for caption in table */
+            /* we already extracted the text, so don't process children normally */
+            return;
         }
         else {
-            /* if not in table, just convert as normal text */
+            /* If not in table, convert as normal text */
             convert_children(converter, node);
         }
     }
     else if (strcmp(node->tag, "thead") == 0 || strcmp(node->tag, "tbody") == 0 || strcmp(node->tag, "tfoot") == 0)
         convert_children(converter, node);
     else if (strcmp(node->tag, "tr") == 0) {
-            converter->state.current_column = 0;
-            begin_table_row(converter);
-            convert_children(converter, node);
-            end_table_row(converter);
-            }
-    else if (strcmp(node->tag, "thead") == 0 || strcmp(node->tag, "tbody") == 0 || strcmp(node->tag, "tfoot") == 0)
-        convert_children(converter, node);
-    else if (strcmp(node->tag, "tr") == 0) {
+        /* reset CSS state for each row */
+        reset_css_state(converter);
         converter->state.current_column = 0;
+
+        /* reset any pending CSS state before starting new row */
+        converter->state.css_braces = 0;
+        converter->state.css_environments = 0;
+
+        converter->state.pending_margin_bottom = 0;
         begin_table_row(converter);
+
         convert_children(converter, node);
         end_table_row(converter);
-}
+    }
     else if (strcmp(node->tag, "td") == 0 || strcmp(node->tag, "th") == 0) {
         int is_header = (strcmp(node->tag, "th") == 0);
 
@@ -577,19 +672,38 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         if (converter->state.current_column > 0)
             append_string(converter, " & ");
 
-        /* handle header formatting */
-        if (is_header)
+        /* save current CSS brace count before processing this cell */
+        int saved_css_braces = converter->state.css_braces;
+
+        /* apply CSS properties first - this will handle cellcolor for table cells */
+        if (css_props) apply_css_properties(converter, css_props, node->tag);
+
+        /* handle header formatting - only if CSS hasn't already applied bold */
+        if (is_header && !converter->state.has_bold)
             append_string(converter, "\\textbf{");
 
         /* convert cell content */
         converter->state.in_table_cell = 1;
-
         convert_children(converter, node);
         converter->state.in_table_cell = 0;
 
         /* end header formatting */
-        if (is_header)
+        if (is_header && !converter->state.has_bold)
             append_string(converter, "}");
+
+        /* close any braces that were opened by CSS for this specific cell */
+        int braces_opened_in_this_cell = converter->state.css_braces - saved_css_braces;
+        for (int i = 0; i < braces_opened_in_this_cell; i++) {
+            append_string(converter, "}");
+        }
+        converter->state.css_braces = saved_css_braces;
+
+        /* end CSS properties after cell content but BEFORE column separators */
+        if (css_props) {
+            end_css_properties(converter, css_props, node->tag);
+            free_css_properties(css_props);
+            css_props = NULL; /* prevent double-free later */
+        }
 
         /* update column count for colspan */
         converter->state.current_column += colspan;
@@ -599,19 +713,21 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
             converter->state.current_column++;
             if (converter->state.current_column > 0)
                 append_string(converter, " & ");
-            
+
             /* empty cell for colspan */
             append_string(converter, " ");
         }
-    }
+        }
     else {
         /* unknown tag, just convert children */
         convert_children(converter, node);
     }
 
-    // end CSS properties after element content
+    /* end CSS properties after element content - but skip for table cells since we handle them separately */
     if (css_props) {
-        end_css_properties(converter, css_props, node->tag);
+        if (!(strcmp(node->tag, "td") == 0 || strcmp(node->tag, "th") == 0))
+            end_css_properties(converter, css_props, node->tag);
+        
         free_css_properties(css_props);
     }
 }
