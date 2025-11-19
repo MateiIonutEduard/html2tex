@@ -1,9 +1,7 @@
 ﻿#include "html2tex.h"
 #include <stdio.h>
-
 #include <stdlib.h>
 #include <string.h>
-
 #include <ctype.h>
 #include <math.h>
 
@@ -238,7 +236,7 @@ char* css_color_to_hex(const char* color_value) {
 
     if (cleaned[0] == '#') {
         /* hex color */
-        if (strlen(cleaned) == 4) { 
+        if (strlen(cleaned) == 4) {
             /* #RGB format */
             result = malloc(7);
 
@@ -312,6 +310,25 @@ char* css_color_to_hex(const char* color_value) {
     return result;
 }
 
+/* detect if we're inside a table cell by checking parent hierarchy */
+int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
+    if (!node) return converter->state.in_table_cell;
+
+    /* first check converter state for table cell */
+    if (converter->state.in_table_cell) return 1;
+
+    /* then check the node's parent hierarchy */
+    HTMLNode* current = node->parent;
+
+    while (current) {
+        if (current->tag && (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0))
+            return 1;
+        
+        current = current->parent;
+    }
+
+    return 0;
+}
 
 /* apply CSS properties to LaTeX converter */
 void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name) {
@@ -319,13 +336,15 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
 
     int is_block = is_block_element(tag_name);
     int is_inline = is_inline_element(tag_name);
+    int is_table_cell = (tag_name && (strcmp(tag_name, "td") == 0 || strcmp(tag_name, "th") == 0));
+    int inside_table_cell = converter->state.in_table_cell;
 
     /* track applied environments for proper closing */
     converter->state.css_environments = 0;
-	converter->state.css_braces = 0;
+    converter->state.css_braces = 0;
 
     /* text alignment (block elements only) */
-    if (is_block && props->text_align) {
+    if (is_block && props->text_align && !inside_table_cell) {
         if (strcmp(props->text_align, "center") == 0) {
             /* center environment */
             append_string(converter, "\\begin{center}\n");
@@ -349,7 +368,7 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
     }
 
     /* margins (block elements) */
-    if (is_block) {
+    if (is_block && !inside_table_cell) {
         if (props->margin_top) {
             int pt = css_length_to_pt(props->margin_top);
 
@@ -377,18 +396,29 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
         }
     }
 
-    /* background color */
+    /* background color - use cellcolor for table cells and their contents */
     if (props->background_color) {
         char* hex_color = css_color_to_hex(props->background_color);
-        if (hex_color && strcmp(hex_color, "FFFFFF") != 0) { 
+        if (hex_color && strcmp(hex_color, "FFFFFF") != 0) {
             /* skip white background */
-            append_string(converter, "\\colorbox[HTML]{");
+            if (is_table_cell || inside_table_cell) {
+                /* use cellcolor for table cells and elements inside table cells */
+                append_string(converter, "\\cellcolor[HTML]{");
 
-            append_string(converter, hex_color);
-            append_string(converter, "}{");
+                /* cellcolor doesn't add braces, so we don't increment css_braces */
+                append_string(converter, hex_color);
+                append_string(converter, "}");
+            }
+            else {
+                /* use colorbox for non-table elements */
+                append_string(converter, "\\colorbox[HTML]{");
+                append_string(converter, hex_color);
+
+                append_string(converter, "}{");
+                converter->state.css_braces++;
+            }
 
             free(hex_color);
-            converter->state.css_braces++;
         }
         else if (hex_color)
             free(hex_color);
@@ -397,13 +427,11 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
     /* text color */
     if (props->color) {
         char* hex_color = css_color_to_hex(props->color);
-        if (hex_color && strcmp(hex_color, "000000") != 0) { 
+        if (hex_color && strcmp(hex_color, "000000") != 0) {
             /* skip the black text */
             append_string(converter, "\\textcolor[HTML]{");
-
             append_string(converter, hex_color);
             append_string(converter, "}{");
-
             free(hex_color);
             converter->state.css_braces++;
         }
@@ -514,15 +542,16 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
 void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
     int is_block = is_block_element(tag_name);
+    int inside_table_cell = converter->state.in_table_cell;
 
     /* close all open braces */
     for (int i = 0; i < converter->state.css_braces; i++)
         append_string(converter, "}");
-    
+
     converter->state.css_braces = 0;
 
     /* close text alignment environments */
-    if (is_block) {
+    if (is_block && !inside_table_cell) {
         if (converter->state.css_environments & 1) /* center */
             append_string(converter, "\\end{center}\n");
         else if (converter->state.css_environments & 2) /* flushright */
