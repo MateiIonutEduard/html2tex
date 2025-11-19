@@ -133,6 +133,7 @@ extern "C" {
 	
 	int is_block_element(const char* tag_name);
 	int is_inline_element(const char* tag_name);
+	void reset_css_state(LaTeXConverter* converter);
 
 #ifdef __cplusplus
 }
