@@ -323,7 +323,7 @@ int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
     while (current) {
         if (current->tag && (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0))
             return 1;
-        
+
         current = current->parent;
     }
 
@@ -342,7 +342,9 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
 
     /* track applied environments for proper closing */
     converter->state.css_environments = 0;
-    converter->state.css_braces = 0;
+
+    /* only reset css_braces if we're not already in a table cell */
+    if (!is_table_cell && !inside_table_cell) converter->state.css_braces = 0;
 
     /* text alignment (block elements only) */
     if (is_block && props->text_align && !inside_table_cell) {
@@ -398,7 +400,7 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
     }
 
     /* background color - use cellcolor for table cells and their contents */
-    if (props->background_color) {
+    if (props->background_color && !converter->state.has_background) {
         char* hex_color = css_color_to_hex(props->background_color);
         if (hex_color && strcmp(hex_color, "FFFFFF") != 0) {
             /* skip white background */
@@ -419,6 +421,7 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
                 converter->state.css_braces++;
             }
 
+            converter->state.has_background = 1;
             free(hex_color);
         }
         else if (hex_color)
@@ -426,7 +429,7 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
     }
 
     /* text color */
-    if (props->color) {
+    if (props->color && !converter->state.has_color) {
         char* hex_color = css_color_to_hex(props->color);
         if (hex_color && strcmp(hex_color, "000000") != 0) {
             /* skip the black text */
@@ -435,18 +438,20 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
             append_string(converter, "}{");
             free(hex_color);
             converter->state.css_braces++;
+            converter->state.has_color = 1;
         }
         else if (hex_color)
             free(hex_color);
     }
 
-    /* font weight */
-    if (props->font_weight) {
+    /* font weight - only apply if not already applied */
+    if (props->font_weight && !converter->state.has_bold) {
         if (strcmp(props->font_weight, "bold") == 0 ||
             strcmp(props->font_weight, "bolder") == 0 ||
             atoi(props->font_weight) >= 600) {
             append_string(converter, "\\textbf{");
             converter->state.css_braces++;
+            converter->state.has_bold = 1;
         }
         else if (strcmp(props->font_weight, "lighter") == 0 ||
             atoi(props->font_weight) <= 300) {
@@ -455,11 +460,12 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
         }
     }
 
-    /* font style */
-    if (props->font_style) {
+    /* font style - only apply if not already applied */
+    if (props->font_style && !converter->state.has_italic) {
         if (strcmp(props->font_style, "italic") == 0) {
             append_string(converter, "\\textit{");
             converter->state.css_braces++;
+            converter->state.has_italic = 1;
         }
         else if (strcmp(props->font_style, "oblique") == 0) {
             append_string(converter, "\\textsl{");
@@ -471,31 +477,35 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
         }
     }
 
-    /* font family */
-    if (props->font_family) {
+    /* font family - only apply if not already applied */
+    if (props->font_family && !converter->state.has_font_family) {
         if (strstr(props->font_family, "monospace") ||
             strstr(props->font_family, "Courier")) {
             append_string(converter, "\\texttt{");
             converter->state.css_braces++;
+            converter->state.has_font_family = 1;
         }
         else if (strstr(props->font_family, "sans") ||
             strstr(props->font_family, "Arial") ||
             strstr(props->font_family, "Helvetica")) {
             append_string(converter, "\\textsf{");
             converter->state.css_braces++;
+            converter->state.has_font_family = 1;
         }
         else if (strstr(props->font_family, "serif") ||
             strstr(props->font_family, "Times")) {
             append_string(converter, "\\textrm{");
             converter->state.css_braces++;
+            converter->state.has_font_family = 1;
         }
     }
 
     /* text decoration */
-    if (props->text_decoration) {
+    if (props->text_decoration && !converter->state.has_underline) {
         if (strstr(props->text_decoration, "underline")) {
             append_string(converter, "\\underline{");
             converter->state.css_braces++;
+            converter->state.has_underline = 1;
         }
 
         if (strstr(props->text_decoration, "line-through")) {
@@ -543,13 +553,18 @@ void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const
 void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
     int is_block = is_block_element(tag_name);
+
     int inside_table_cell = converter->state.in_table_cell;
+    int is_table_cell = (tag_name && (strcmp(tag_name, "td") == 0 || strcmp(tag_name, "th") == 0));
 
-    /* close all open braces */
-    for (int i = 0; i < converter->state.css_braces; i++)
-        append_string(converter, "}");
+    /* for table cells, we must close braces immediately */
+    if (is_table_cell || inside_table_cell) {
+        /* close all open braces */
+        for (int i = 0; i < converter->state.css_braces; i++)
+            append_string(converter, "}");
 
-    converter->state.css_braces = 0;
+        converter->state.css_braces = 0;
+    }
 
     /* close text alignment environments */
     if (is_block && !inside_table_cell) {
@@ -591,6 +606,16 @@ void reset_css_state(LaTeXConverter* converter) {
 
     converter->state.css_environments = 0;
     converter->state.pending_margin_bottom = 0;
+
+    /* reset CSS property tracking */
+    converter->state.has_bold = 0;
+    converter->state.has_italic = 0;
+
+    converter->state.has_underline = 0;
+    converter->state.has_color = 0;
+
+    converter->state.has_background = 0;
+    converter->state.has_font_family = 0;
 }
 
 /* free CSS properties */
