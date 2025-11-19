@@ -555,6 +555,14 @@ void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const c
     converter->state.css_environments = 0;
 }
 
+void reset_css_state(LaTeXConverter* converter) {
+    if (!converter) return;
+    converter->state.css_braces = 0;
+
+    converter->state.css_environments = 0;
+    converter->state.pending_margin_bottom = 0;
+}
+
 /* free CSS properties */
 void free_css_properties(CSSProperties* props) {
     if (!props) return;
