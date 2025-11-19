@@ -118,7 +118,7 @@ static char* extract_color_from_style(const char* style, const char* property) {
             if (important_pos) {
                 /* trim trailing whitespace */
                 *important_pos = '\0';
-                
+
                 char* end = value + strlen(value) - 1;
                 while (end > value && isspace(*end)) *end-- = '\0';
             }
@@ -217,7 +217,7 @@ static void end_table(LaTeXConverter* converter) {
         if (converter->state.table_caption) {
             /* output the pre-formatted caption without escaping */
             append_string(converter, "\\caption{");
-            
+
             append_string(converter, converter->state.table_caption);
             append_string(converter, "}\n");
 
@@ -459,18 +459,18 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         char* color_attr = get_attribute(node->attributes, "color");
         char* style_attr = get_attribute(node->attributes, "style");
         char* text_color = NULL;
-        
+
         /* extract text color from style if present */
         if (style_attr)
             text_color = extract_color_from_style(style_attr, "color");
-        
-        if(css_props && text_color) {
+
+        if (css_props && text_color) {
             /* ignore the color attribute, just convert content */
             convert_children(converter, node);
         }
         else if (css_props && !text_color) {
             /* inline CSS exists, but do not contain color property */
-            if(color_attr) apply_color(converter, color_attr, 0);
+            if (color_attr) apply_color(converter, color_attr, 0);
 
             convert_children(converter, node);
             append_string(converter, "}");
@@ -637,14 +637,6 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         convert_children(converter, node);
         end_table_row(converter);
     }
-    else if (strcmp(node->tag, "thead") == 0 || strcmp(node->tag, "tbody") == 0 || strcmp(node->tag, "tfoot") == 0)
-        convert_children(converter, node);
-    else if (strcmp(node->tag, "tr") == 0) {
-        converter->state.current_column = 0;
-        begin_table_row(converter);
-        convert_children(converter, node);
-        end_table_row(converter);
-}
     else if (strcmp(node->tag, "td") == 0 || strcmp(node->tag, "th") == 0) {
         int is_header = (strcmp(node->tag, "th") == 0);
 
@@ -661,13 +653,14 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         if (converter->state.current_column > 0)
             append_string(converter, " & ");
 
+        /* apply CSS properties first - this will handle cellcolor for table cells */
+        if (css_props) apply_css_properties(converter, css_props, node->tag);
+
         /* handle header formatting */
-        if (is_header)
-            append_string(converter, "\\textbf{");
+        if (is_header) append_string(converter, "\\textbf{");
 
         /* convert cell content */
         converter->state.in_table_cell = 1;
-
         convert_children(converter, node);
         converter->state.in_table_cell = 0;
 
@@ -683,10 +676,13 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
             converter->state.current_column++;
             if (converter->state.current_column > 0)
                 append_string(converter, " & ");
-            
+
             /* empty cell for colspan */
             append_string(converter, " ");
         }
+
+        /* end CSS properties after cell content */
+        if (css_props) end_css_properties(converter, css_props, node->tag);
     }
     else {
         /* unknown tag, just convert children */
