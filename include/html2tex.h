@@ -125,6 +125,7 @@ extern "C" {
 
     /* utility functions */
     HTMLNode* html2tex_parse(const char* html);
+	HTMLNode* html2tex_parse_minified(const char* html);
     void html2tex_free_node(HTMLNode* node);
 	
 	/* CSS parsing functions */
