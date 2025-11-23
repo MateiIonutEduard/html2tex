@@ -134,3 +134,128 @@ static char* minify_attribute_value(const char* value) {
 
     return result;
 }
+
+/* Recursive minification function */
+static HTMLNode* minify_node_recursive(HTMLNode* node, int in_preformatted) {
+    if (!node) return NULL;
+
+    HTMLNode* new_node = malloc(sizeof(HTMLNode));
+    if (!new_node) return NULL;
+
+    /* copy the DOM structure */
+    new_node->tag = node->tag ? strdup(node->tag) : NULL;
+    new_node->parent = NULL;
+
+    new_node->next = NULL;
+    new_node->children = NULL;
+
+    /* handle preformatted context */
+    int current_preformatted = in_preformatted;
+
+    if (node->tag) {
+        if (strcmp(node->tag, "pre") == 0 || strcmp(node->tag, "code") == 0 ||
+            strcmp(node->tag, "textarea") == 0 || strcmp(node->tag, "script") == 0 ||
+            strcmp(node->tag, "style") == 0)
+            current_preformatted = 1;
+    }
+
+    /* minify attributes */
+    HTMLAttribute* new_attrs = NULL;
+
+    HTMLAttribute** current_attr = &new_attrs;
+    HTMLAttribute* old_attr = node->attributes;
+
+    while (old_attr) {
+        HTMLAttribute* new_attr = malloc(sizeof(HTMLAttribute));
+
+        if (!new_attr) {
+            html2tex_free_node(new_node);
+            return NULL;
+        }
+
+        new_attr->key = strdup(old_attr->key);
+        if (old_attr->value) new_attr->value = minify_attribute_value(old_attr->value);
+        else new_attr->value = NULL;
+        
+        new_attr->next = NULL;
+        *current_attr = new_attr;
+
+        current_attr = &new_attr->next;
+        old_attr = old_attr->next;
+    }
+
+    new_node->attributes = new_attrs;
+
+    /* minify content */
+    if (node->content) {
+        if (is_whitespace_only(node->content) && !current_preformatted)
+            /* remove whitespace-only text nodes outside preformatted blocks */
+            new_node->content = NULL;
+        else
+            new_node->content = minify_text_content(node->content, current_preformatted);
+    }
+    else new_node->content = NULL;
+
+    /* recursively minify children */
+    HTMLNode* new_children = NULL;
+
+    HTMLNode** current_child = &new_children;
+    HTMLNode* old_child = node->children;
+
+    int safe_to_minify = node->tag ? 
+        is_safe_to_minify_tag(node->tag) : 1;
+
+    while (old_child) {
+        HTMLNode* minified_child = minify_node_recursive(old_child, current_preformatted);
+
+        if (minified_child) {
+            /* remove empty text nodes between elements (except in preformatted) */
+            if (!minified_child->tag && !minified_child->content)
+                html2tex_free_node(minified_child);
+            else {
+                /* remove whitespace between block elements */
+                if (safe_to_minify && !current_preformatted) {
+                    if (minified_child->tag && is_block_element(minified_child->tag)) {
+                        /* skip whitespace before block elements */
+                        HTMLNode* next = old_child->next;
+
+                        /* skip the whitespace node */
+                        if (next && !next->tag && is_whitespace_only(next->content))
+                            old_child = next;
+                    }
+                }
+
+                minified_child->parent = new_node;
+                *current_child = minified_child;
+                current_child = &minified_child->next;
+            }
+        }
+
+        old_child = old_child->next;
+    }
+
+    new_node->children = new_children;
+
+    /* remove empty nodes (except essential ones) */
+    if (new_node->tag && !new_node->children && !new_node->content) {
+        const char* essential_tags[] = {
+            "br", "hr", "img", "input", "meta", "link", NULL
+        };
+
+        int is_essential = 0;
+
+        for (int i = 0; essential_tags[i]; i++) {
+            if (strcmp(new_node->tag, essential_tags[i]) == 0) {
+                is_essential = 1;
+                break;
+            }
+        }
+
+        if (!is_essential) {
+            html2tex_free_node(new_node);
+            return NULL;
+        }
+    }
+
+    return new_node;
+}
