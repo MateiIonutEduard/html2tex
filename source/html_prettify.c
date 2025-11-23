@@ -40,3 +40,36 @@ static char* escape_html(const char* text) {
     *dest = '\0';
     return escaped;
 }
+
+/* Alternative function that returns prettified HTML as string. */
+char* html2tex_get_pretty_html(HTMLNode* root) {
+    if (!root) return NULL;
+
+    /* use a temporary file to build the string */
+    char* temp_filename = tmpnam(NULL);
+    if (!temp_filename) return NULL;
+
+    if (!html2tex_write_pretty_html(root, temp_filename))
+        return NULL;
+
+    /* read the file back into a string */
+    FILE* file = fopen(temp_filename, "r");
+
+    if (!file) return NULL;
+    fseek(file, 0, SEEK_END);
+
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char* html_string = malloc(file_size + 1);
+
+    if (html_string) {
+        fread(html_string, 1, file_size, file);
+        html_string[file_size] = '\0';
+    }
+
+    fclose(file);
+    remove(temp_filename); /* clean up temp file */
+
+    return html_string;
+}
