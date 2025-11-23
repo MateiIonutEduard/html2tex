@@ -20,3 +20,15 @@ static int is_safe_to_minify_tag(const char* tag_name) {
 
     return 1;
 }
+
+/* Check if text content is only whitespace. */
+static int is_whitespace_only(const char* text) {
+    if (!text) return 1;
+
+    for (const char* p = text; *p; p++) {
+        if (!isspace(*p))
+            return 0;
+    }
+
+    return 1;
+}
