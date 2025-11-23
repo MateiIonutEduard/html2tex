@@ -132,8 +132,12 @@ extern "C" {
 	void free_css_properties(CSSProperties* props);
 
 	/* CSS to LaTeX conversion functions */
-	void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, HTMLNode* node);
-	void end_css_properties(LaTeXConverter* converter, CSSProperties* props, HTMLNode* node);
+	void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name);
+	void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name);
+
+	/* HTML prettifying functions */
+	int write_pretty_html(HTMLNode* root, const char* filename);
+	char* get_pretty_html(HTMLNode* root);
 
 	/* utility functions */
 	int css_length_to_pt(const char* length_str);
