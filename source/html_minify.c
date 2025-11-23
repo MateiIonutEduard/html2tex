@@ -259,3 +259,41 @@ static HTMLNode* minify_node_recursive(HTMLNode* node, int in_preformatted) {
 
     return new_node;
 }
+
+/* Return the DOM tree after minification. */
+HTMLNode* html2tex_minify_html(HTMLNode* root) {
+    if (!root) return NULL;
+
+    /* create a new minified tree */
+    HTMLNode* minified_root = malloc(sizeof(HTMLNode));
+
+    if (!minified_root) return NULL;
+    minified_root->tag = NULL;
+
+    minified_root->content = NULL;
+    minified_root->attributes = NULL;
+
+    minified_root->parent = NULL;
+    minified_root->next = NULL;
+
+    /* minify children */
+    HTMLNode* new_children = NULL;
+
+    HTMLNode** current_child = &new_children;
+    HTMLNode* old_child = root->children;
+
+    while (old_child) {
+        HTMLNode* minified_child = minify_node_recursive(old_child, 0);
+
+        if (minified_child) {
+            minified_child->parent = minified_root;
+            *current_child = minified_child;
+            current_child = &minified_child->next;
+        }
+
+        old_child = old_child->next;
+    }
+
+    minified_root->children = new_children;
+    return minified_root;
+}
