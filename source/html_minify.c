@@ -72,3 +72,65 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 
     return result;
 }
+
+/* Minify the attribute value by removing unnecessary quotes when possible. */
+static char* minify_attribute_value(const char* value) {
+    if (!value) return NULL;
+
+    /* if value is simple (no spaces, no special chars), we can remove quotes */
+    int needs_quotes = 0;
+
+    int has_single_quote = 0;
+    int has_double_quote = 0;
+
+    for (const char* p = value; *p; p++) {
+        if (isspace(*p) || *p == '=' || *p == '<' || *p == '>' || *p == '`')
+            needs_quotes = 1;
+        
+        if (*p == '\'') has_single_quote = 1;
+        if (*p == '"') has_double_quote = 1;
+    }
+
+    /* empty value needs quotes */
+    if (value[0] == '\0') needs_quotes = 1;
+    if (!needs_quotes) return strdup(value);
+
+    /* choose quote type that doesn't require escaping */
+    char* result;
+
+    if (!has_double_quote) {
+        /* use double quotes */
+        result = malloc(strlen(value) + 3);
+        if (result) sprintf(result, "\"%s\"", value);
+    }
+    else if (!has_single_quote) {
+        /* use single quotes */
+        result = malloc(strlen(value) + 3);
+        if (result) sprintf(result, "'%s'", value);
+    }
+    else {
+        /* need to escape - use double quotes and escape existing doubles */
+        size_t len = strlen(value);
+        size_t new_len = len + 3;
+
+        for (const char* p = value; *p; p++)
+            if (*p == '"') new_len++;
+
+        result = malloc(new_len);
+
+        if (result) {
+            char* dest = result;
+            *dest++ = '"';
+
+            for (const char* p = value; *p; p++) {
+                if (*p == '"') *dest++ = '\\';
+                *dest++ = *p;
+            }
+
+            *dest++ = '"';
+            *dest = '\0';
+        }
+    }
+
+    return result;
+}
