@@ -171,7 +171,7 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     HTMLNode* child = root->children;
 
     while (child) {
-        write_pretty_node(file, child, 1, 0);
+        write_pretty_node(file, child, 1);
         child = child->next;
     }
 
