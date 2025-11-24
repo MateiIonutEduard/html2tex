@@ -55,7 +55,6 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text)
 
     for (const char* p = text; *p; p++) {
         switch (*p) {
-        case '\\': append_string(converter, "\\textbackslash{}"); break;
         case '{': append_string(converter, "\\{"); break;
         case '}': append_string(converter, "\\}"); break;
         case '&': append_string(converter, "\\&"); break;
@@ -594,14 +593,32 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         convert_children(converter, node);
     /* image support */
     else if (strcmp(node->tag, "img") == 0) {
+        converter->image_counter++;
         char* src = get_attribute(node->attributes, "src");
-        char* alt = get_attribute(node->attributes, "alt");
 
+        char* alt = get_attribute(node->attributes, "alt");
         char* width_attr = get_attribute(node->attributes, "width");
+
         char* height_attr = get_attribute(node->attributes, "height");
         char* image_id_attr = get_attribute(node->attributes, "id");
 
         if (src) {
+            char* image_path = NULL;
+
+            /* download image if enabled and we have a directory */
+            if (converter->download_images && converter->image_output_dir)
+                image_path = download_image_src(src, converter->image_output_dir, converter->image_counter);
+
+            /* if download failed or not enabled, use original src */
+            if (!image_path) {
+                /* force download for base64 images */
+                if (is_base64_image(src) && converter->download_images && converter->image_output_dir)
+                    image_path = download_image_src(src, converter->image_output_dir, converter->image_counter);
+
+                /* use original source path */
+                if (!image_path) image_path = strdup(src);
+            }
+
             /* start figure environment */
             append_string(converter, "\n\n\\begin{figure}[h]\n");
 
@@ -647,7 +664,15 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
             }
 
             append_string(converter, "{");
-            escape_latex(converter, src);
+
+            /* use directory/filename format for downloaded images */
+            if (converter->download_images && converter->image_output_dir 
+                && strstr(image_path, converter->image_output_dir) == image_path)
+                escape_latex_special(converter, image_path + 2);
+            else
+                /* use original path */
+                escape_latex(converter, image_path);
+
             append_string(converter, "}\n");
 
             /* add caption if alt text is present */
