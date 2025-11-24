@@ -396,7 +396,7 @@ static int should_exclude_tag(const char* tag_name) {
 
     const char* excluded_tags[] = {
         "script", "style", "link", "meta", "head",
-        "noscript", "template", NULL
+        "noscript", "template", "iframe", "noscript", NULL
     };
 
     for (int i = 0; excluded_tags[i]; i++) {
@@ -417,6 +417,10 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     }
 
     if (!node->tag) return;
+
+    /* skip excluded elements and all their child elements completely */
+    if (node->tag && should_exclude_tag(node->tag))
+        return;
 
     // CSS properties parsing and application
     CSSProperties* css_props = NULL;
