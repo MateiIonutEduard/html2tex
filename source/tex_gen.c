@@ -390,6 +390,23 @@ static char* extract_caption_text(HTMLNode* node) {
     return buffer;
 }
 
+/* Helper function to check if a tag should be excluded from conversion. */
+static int should_exclude_tag(const char* tag_name) {
+    if (!tag_name) return 0;
+
+    const char* excluded_tags[] = {
+        "script", "style", "link", "meta", "head",
+        "noscript", "template", NULL
+    };
+
+    for (int i = 0; excluded_tags[i]; i++) {
+        if (strcmp(tag_name, excluded_tags[i]) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
 void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     if (!node) return;
 
