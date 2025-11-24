@@ -396,7 +396,13 @@ static int should_exclude_tag(const char* tag_name) {
 
     const char* excluded_tags[] = {
         "script", "style", "link", "meta", "head",
-        "noscript", "template", "iframe", "noscript", NULL
+        "noscript", "template", "iframe", "form",
+        "input", "label", "canvas", "svg", "video",
+        "source", "audio", "object", "button", "map",
+        "area", "frame", "frameset", "noframes", "nav",
+        "picture", "progress", "select", "option", "param",
+        "search", "samp", "track", "var", "wbr", "mark",
+        "meter", "optgroup", "q", "blockquote", "bdo", NULL
     };
 
     for (int i = 0; excluded_tags[i]; i++) {
