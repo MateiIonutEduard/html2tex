@@ -436,12 +436,7 @@ char* download_image_src(const char* src, const char* output_dir, int image_coun
         return NULL;
     }
 
-#ifdef _WIN32
-    snprintf(full_path, strlen(output_dir) + strlen(safe_filename) + 2, "%s\\%s", output_dir, safe_filename);
-#else
     snprintf(full_path, strlen(output_dir) + strlen(safe_filename) + 2, "%s/%s", output_dir, safe_filename);
-#endif
-
     int success = 0;
 
     /* handle base64 encoded image */
