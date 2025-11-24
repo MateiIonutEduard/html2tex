@@ -117,6 +117,10 @@ extern "C" {
 		
         int error_code;
         char error_message[256];
+		
+		char* image_output_dir;
+        int download_images;
+		int image_counter;
     };
 
     /* core API functions */
@@ -134,6 +138,10 @@ extern "C" {
     HTMLNode* html2tex_parse(const char* html);
 	HTMLNode* html2tex_parse_minified(const char* html);
     void html2tex_free_node(HTMLNode* node);
+	
+	/* image configuration functions */
+    void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir);
+    void html2tex_set_download_images(LaTeXConverter* converter, int enable);
 	
 	/* image download functions */
 	char* download_image_src(const char* src, const char* output_dir, int image_counter);
