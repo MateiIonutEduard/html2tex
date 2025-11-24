@@ -49,6 +49,29 @@ static char* get_attribute(HTMLAttribute* attrs, const char* key) {
     return NULL;
 }
 
+static void escape_latex_special(LaTeXConverter* converter, const char* text)
+{
+    if (!text) return;
+
+    for (const char* p = text; *p; p++) {
+        switch (*p) {
+        case '\\': append_string(converter, "\\textbackslash{}"); break;
+        case '{': append_string(converter, "\\{"); break;
+        case '}': append_string(converter, "\\}"); break;
+        case '&': append_string(converter, "\\&"); break;
+        case '%': append_string(converter, "\\%"); break;
+        case '$': append_string(converter, "\\$"); break;
+        case '#': append_string(converter, "\\#"); break;
+        case '^': append_string(converter, "\\^{}"); break;
+        case '~': append_string(converter, "\\~{}"); break;
+        case '<': append_string(converter, "\\textless{}"); break;
+        case '>': append_string(converter, "\\textgreater{}"); break;
+        case '\n': append_string(converter, "\\\\"); break;
+        default: append_char(converter, *p); break;
+        }
+    }
+}
+
 static void escape_latex(LaTeXConverter* converter, const char* text) {
     if (!text) return;
 
@@ -629,13 +652,47 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                 escape_latex(converter, alt);
                 append_string(converter, "}\n");
             }
+            else {
+                /* automatic caption generation using the image caption counter */
+                converter->state.image_caption_counter++;
+                append_string(converter, "\n");
 
-            /* add figure label if image id attribute is present */
+                append_string(converter, "\\caption{");
+                char text_caption[16];
+
+                char caption_counter[11];
+                itoa(converter->state.image_caption_counter, caption_counter, 10);
+
+                strcpy(text_caption, "Image ");
+                strcpy(text_caption + 6, caption_counter);
+
+                escape_latex(converter, text_caption);
+                append_string(converter, "}\n");
+            }
+
+            /* add figure label if the image id attribute is present */
             if (image_id_attr && image_id_attr[0] != '\0') {
                 append_string(converter, "\n");
                 append_string(converter, "\\label{fig:");
 
                 escape_latex(converter, image_id_attr);
+                append_string(converter, "}\n");
+            }
+            else {
+                /* automatic ID generation using the image id counter */
+                converter->state.image_id_counter++;
+                append_string(converter, "\n");
+
+                append_string(converter, "\\label{fig:");
+                char image_label_id[16];
+
+                char label_counter[11];
+                itoa(converter->state.image_id_counter, label_counter, 10);
+
+                strcpy(image_label_id, "image_");
+                strcpy(image_label_id + 6, label_counter);
+
+                escape_latex_special(converter, image_label_id);
                 append_string(converter, "}\n");
             }
 

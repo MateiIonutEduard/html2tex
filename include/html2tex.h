@@ -40,12 +40,15 @@ extern "C" {
         int in_list;
 		
         int table_counter;
+		int image_id_counter;
+		int image_caption_counter;
+		
         int in_table;
-		
         int in_table_row;
-        int in_table_cell;
 		
+        int in_table_cell;
         int table_columns;
+		
         int current_column;
 		char* table_caption;
 		
@@ -58,8 +61,10 @@ extern "C" {
         /* track applied CSS properties */
         int has_bold;
         int has_italic;
+		
         int has_underline;
         int has_color;
+		
         int has_background;
         int has_font_family;
     };
