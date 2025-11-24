@@ -563,6 +563,87 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
         append_string(converter, "\\hrulefill\n\n");
     else if (strcmp(node->tag, "div") == 0)
         convert_children(converter, node);
+    /* image support */
+    else if (strcmp(node->tag, "img") == 0) {
+        char* src = get_attribute(node->attributes, "src");
+        char* alt = get_attribute(node->attributes, "alt");
+
+        char* width_attr = get_attribute(node->attributes, "width");
+        char* height_attr = get_attribute(node->attributes, "height");
+        char* image_id_attr = get_attribute(node->attributes, "id");
+
+        if (src) {
+            /* start figure environment */
+            append_string(converter, "\n\\begin{figure}[h]\n");
+
+            /* default centering */
+            append_string(converter, "\\centering\n");
+
+            /* parse CSS style for width, height overrides */
+            int width_pt = 0;
+            int height_pt = 0;
+
+            /* check if CSS style overrides width/height */
+            if (css_props) {
+                if (css_props->width) width_pt = css_length_to_pt(css_props->width);
+                if (css_props->height) height_pt = css_length_to_pt(css_props->height);
+            }
+
+            /* fall back to attribute values if CSS didn't provide dimensions */
+            if (width_pt == 0 && width_attr) width_pt = css_length_to_pt(width_attr);
+            if (height_pt == 0 && height_attr) height_pt = css_length_to_pt(height_attr);
+
+            /* escape the image path for LaTeX */
+            append_string(converter, "\\includegraphics");
+
+            /* add width/height options if specified */
+            if (width_pt > 0 || height_pt > 0) {
+                append_string(converter, "[");
+
+                if (width_pt > 0) {
+                    char width_str[32];
+                    snprintf(width_str, sizeof(width_str), "width=%dpt", width_pt);
+                    append_string(converter, width_str);
+                }
+
+                if (height_pt > 0) {
+                    if (width_pt > 0) append_string(converter, ",");
+                    char height_str[32];
+
+                    snprintf(height_str, sizeof(height_str), "height=%dpt", height_pt);
+                    append_string(converter, height_str);
+                }
+
+                append_string(converter, "]");
+            }
+
+            append_string(converter, "{");
+            escape_latex(converter, src);
+            append_string(converter, "}\n");
+
+            /* add caption if alt text is present */
+            if (alt && alt[0] != '\0') {
+                append_string(converter, "\n");
+                append_string(converter, "\\caption{");
+
+                escape_latex(converter, alt);
+                append_string(converter, "}\n");
+            }
+
+            /* add figure label if image id attribute is present */
+            if (image_id_attr && image_id_attr[0] != '\0') {
+                append_string(converter, "\n");
+                append_string(converter, "\\label{fig:");
+
+                escape_latex(converter, image_id_attr);
+                append_string(converter, "}\n");
+            }
+
+            /* end figure environment */
+            append_string(converter, "\\end{figure}\n");
+            append_string(converter, "\\FloatBarrier\n");
+        }
+    }
     /* table support */
     else if (strcmp(node->tag, "table") == 0) {
         /* reset CSS state before table */
@@ -744,7 +825,7 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
             /* empty cell for colspan */
             append_string(converter, " ");
         }
-        }
+    }
     else {
         /* unknown tag, just convert children */
         convert_children(converter, node);
