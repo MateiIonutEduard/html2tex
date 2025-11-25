@@ -5,8 +5,9 @@
 #include <iostream>
 using namespace std;
 
-HtmlParser::HtmlParser(const string& html) {
-	node = html2tex_parse(html.c_str());
+HtmlParser::HtmlParser(const string& html, bool minify=false) {
+	node = minify ? html2tex_parse_minified(html.c_str()) 
+        : html2tex_parse(html.c_str());
 }
 
 HtmlParser::HtmlParser(const HtmlParser& parser) {
