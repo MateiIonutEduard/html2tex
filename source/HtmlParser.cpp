@@ -19,6 +19,18 @@ HtmlParser& HtmlParser::operator=(const HtmlParser& parser)
     return newParser;
 }
 
+ostream& operator <<(ostream& out, HtmlParser& parser) {
+    string output = parser.toString();
+    out << output << endl;
+    return out;
+}
+
+string HtmlParser::toString() {
+    const char* html = (const char*)get_pretty_html(node);
+    string code = string(html);
+    return code;
+}
+
 HTMLNode* HtmlParser::dom_tree_copy(const HTMLNode* node) {
     return dom_tree_copy(node, NULL);
 }

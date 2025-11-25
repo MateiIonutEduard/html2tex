@@ -11,6 +11,10 @@ class HtmlParser {
 public:
 	HtmlParser(const string&);
 	HtmlParser(const HtmlParser&);
+
 	HtmlParser& operator =(const HtmlParser&);
+	friend ostream& operator<<(ostream&, HtmlParser&);
+
+	string toString();
 	~HtmlParser();
 };
