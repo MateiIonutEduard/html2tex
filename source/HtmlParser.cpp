@@ -3,9 +3,13 @@
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <sstream>
 using namespace std;
 
-HtmlParser::HtmlParser(const string& html, bool minify=false) {
+HtmlParser::HtmlParser(const string& html) : HtmlParser(html, false)
+{ }
+
+HtmlParser::HtmlParser(const string& html, bool minify) {
 	node = minify ? html2tex_parse_minified(html.c_str()) 
         : html2tex_parse(html.c_str());
 }
@@ -27,9 +31,8 @@ ostream& operator <<(ostream& out, HtmlParser& parser) {
 }
 
 string HtmlParser::toString() {
-    const char* html = (const char*)get_pretty_html(node);
-    string code = string(html);
-    return code;
+    const char* output = (const char*)get_pretty_html(node);
+    return string(output);
 }
 
 HTMLNode* HtmlParser::dom_tree_copy(const HTMLNode* node) {
