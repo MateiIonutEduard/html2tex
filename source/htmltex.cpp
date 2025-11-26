@@ -7,6 +7,16 @@ HtmlTeXConverter::HtmlTeXConverter() {
     converter = html2tex_create();
 }
 
+bool HtmlTeXConverter::setDirectory(const string& fullPath) {
+    if (converter) {
+        html2tex_set_image_directory(converter, fullPath.c_str());
+        html2tex_set_download_images(converter, 1);
+        return true;
+    }
+
+    return false;
+}
+
 string HtmlTeXConverter::convert(const string& html) {
     if (!converter) return "";
 
