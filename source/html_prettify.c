@@ -194,23 +194,37 @@ char* get_pretty_html(HTMLNode* root) {
         return NULL;
 
     /* read the file back into a string */
-    FILE* file = fopen(temp_filename, "r");
+    FILE* file = fopen(temp_filename, "rb");
 
-    if (!file) return NULL;
+    if (!file) {
+        remove(temp_filename);
+        return NULL;
+    }
+
+    /* get file size more reliably */
     fseek(file, 0, SEEK_END);
 
     long file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
 
-    char* html_string = malloc(file_size + 1);
-
-    if (html_string) {
-        fread(html_string, 1, file_size, file);
-        html_string[file_size] = '\0';
+    if (file_size <= 0) {
+        fclose(file);
+        remove(temp_filename);
+        return strdup("");
     }
 
-    fclose(file);
-    remove(temp_filename); /* clean up temp file */
+    /* allocate and read file content */
+    char* html_string = malloc(file_size + 1);
 
+    if (!html_string) {
+        fclose(file);
+        remove(temp_filename);
+        return NULL;
+    }
+
+    size_t bytes_read = fread(html_string, 1, file_size, file);
+    html_string[bytes_read] = '\0';
+
+    fclose(file); remove(temp_filename);
     return html_string;
 }
