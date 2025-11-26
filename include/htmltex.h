@@ -10,19 +10,32 @@ using namespace std;
 class HtmlParser {
 private:
     HTMLNode* node;
+    int minify;
 
     HTMLNode* dom_tree_copy(const HTMLNode*);
     HTMLNode* dom_tree_copy(const HTMLNode*, HTMLNode*);
+    void setParent(HTMLNode*);
 
 public:
+    HtmlParser();
+
+    /* Create a parser from the input HTML. */
     HtmlParser(const string&);
-    HtmlParser(const string&, bool);
+
+    /* Initialize parser from HTML; use second parameter to parse DOM efficiently. */
+    HtmlParser(const string&, int);
+
+    /* Instantiate parser with the input DOM tree. */
     HtmlParser(HTMLNode*);
+
+    /* Instantiate parser by cloning another HtmlParser instance. */
     HtmlParser(const HtmlParser&);
 
     HtmlParser& operator =(const HtmlParser&);
-    friend ostream& operator<<(ostream&, HtmlParser&);
+    friend ostream& operator <<(ostream&, HtmlParser&);
+    friend istream& operator >>(istream&, HtmlParser&);
 
+    /* Get pretty HTML from the object. */
     string toString();
     ~HtmlParser();
 };

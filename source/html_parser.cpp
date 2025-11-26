@@ -6,12 +6,18 @@
 #include <sstream>
 using namespace std;
 
-HtmlParser::HtmlParser(const string& html) : HtmlParser(html, false)
+HtmlParser::HtmlParser() {
+    node = NULL;
+    minify = 0;
+}
+
+HtmlParser::HtmlParser(const string& html) : HtmlParser(html, 0)
 { }
 
-HtmlParser::HtmlParser(const string& html, bool minify) {
+HtmlParser::HtmlParser(const string& html, int minify) {
 	node = minify ? html2tex_parse_minified(html.c_str()) 
         : html2tex_parse(html.c_str());
+    this->minify = minify;
 }
 
 HtmlParser::HtmlParser(HTMLNode* node) {
@@ -34,9 +40,28 @@ ostream& operator <<(ostream& out, HtmlParser& parser) {
     return out;
 }
 
+void HtmlParser::setParent(HTMLNode* node) {
+    if (this->node) html2tex_free_node(this->node);
+    node = dom_tree_copy(node);
+}
+
+istream& operator >>(istream& in, HtmlParser& parser) {
+    
+    ostringstream stream;
+    stream << in.rdbuf();
+
+    string ptr = stream.str();
+    HTMLNode* node = parser.minify ? html2tex_parse_minified(ptr.c_str())
+        : html2tex_parse(ptr.c_str());
+
+    parser.setParent(node);
+    return in;
+}
+
 string HtmlParser::toString() {
     const char* output = (const char*)get_pretty_html(node);
-    return string(output);
+    if(output) return string(output);
+    return "";
 }
 
 HTMLNode* HtmlParser::dom_tree_copy(const HTMLNode* node) {
