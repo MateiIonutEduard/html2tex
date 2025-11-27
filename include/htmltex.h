@@ -11,8 +11,6 @@ class HtmlParser {
 private:
     HTMLNode* node;
     int minify;
-
-    HTMLNode* dom_tree_copy(HTMLNode*);
     void setParent(HTMLNode*);
 
 public:

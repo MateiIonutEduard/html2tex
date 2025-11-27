@@ -134,9 +134,16 @@ extern "C" {
     void append_string(LaTeXConverter* converter, const char* str);
     void convert_children(LaTeXConverter* converter, HTMLNode* node);
 
-    /* utility functions */
+    /* Parse the virtual DOM tree without optimizations. */
     HTMLNode* html2tex_parse(const char* html);
+	
+	/* Parse the virtual DOM tree with minification for improved performance. */
 	HTMLNode* html2tex_parse_minified(const char* html);
+	
+	/* Creates a new instance from the input DOM tree. */
+	HTMLNode* dom_tree_copy(HTMLNode* node);
+	
+	/* Frees the memory for the HTMLNode* instance. */
     void html2tex_free_node(HTMLNode* node);
 	
 	/* image configuration functions */
