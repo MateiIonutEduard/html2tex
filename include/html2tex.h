@@ -123,15 +123,25 @@ extern "C" {
 		int image_counter;
     };
 
-    /* core API functions */
+    /* Creates a new LaTeXConverter* and allocates memory. */
     LaTeXConverter* html2tex_create(void);
+	
+	/* Frees a LaTeXConverter* structure. */
     void html2tex_destroy(LaTeXConverter* converter);
-
+    
+	/* Parses input HTML and converts it to LaTeX. */
     char* html2tex_convert(LaTeXConverter* converter, const char* html);
+	
+	/* Returns the error code from the HTML-to-LaTeX conversion. */
     int html2tex_get_error(const LaTeXConverter* converter);
+	
+	/* Returns the error message from the HTML-to-LaTeX conversion. */
     const char* html2tex_get_error_message(const LaTeXConverter* converter);
     
+	/* Writes the input string in LaTeX format. */
     void append_string(LaTeXConverter* converter, const char* str);
+	
+	/* Recursively converts a DOM child node to LaTeX. */
     void convert_children(LaTeXConverter* converter, HTMLNode* node);
 
     /* Parse the virtual DOM tree without optimizations. */
