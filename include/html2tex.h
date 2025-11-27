@@ -186,9 +186,13 @@ extern "C" {
 	/* Finalizes inline CSS and frees resources. */
 	void end_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name);
 
-	/* HTML auxilliary functions */
+	/* Return the DOM tree after minification. */
 	HTMLNode* html2tex_minify_html(HTMLNode* root);
+	
+	/* Writes formatted HTML to the output file. */
 	int write_pretty_html(HTMLNode* root, const char* filename);
+	
+	/* Returns the HTML as a formatted string. */
 	char* get_pretty_html(HTMLNode* root);
 
 	/* Converts a CSS length to LaTeX points. */
