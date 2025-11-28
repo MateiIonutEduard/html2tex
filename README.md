@@ -180,41 +180,43 @@ target_link_libraries(your_target
 )
 ```
 
-## 🖥️ Platform Support
-* Windows: MSVC 2019+, MinGW-w64 (`.lib`/`.a`)
-* Linux: GCC 9+, Clang 10+ (`.a`)
-* Mac OSX: Clang (Xcode 12+) (`.a`)<br/>
+## 🖥️ Platform Compatibility
+* Windows: MSVC 2019+, MinGW-w64
+* Linux: GCC 9+, Clang 10+
+* Mac OSX: Clang (Xcode 12+)<br/>
 
-## 🛠️ Advanced Build
+Auto-detects:<br/>
+* OS and Compiler
+* libcurl availability
+* Architecture (x86/x64)<br/>
+
+Produces architecture-specific output directories.<br/>
+
+
+## 🛠️ Installation
+
+### Linux / Mac OSX:<br/>
 
 ```bash
-# Linux/Mac OSX
 mkdir build && cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
-cmake --install . --prefix /usr/local
+sudo cmake --install . --prefix /usr/local
+```
 
-# Windows (VS2022)
-mkdir build && cd build
+### Windows (Visual Studio 2022):<br/>
+
+```cmd
 cmake .. -G "Visual Studio 17 2022" -A x64
 cmake --build . --config Release
 cmake --install . --prefix "C:\Libraries\html2tex"
-
-# Debug build
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug
-cmake --build . --config Debug
-cmake --install . --prefix /usr/local
-
-# Install system-wide
-cmake --install . --prefix /path/to/custom/install
 ```
 
 ## 🎯 Why html2tex?
 * 🔄 Zero Dependencies - Pure C/C++, no external libs
 * ⚡ High Performance - Optimized parsing and conversion
 * 🎯 Cross-Platform - Consistent behavior everywhere
-* 🔧 Dual Interface - C API + modern C++ wrapper
+* 🔧 Dual Interface - C API + modern C++14 wrapper
 * 📦 Static Linking - Single binary deployment<br/>
 
 ## 🛡️ Compatibility Notes
