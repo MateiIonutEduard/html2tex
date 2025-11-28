@@ -1,10 +1,10 @@
 # html2tex
 
-**Lightning-fast HTML to LaTeX conversion in C/C++**  
-Zero-dependency static library for robust document conversion across all platforms.
+**Lightning-fast HTML → LaTeX conversion in pure C & modern C++**
+Static, cross-platform, dependency-light libraries for fast document transformation.
 
 [![C99](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
-[![C++11](https://img.shields.io/badge/C++-11-blue.svg)](https://en.cppreference.com/w/cpp/11)
+[![C++11](https://img.shields.io/badge/C++-11-blue.svg)](https://en.cppreference.com/w/cpp/14)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://en.wikipedia.org/wiki/Cross-platform)
 
 ## 🚀 Quick Start
