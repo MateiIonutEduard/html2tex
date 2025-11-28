@@ -4,8 +4,42 @@
 Static, cross-platform, dependency-light libraries for fast document transformation.
 
 [![C99](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
-[![C++11](https://img.shields.io/badge/C++-11-blue.svg)](https://en.cppreference.com/w/cpp/14)
+[![C++14](https://img.shields.io/badge/C++-14-blue.svg)](https://en.cppreference.com/w/cpp/14)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://en.wikipedia.org/wiki/Cross-platform)
+
+## 📚 Architecture Overview
+
+The repository provides two independent static libraries:
+
+### 🔹 html2tex_c — Core C Library
+
+Located in `/source` and `/include/html2tex.h`.
+
+Features:
+* High-performance *HTML5* subset parsing
+
+* Inline *CSS* 2.1 core support (colors, weight, alignment, spacing, etc.)
+
+* **T**e**X**/**L**a**T**e**X** code generation
+
+* Optional static `libcurl` integration (image downloading or external resources)
+
+* No external dependencies besides optional `libcurl`
+
+* Fully cross-platform
+
+### 🔹 html2tex_cpp — Modern C++14 Wrapper
+
+Located in `/source` and `/include/htmltex.h`.
+Features:
+
+* RAII interface over the C library
+
+* Easier integration into C++ applications
+
+* Clean OOP API (`HtmlParser`, `HtmlTeXConverter`)
+
+* Statically links against `html2tex_c`<br/>
 
 ## 🚀 Quick Start
 
