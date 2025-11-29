@@ -12,9 +12,13 @@ HtmlParser::HtmlParser(const std::string& html) : HtmlParser(html, 0) { }
 
 HtmlParser::HtmlParser(const std::string& html, int minify_flag)
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
+    /* empty parser, but valid state */
+    if (html.empty()) return;
+
     HTMLNode* raw_node = minify_flag ? html2tex_parse_minified(html.c_str())
         : html2tex_parse(html.c_str());
 
+    /* if parsing fails, node remains nullptr */
     if (raw_node) node.reset(raw_node);
 }
 
@@ -35,7 +39,6 @@ HtmlParser::HtmlParser(const HtmlParser& other)
     if (other.node) {
         HTMLNode* copied_node = dom_tree_copy(other.node.get());
         if (copied_node) node.reset(copied_node);
-        else node.reset(nullptr);
     }
 }
 
@@ -103,14 +106,17 @@ std::istream& operator >>(std::istream& in, HtmlParser& parser) {
     /* check if we actually read anything */
     std::string html_content = stream.str();
 
-    if (html_content.empty() || !in.eof()) {
-        /* reset stream state if cannot reach EOF normally */
+    if (html_content.empty()) {
+        /* clear failure state for future reads */
         if (in.fail() && !in.eof()) in.clear();
 
         parser.setParent(std::unique_ptr<HTMLNode,
             decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
         return in;
     }
+
+    /* only check EOF state after ensuring that content exists */
+    if (!in.eof() && in.fail()) in.clear();
 
     HTMLNode* raw_node = parser.minify ?
         html2tex_parse_minified(html_content.c_str()) :

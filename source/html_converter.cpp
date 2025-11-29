@@ -1,6 +1,7 @@
 #include "html2tex.h"
 #include "htmltex.h"
 #include <iostream>
+#include <stdexcept>
 
 HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false) {
     LaTeXConverter* raw_converter = html2tex_create();
