@@ -30,7 +30,12 @@ public:
     /* Clones an existing HtmlParser to create a new parser. */
     HtmlParser(const HtmlParser&);
 
+    /* Efficiently moves an existing HtmlParser instance. */
+    HtmlParser(HtmlParser&&) noexcept;
+
     HtmlParser& operator=(const HtmlParser&);
+    HtmlParser& operator=(HtmlParser&& other) noexcept;
+
     friend std::ostream& operator<<(std::ostream&, HtmlParser&);
     friend std::istream& operator>>(std::istream&, HtmlParser&);
 

@@ -37,6 +37,11 @@ HtmlParser::HtmlParser(const HtmlParser& parser)
     }
 }
 
+HtmlParser::HtmlParser(HtmlParser&& other) noexcept
+    : node(std::move(other.node)), minify(other.minify) {
+    other.minify = 0;
+}
+
 HtmlParser& HtmlParser::operator=(const HtmlParser& parser) {
     if (this != &parser) {
         if (parser.node) {
@@ -46,6 +51,22 @@ HtmlParser& HtmlParser::operator=(const HtmlParser& parser) {
         }
         else node.reset();
         minify = parser.minify;
+    }
+
+    return *this;
+}
+
+HtmlParser& HtmlParser::operator=(HtmlParser&& other) noexcept {
+    if (this != &other) {
+        /* free current resources */
+        node.reset();
+
+        /* transfer ownership */
+        node = std::move(other.node);
+        minify = other.minify;
+
+        /* reset source object */
+        other.minify = 0;
     }
 
     return *this;
