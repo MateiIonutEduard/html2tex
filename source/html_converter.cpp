@@ -12,10 +12,14 @@ HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), va
 }
 
 HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other) 
-: converter(nullptr, &html2tex_destroy), valid(other.valid) {
-    if (other.converter) {
+: converter(nullptr, &html2tex_destroy), valid(false) {
+    if (other.converter && other.valid) {
         LaTeXConverter* clone = html2tex_copy(other.converter.get());
-        if (clone) this->converter.reset(clone);
+
+        if (clone) {
+            converter.reset(clone);
+            valid = true;
+        }
     }
 }
 
@@ -34,12 +38,21 @@ bool HtmlTeXConverter::setDirectory(const std::string& fullPath) {
 }
 
 std::string HtmlTeXConverter::convert(const std::string& html) {
-    if (!converter || !valid || html.empty()) return "";
+    if (!converter || !valid)
+        throw std::runtime_error("Converter not initialized.");
+
+    if (html.empty()) return "";
     char* result = html2tex_convert(converter.get(), html.c_str());
 
-    if (!result) return "";
-    std::string latex(result);
+    if (!result) {
+        /* check if this is an actual error or just empty conversion */
+        if (hasError()) throw std::runtime_error(getErrorMessage());
 
+        /* legitimate empty result */
+        return "";
+    }
+
+    std::string latex(result);
     free(result);
     return latex;
 }
@@ -62,14 +75,19 @@ bool HtmlTeXConverter::isValid() const { return valid; }
 HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) {
     if (this != &other) {
         std::unique_ptr<LaTeXConverter, decltype(&html2tex_destroy)> temp(nullptr, &html2tex_destroy);
+        bool new_valid = false;
 
-        if (other.converter) {
+        if (other.converter && other.valid) {
             LaTeXConverter* clone = html2tex_copy(other.converter.get());
-            if (clone) temp.reset(clone);
+
+            if (clone) {
+                temp.reset(clone);
+                new_valid = true;
+            }
         }
 
         converter = std::move(temp);
-        valid = (converter != nullptr) && other.valid;
+        valid = new_valid;
     }
 
     return *this;

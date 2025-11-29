@@ -23,11 +23,11 @@ HtmlParser::HtmlParser(HTMLNode* raw_node) : HtmlParser(raw_node, 0)
 
 HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag)
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
-    if (raw_node) {
-        HTMLNode* copied_node = dom_tree_copy(raw_node);
-        if (copied_node) node.reset(copied_node);
-        else node.reset(nullptr);
-    }
+    /* object is in empty but valid state */
+    if (!raw_node) return;
+
+    HTMLNode* copied_node = dom_tree_copy(raw_node);
+    if (copied_node) node.reset(copied_node);
 }
 
 HtmlParser::HtmlParser(const HtmlParser& other)
@@ -84,11 +84,29 @@ void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_nod
 }
 
 std::istream& operator >>(std::istream& in, HtmlParser& parser) {
+    /* check if stream is in good state first */
+    if (!in.good()) {
+        parser.setParent(std::unique_ptr<HTMLNode,
+            decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
+        return in;
+    }
+
     std::ostringstream stream;
-    stream << in.rdbuf();
+    char buffer[4096];
+
+    /* read stream in chunks until EOF or failure */
+    while (in.read(buffer, sizeof(buffer)) || in.gcount() > 0) {
+        stream.write(buffer, in.gcount());
+        if (in.eof()) break;
+    }
+
+    /* check if we actually read anything */
     std::string html_content = stream.str();
 
-    if (html_content.empty()) {
+    if (html_content.empty() || !in.eof()) {
+        /* reset stream state if cannot reach EOF normally */
+        if (in.fail() && !in.eof()) in.clear();
+
         parser.setParent(std::unique_ptr<HTMLNode,
             decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
         return in;
