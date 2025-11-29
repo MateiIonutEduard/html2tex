@@ -2,33 +2,44 @@
 #include "htmltex.h"
 #include <iostream>
 
-HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy) {
+HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false) {
     LaTeXConverter* raw_converter = html2tex_create();
-    if (raw_converter) converter.reset(raw_converter);
+
+    if (raw_converter) {
+        converter.reset(raw_converter);
+        valid = true;
+    }
+}
+
+HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& converter) 
+: converter(nullptr, &html2tex_destroy), valid(converter.valid) {
+    if (converter.converter) {
+        LaTeXConverter* clone = html2tex_copy(converter.converter.get());
+        if (clone) this->converter.reset(clone);
+    }
 }
 
 HtmlTeXConverter::HtmlTeXConverter(HtmlTeXConverter&& other) noexcept
-    : converter(std::move(other.converter)) { }
+    : converter(std::move(other.converter)), valid(other.valid) { 
+    other.converter.reset(nullptr);
+    other.valid = false;
+}
 
 bool HtmlTeXConverter::setDirectory(const std::string& fullPath) {
-    if (converter) {
-        html2tex_set_image_directory(converter.get(), fullPath.c_str());
-        html2tex_set_download_images(converter.get(), 1);
-        return true;
-    }
+    if (!converter || !valid) return false;
+    html2tex_set_image_directory(converter.get(), fullPath.c_str());
 
-    return false;
+    html2tex_set_download_images(converter.get(), 1);
+    return true;
 }
 
 std::string HtmlTeXConverter::convert(const std::string& html) {
-    if (!converter) return "";
+    if (!converter || !valid) return "";
     char* result = html2tex_convert(converter.get(), html.c_str());
 
     if (result) {
         std::string latex(result);
         free(result);
-
-        html2tex_reset(converter.get());
         return latex;
     }
 
@@ -48,13 +59,26 @@ std::string HtmlTeXConverter::getErrorMessage() const {
     return html2tex_get_error_message(converter.get());
 }
 
-HtmlTeXConverter& HtmlTeXConverter::operator=(HtmlTeXConverter&& other) noexcept {
-    if (this != &other) {
-        /* free current resources */
-        converter.reset();
+bool HtmlTeXConverter::isValid() const { return valid; }
 
-        /* transfer the ownership */
+HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& converter) {
+    if (this != &converter) {
+        if (converter.converter) {
+            LaTeXConverter* clone = html2tex_copy(converter.converter.get());
+            if (clone) this->converter.reset(clone);
+            else this->converter.reset();
+        }
+        else this->converter.reset();
+    }
+
+    return *this;
+}
+
+HtmlTeXConverter& HtmlTeXConverter::operator =(HtmlTeXConverter&& other) noexcept {
+    if (this != &other) {
         converter = std::move(other.converter);
+        valid = other.valid;
+        other.valid = false;
     }
 
     return *this;

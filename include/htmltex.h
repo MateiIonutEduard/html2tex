@@ -16,16 +16,16 @@ public:
     HtmlParser();
 
     /* Creates a parser from the input HTML. */
-    HtmlParser(const std::string&);
+    explicit HtmlParser(const std::string&);
 
     /* Initializes parser from HTML with optimization flag. */
     HtmlParser(const std::string&, int);
 
     /* Initializes the parser with the input DOM tree. */
-    HtmlParser(HTMLNode*);
+    explicit HtmlParser(HTMLNode*);
 
     /* Instantiates the parser with the DOM tree and the minify option. */
-    HtmlParser(HTMLNode* node, int);
+    HtmlParser(HTMLNode*, int);
 
     /* Clones an existing HtmlParser to create a new parser. */
     HtmlParser(const HtmlParser&);
@@ -33,20 +33,21 @@ public:
     /* Efficiently moves an existing HtmlParser instance. */
     HtmlParser(HtmlParser&&) noexcept;
 
-    HtmlParser& operator=(const HtmlParser&);
-    HtmlParser& operator=(HtmlParser&&) noexcept;
+    HtmlParser& operator =(const HtmlParser&);
+    HtmlParser& operator =(HtmlParser&&) noexcept;
 
-    friend std::ostream& operator<<(std::ostream&, HtmlParser&);
-    friend std::istream& operator>>(std::istream&, HtmlParser&);
+    friend std::ostream& operator <<(std::ostream&, const HtmlParser&);
+    friend std::istream& operator >>(std::istream&, HtmlParser&);
 
     /* Returns prettified HTML from this instance. */
-    std::string toString();
+    std::string toString() const;
     ~HtmlParser() = default;
 };
 
 class HtmlTeXConverter {
 private:
     std::unique_ptr<LaTeXConverter, decltype(&html2tex_destroy)> converter;
+    bool valid;
 
 public:
     HtmlTeXConverter();
@@ -70,14 +71,17 @@ public:
     /* Return the conversion error message. */
     std::string getErrorMessage() const;
 
+    /* Check whether the converter is initialized and valid. */
+    bool isValid() const;
+
     /* Efficiently moves an existing HtmlTeXConverter instance. */
     HtmlTeXConverter(HtmlTeXConverter&&) noexcept;
 
-    /* delete copy constructor and assignment operator to prevent copying */
-    HtmlTeXConverter(const HtmlTeXConverter&) = delete;
+    /* Creates a new HtmlTeXConverter by copying an existing instance. */
+    HtmlTeXConverter(const HtmlTeXConverter&);
 
-    HtmlTeXConverter& operator=(const HtmlTeXConverter&) = delete;
-    HtmlTeXConverter& operator=(HtmlTeXConverter&& other) noexcept;
+    HtmlTeXConverter& operator =(const HtmlTeXConverter&);
+    HtmlTeXConverter& operator =(HtmlTeXConverter&& other) noexcept;
 };
 
 #endif

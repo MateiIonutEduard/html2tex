@@ -104,7 +104,7 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     clone->error_code = converter->error_code;
 
     /* copy image configuration */
-    converter->image_output_dir = converter->image_output_dir ? strdup(converter->image_output_dir) : NULL;
+    clone->image_output_dir = converter->image_output_dir ? strdup(converter->image_output_dir) : NULL;
     clone->download_images = converter->download_images;
     clone->image_counter = converter->image_counter;
 

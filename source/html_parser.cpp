@@ -26,6 +26,7 @@ HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag)
     if (raw_node) {
         HTMLNode* copied_node = dom_tree_copy(raw_node);
         if (copied_node) node.reset(copied_node);
+        else node.reset(nullptr);
     }
 }
 
@@ -39,42 +40,41 @@ HtmlParser::HtmlParser(const HtmlParser& parser)
 
 HtmlParser::HtmlParser(HtmlParser&& other) noexcept
     : node(std::move(other.node)), minify(other.minify) {
+    other.node.reset(nullptr);
     other.minify = 0;
 }
 
-HtmlParser& HtmlParser::operator=(const HtmlParser& parser) {
+HtmlParser& HtmlParser::operator =(const HtmlParser& parser) {
     if (this != &parser) {
+        /* create temporary smart pointer */
+        std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> temp(nullptr, &html2tex_free_node);
+
         if (parser.node) {
             HTMLNode* copied_node = dom_tree_copy(parser.node.get());
-            if (copied_node) node.reset(copied_node);
-            else node.reset();
+            if (copied_node) temp.reset(copied_node);
         }
-        else node.reset();
+
+        /* commit changes */
+        node = std::move(temp);
         minify = parser.minify;
     }
 
     return *this;
 }
 
-HtmlParser& HtmlParser::operator=(HtmlParser&& other) noexcept {
+HtmlParser& HtmlParser::operator =(HtmlParser&& other) noexcept {
     if (this != &other) {
-        /* free current resources */
-        node.reset();
-
-        /* transfer ownership */
         node = std::move(other.node);
         minify = other.minify;
-
-        /* reset source object */
         other.minify = 0;
     }
 
     return *this;
 }
 
-std::ostream& operator<<(std::ostream& out, HtmlParser& parser) {
+std::ostream& operator <<(std::ostream& out, const HtmlParser& parser) {
     std::string output = parser.toString();
-    out << output << std::endl;
+    out << output;
     return out;
 }
 
@@ -82,7 +82,7 @@ void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_nod
     node = std::move(new_node);
 }
 
-std::istream& operator>>(std::istream& in, HtmlParser& parser) {
+std::istream& operator >>(std::istream& in, HtmlParser& parser) {
     std::ostringstream stream;
     stream << in.rdbuf();
 
@@ -97,7 +97,7 @@ std::istream& operator>>(std::istream& in, HtmlParser& parser) {
     return in;
 }
 
-std::string HtmlParser::toString() {
+std::string HtmlParser::toString() const {
     if (!node) return "";
     char* output = get_pretty_html(node.get());
 
