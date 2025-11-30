@@ -588,6 +588,7 @@ static int table_contains_only_images(HTMLNode* node) {
     return 1;
 }
 
+/* Convert a table containing only img nodes by parsing the DOM tree. */
 static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     append_string(converter, "\\begin{figure}[htbp]\n");
     append_string(converter, "\\centering\n");
