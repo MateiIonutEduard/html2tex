@@ -622,9 +622,8 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
         if (current->tag) {
             if (strcmp(current->tag, "tr") == 0) {
                 /* process row */
-                if (!first_row) {
+                if (!first_row)
                     append_string(converter, " \\\\\n");
-                }
 
                 first_row = 0;
                 HTMLNode* cell = current->children;
@@ -635,7 +634,7 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
                         if (col_count > 0)
                             append_string(converter, " & ");
 
-                        /* Search for image in this cell using BFS */
+                        /* search for image in this cell using BFS */
                         HTMLNode* cell_queue[256];
 
                         int cell_front = 0, cell_rear = 0;
