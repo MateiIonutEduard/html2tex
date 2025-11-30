@@ -623,20 +623,27 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
 
                             char* height_attr = get_attribute(img_node->attributes, "height");
                             char* style_attr = get_attribute(img_node->attributes, "style");
-
                             char* image_path = NULL;
+
                             if (converter->download_images && converter->image_output_dir) {
                                 converter->image_counter++;
                                 image_path = download_image_src(src, converter->image_output_dir, converter->image_counter);
                             }
 
-                            int width_pt = 20;
-                            if (!image_path) image_path = strdup(src);
+                            if (!image_path) 
+                                image_path = strdup(src);
+
+                            int width_pt = 0;
+                            int height_pt = 0;
+
                             if (width_attr) width_pt = css_length_to_pt(width_attr);
+                            if (height_attr) height_pt = css_length_to_pt(height_attr);
 
                             if (style_attr) {
                                 CSSProperties* img_css = parse_css_style(style_attr);
                                 if (img_css && img_css->width) width_pt = css_length_to_pt(img_css->width);
+
+                                if (img_css && img_css->height) height_pt = css_length_to_pt(img_css->height);
                                 free_css_properties(img_css);
                             }
 
@@ -645,9 +652,9 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
                             if (style_attr) {
                                 CSSProperties* img_css = parse_css_style(style_attr);
 
-                                if (img_css && img_css->background_color) 
+                                if (img_css && img_css->background_color)
                                     bg_color = css_color_to_hex(img_css->background_color);
-
+                                
                                 free_css_properties(img_css);
                             }
 
@@ -659,12 +666,31 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
                                 free(bg_color);
                             }
 
-                            append_string(converter, "\\includegraphics[width=");
-                            char width_str[16];
+                            append_string(converter, "\\includegraphics");
 
-                            snprintf(width_str, sizeof(width_str), "%dmm", width_pt);
-                            append_string(converter, width_str);
-                            append_string(converter, "]{");
+                            if (width_pt > 0 || height_pt > 0) {
+                                append_string(converter, "[");
+
+                                if (width_pt > 0) {
+                                    char width_str[16];
+                                    snprintf(width_str, sizeof(width_str), "%dmm", width_pt);
+                                    append_string(converter, "width=");
+                                    append_string(converter, width_str);
+                                }
+
+                                if (height_pt > 0) {
+                                    if (width_pt > 0) append_string(converter, ", ");
+                                    char height_str[16];
+                                    snprintf(height_str, sizeof(height_str), "%dmm", height_pt);
+                                    append_string(converter, "height=");
+                                    append_string(converter, height_str);
+                                }
+
+                                append_string(converter, "]");
+                            }
+
+                            append_string(converter, "{");
+                            printf("image path: %s\n", image_path);
 
                             if (converter->download_images && converter->image_output_dir &&
                                 strstr(image_path, converter->image_output_dir) == image_path) {
@@ -693,7 +719,6 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
             append_string(converter, " \\\\\n");
             row_count++;
         }
-
         current_row = current_row->next;
     }
 
