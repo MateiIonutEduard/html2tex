@@ -845,6 +845,17 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
 
         append_string(converter, "}\n");
     }
+    else {
+        /* default caption for figure element */
+        append_string(converter, "\\caption{Figure ");
+        converter->state.figure_counter++;
+
+        char counter_str[17];
+        snprintf(counter_str, sizeof(counter_str), "%d", converter->state.figure_counter);
+
+        append_string(converter, counter_str);
+        append_string(converter, "}\n");
+    }
 
     const char* fig_id = get_attribute(node->attributes, "id");
     char figure_label[17], label_counter[10];

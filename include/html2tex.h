@@ -40,6 +40,8 @@ extern "C" {
         int in_list;
 		
         int table_counter;
+		int figure_counter;
+		
 		int table_id_counter;
 		int figure_id_counter;
 		
