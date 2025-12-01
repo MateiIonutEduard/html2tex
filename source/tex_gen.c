@@ -846,6 +846,23 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
         append_string(converter, "}\n");
     }
 
+    const char* fig_id = get_attribute(node->attributes, "id");
+    char figure_label[17], label_counter[10];
+
+    if (!fig_id || fig_id[0] == '\0') {
+        converter->state.figure_id_counter++;
+        html2tex_itoa(converter->state.figure_id_counter, label_counter, 10);
+
+        strcpy(figure_label, "figure_");
+        strcpy(figure_label + 7, label_counter);
+    }
+    else
+        strcpy(figure_label, fig_id);
+
+    append_string(converter, "\\label{fig:");
+    escape_latex_special(converter, figure_label);
+    append_string(converter, "}\n");
+
     append_string(converter, "\\end{figure}\n");
     append_string(converter, "\\FloatBarrier\n\n");
 }

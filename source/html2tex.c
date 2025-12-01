@@ -33,6 +33,7 @@ LaTeXConverter* html2tex_create(void) {
 
     converter->state.image_id_counter = 0;
     converter->state.image_caption_counter = 0;
+    converter->state.figure_id_counter = 0;
 
     converter->state.in_table = 0;
     converter->state.in_table_row = 0;
@@ -88,6 +89,7 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
 
     clone->state.image_id_counter = converter->state.image_id_counter;
     clone->state.image_caption_counter = converter->state.image_caption_counter;
+    clone->state.figure_id_counter = converter->state.figure_id_counter;
 
     clone->state.in_table = converter->state.in_table;
     clone->state.in_table_row = converter->state.in_table_row;
