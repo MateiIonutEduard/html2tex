@@ -225,6 +225,12 @@ extern "C" {
 	#else
 	#define html2tex_itoa(value, buffer, radix) portable_itoa((value), (buffer), (radix))
 	#endif
+	
+	#ifdef _WIN32
+    #define mkdir(path) _mkdir(path)
+	#else
+	#define mkdir(path) mkdir(path, 0755)
+	#endif
 
 #ifdef __cplusplus
 }
