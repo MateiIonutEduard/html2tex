@@ -1205,7 +1205,7 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                     char text_caption[16];
 
                     char caption_counter[10];
-                    itoa(converter->state.image_caption_counter, caption_counter, 10);
+                    html2tex_itoa(converter->state.image_caption_counter, caption_counter, 10);
 
                     strcpy(text_caption, "Image ");
                     strcpy(text_caption + 6, caption_counter);
@@ -1228,7 +1228,7 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                     char image_label_id[16];
 
                     char label_counter[10];
-                    itoa(converter->state.image_id_counter, label_counter, 10);
+                    html2tex_itoa(converter->state.image_id_counter, label_counter, 10);
 
                     strcpy(image_label_id, "image_");
                     strcpy(image_label_id + 6, label_counter);
@@ -1279,7 +1279,7 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                 char table_label[16];
 
                 char label_counter[10];
-                itoa(converter->state.table_id_counter, label_counter, 10);
+                html2tex_itoa(converter->state.table_id_counter, label_counter, 10);
 
                 strcpy(table_label, "table_");
                 strcpy(table_label + 6, label_counter);
