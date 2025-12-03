@@ -850,15 +850,16 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
         append_string(converter, "\\caption{Figure ");
         converter->state.figure_counter++;
 
-        char counter_str[17];
+        char counter_str[18];
         snprintf(counter_str, sizeof(counter_str), "%d", converter->state.figure_counter);
+        counter_str[strlen(counter_str)] = '\0';
 
         append_string(converter, counter_str);
         append_string(converter, "}\n");
     }
 
     const char* fig_id = get_attribute(node->attributes, "id");
-    char figure_label[17], label_counter[10];
+    char figure_label[18], label_counter[10];
 
     if (!fig_id || fig_id[0] == '\0') {
         converter->state.figure_id_counter++;
@@ -866,6 +867,7 @@ static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
 
         strcpy(figure_label, "figure_");
         strcpy(figure_label + 7, label_counter);
+        figure_label[strlen(figure_label)] = '\0';
     }
     else
         strcpy(figure_label, fig_id);
@@ -1230,13 +1232,14 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                     /* automatic caption generation using the image caption counter */
                     converter->state.image_caption_counter++;
                     append_string(converter, "\\caption{");
-                    char text_caption[16];
+                    char text_caption[17];
 
                     char caption_counter[10];
                     html2tex_itoa(converter->state.image_caption_counter, caption_counter, 10);
-
                     strcpy(text_caption, "Image ");
+
                     strcpy(text_caption + 6, caption_counter);
+                    text_caption[strlen(text_caption)] = '\0';
 
                     escape_latex(converter, text_caption);
                     append_string(converter, "}\n");
@@ -1253,13 +1256,14 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node) {
                     /* automatic ID generation using the image id counter */
                     converter->state.image_id_counter++;
                     append_string(converter, "\\label{fig:");
-                    char image_label_id[16];
+                    char image_label_id[17];
 
                     char label_counter[10];
                     html2tex_itoa(converter->state.image_id_counter, label_counter, 10);
-
                     strcpy(image_label_id, "image_");
+
                     strcpy(image_label_id + 6, label_counter);
+                    image_label_id[strlen(image_label_id)] = '\0';
 
                     escape_latex_special(converter, image_label_id);
                     append_string(converter, "}\n");
