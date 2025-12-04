@@ -58,6 +58,39 @@ std::string HtmlTeXConverter::convert(const std::string& html) {
     return latex;
 }
 
+std::string HtmlTeXConverter::convert(const HtmlParser& parser) {
+    /* precondition validation */
+    if (!isValid())
+        throw std::runtime_error("HtmlTeXConverter in invalid state.");
+
+    /* get HTML content - one serialization only */
+    std::string html = parser.toString();
+
+    /* return empty string for empty input */
+    if (html.empty()) return "";
+
+    /* perform conversion */
+    char* raw_result = html2tex_convert(converter.get(), html.c_str());
+
+    /* RAII management with custom deleter */
+    const auto deleter = [](char* p) noexcept { std::free(p); };
+    std::unique_ptr<char[], decltype(deleter)> result_guard(raw_result, deleter);
+
+    /* error analysis */
+    if (!raw_result) {
+        if (hasError()) {
+            throw std::runtime_error(
+                "HTML to LaTeX conversion failed: " + getErrorMessage());
+        }
+
+        /* valid empty result */
+        return "";
+    }
+
+    /* return result (compiler will optimize it) */
+    return std::string(raw_result);
+}
+
 bool HtmlTeXConverter::hasError() const {
     return converter && html2tex_get_error(converter.get()) != 0;
 }

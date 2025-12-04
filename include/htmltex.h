@@ -68,6 +68,7 @@ public:
     /* Convert the input HTML code to the corresponding LaTeX output. */
     std::string convert(const std::string&);
 
+    /* Convert the HtmlParser instance to its corresponding LaTeX output. */
     std::string convert(const HtmlParser&);
 
     /*
