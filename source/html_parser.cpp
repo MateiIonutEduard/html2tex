@@ -244,72 +244,55 @@ HtmlParser HtmlParser::FromStream(std::ifstream& input) {
 }
 
 HtmlParser HtmlParser::FromHtml(const std::string& filePath) {
-    /* check if stream is usable */
-    std::ifstream fin(filePath, std::ios::binary);
+    /* open with optimal flags for reading */
+    std::ifstream fin(filePath, std::ios::binary | std::ios::ate);
+    if (!fin.is_open()) return HtmlParser();
 
-    if (!fin.is_open() || fin.bad())
-        return HtmlParser();
+    /* get exact file size */
+    const std::streamsize file_size = fin.tellg();
+    fin.seekg(0, std::ios::beg);
 
-    /* save original position */
-    std::streampos original_pos = fin.tellg();
+    /* reject invalid or empty files */
+    if (file_size <= 0) {
+        fin.close();
 
-    /* try to read with reasonable limit */
-    const size_t MAX_READ = 134'217'728;
-
-    std::string content;
-    content.reserve(65536);
-
-    char buffer[4096];
-    size_t total_read = 0;
-
-    /* read chunks until EOF or limit reached */
-    while (total_read < MAX_READ && fin.good()) {
-        fin.read(buffer, sizeof(buffer));
-        std::streamsize bytes = fin.gcount();
-
-        if (bytes <= 0)
-            break;
-
-        /* check for overflow */
-        size_t bytes_size_t = static_cast<size_t>(bytes);
-        size_t remaining_limit = MAX_READ - total_read;
-
-        if (bytes_size_t > remaining_limit) {
-            /* would exceed limit - read partial */
-            if (remaining_limit > 0 && remaining_limit <= sizeof(buffer))
-                content.append(buffer, remaining_limit);
-
-            break;
+        /* truly empty file */
+        if (file_size == 0) {
+            /* parse empty content */
+            HTMLNode* raw_node = html2tex_parse("");
+            if (raw_node) return HtmlParser(raw_node);
         }
 
-        content.append(buffer, bytes_size_t);
-        total_read += bytes_size_t;
-        if (fin.eof()) break;
-    }
-
-    /* restore position and return empty */
-    if (content.empty() || fin.bad()) {
-        fin.clear(); 
-        fin.seekg(original_pos);
-
-        if(fin.is_open()) fin.close();
         return HtmlParser();
     }
 
-    /* clear any failure flags (except EOF) */
-    if (!fin.eof()) fin.clear();
+    /* enforce absolute size limit for security reasons */
+    constexpr size_t MAX_READ = 134'217'728;
+
+    /* file too large */
+    if (static_cast<size_t>(file_size) > MAX_READ) {
+        fin.close();
+        return HtmlParser();
+    }
+
+    /* single allocation for entire file, good for performance */
+    std::string content;
+    content.resize(static_cast<size_t>(file_size));
+
+    /* read entire file in one operation, that is fastest for known size */
+    fin.read(&content[0], file_size);
+    const bool read_ok = fin.gcount() == file_size && !fin.bad();
+
+    /* close immediately after read */
+    fin.close();
+
+    /* validate complete read */
+    if (!read_ok) return HtmlParser();
 
     /* parse the content */
-    if (!content.empty()) {
-        HTMLNode* raw_node = html2tex_parse(content.c_str());
+    HTMLNode* raw_node = html2tex_parse(content.c_str());
 
-        if (raw_node) {
-            if (fin.is_open()) fin.close();
-            return HtmlParser(raw_node);
-        }
-    }
-
-    if (fin.is_open()) fin.close();
+    if (raw_node) return HtmlParser(raw_node);
     return HtmlParser();
 }
 
