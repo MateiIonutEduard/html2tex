@@ -88,102 +88,108 @@ void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_nod
     node = std::move(new_node);
 }
 
-std::istream& operator >>(std::istream& in, HtmlParser& parser) {
-    /* stream already in bad state */
-    if (!in.good()) {
+std::istream& operator>>(std::istream& in, HtmlParser& parser) {
+    /* early exit for bad streams */
+    if (in.bad()) {
         parser.setParent({ nullptr, &html2tex_free_node });
         return in;
     }
 
-    /* enforce maximum input size (128MB) */
-    constexpr size_t MAX_INPUT_SIZE = 134'217'728;
-    std::string html_content;
+    /* use sentry for proper stream behavior */
+    std::istream::sentry sentry(in);
 
-    /* reserve reasonable initial capacity */
-    html_content.reserve(65536);
+    if (!sentry) {
+        parser.setParent({ nullptr, &html2tex_free_node });
+        return in;
+    }
 
-    /* double buffer size for better throughput */
-    char buffer[8192];
+    constexpr std::size_t kMaxSize = 134'217'728;
+    std::string content;
 
-    size_t total_read = 0;
-    bool read_error = false;
+    /* use rdbuf for optimal reading */
+    auto* sbuf = in.rdbuf();
 
-    /* single-pass optimized read with security checks */
-    while (in && total_read < MAX_INPUT_SIZE) {
-        in.read(buffer, sizeof(buffer));
-        const std::streamsize bytes_read = in.gcount();
+    if (sbuf) {
+        /* get stream size hint if available */
+        const std::streamsize available = sbuf->in_avail();
 
-        /* validate bytes_read before use */
-        if (bytes_read < 0) {
-            read_error = true;
-            break;
+        if (available > 0) {
+            const std::size_t hint_size = static_cast<std::size_t>(
+                std::min<std::streamsize>(available, kMaxSize));
+            content.reserve(std::min(hint_size, std::size_t(262'144)));
         }
+    }
 
-        /* check why we got 0 bytes */
-        if (bytes_read == 0) {
-            if (in.eof()) break;
+    /* read directly using streambuf */
+    bool success = false;
+    std::size_t total_read = 0;
 
-            if (in.fail()) {
-                read_error = true;
+    if (sbuf) {
+        std::streambuf::int_type ch;
+        content.clear();
+
+        while (total_read < kMaxSize) {
+            ch = sbuf->sbumpc();
+
+            if (ch == std::streambuf::traits_type::eof()) {
+                success = true;
                 break;
             }
 
-            /* non-blocking or empty */
-            continue;
+            content.push_back(std::streambuf::traits_type::to_char_type(ch));
+            ++total_read;
+
+            /* bulk read optimization */
+            if (total_read == 1) {
+                const std::streamsize remaining = sbuf->in_avail();
+
+                if (remaining > 0) {
+                    const std::size_t to_read = std::min(
+                        static_cast<std::size_t>(remaining),
+                        kMaxSize - total_read);
+
+                    if (to_read > 0) {
+                        content.resize(total_read + to_read);
+                        const std::streamsize actually_read = sbuf->sgetn(
+                            &content[total_read], static_cast<std::streamsize>(to_read));
+
+                        total_read += static_cast<std::size_t>(actually_read);
+                        content.resize(total_read);
+
+                        /* EOF reached */
+                        if (actually_read < static_cast<std::streamsize>(to_read)) {
+                            success = true;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
-        /* convert safely and check bounds */
-        const size_t bytes_size = static_cast<size_t>(bytes_read);
+        /* size limit reached */
+        if (total_read >= kMaxSize)
+            in.clear(in.rdstate() & ~std::ios_base::failbit);
+    }
 
-        /* prevent integer overflow in size calculation */
-        if (bytes_size > MAX_INPUT_SIZE - total_read) {
-            /* append only what fits within limit */
-            const size_t can_append = MAX_INPUT_SIZE - total_read;
+    /* fallback to standard read if streambuf method failed */
+    if (!success) {
+        in.clear();
+        return operator>>(in, parser);
+    }
 
-            if (can_append > 0 && can_append <= sizeof(buffer))
-                html_content.append(buffer, can_append);
-            
-            /* reached size limit */
-            break;
+    /* parse the content */
+    if (!content.empty()) {
+        HTMLNode* raw_node = parser.minify ?
+            html2tex_parse_minified(content.c_str()) :
+            html2tex_parse(content.c_str());
+
+        if (raw_node) {
+            parser.setParent({ raw_node, &html2tex_free_node });
+            return in;
         }
-
-        /* bulk append for improved performance */
-        html_content.append(buffer, bytes_size);
-        total_read += bytes_size;
-
-        /* early exit if buffer wasn't fully filled (likely EOF) */
-        if (bytes_size < sizeof(buffer))
-            break;
     }
 
-    /* handle read errors */
-    if (read_error || in.bad()) {
-        /* preserve stream state */
-        parser.setParent({ nullptr, &html2tex_free_node });
-        return in;
-    }
-
-    /* check for empty content */
-    if (html_content.empty()) {
-        /* only clear non-EOF failures to allow retry */
-        if (in.fail() && !in.eof()) in.clear();
-
-        parser.setParent({ nullptr, &html2tex_free_node });
-        return in;
-    }
-
-    /* clear transient failure flags (except EOF) */
-    if (in.fail() && !in.eof()) in.clear();
-
-    /* parse the content with minify option */
-    HTMLNode* raw_node = nullptr;
-
-    if (parser.minify) raw_node = html2tex_parse_minified(html_content.c_str());
-    else raw_node = html2tex_parse(html_content.c_str());
-
-    /* moves ownership */
-    if (raw_node) parser.setParent({ raw_node, &html2tex_free_node });
-    else parser.setParent({ nullptr, &html2tex_free_node });
+    parser.setParent({ nullptr, &html2tex_free_node });
     return in;
 }
 
