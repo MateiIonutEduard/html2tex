@@ -1,6 +1,7 @@
 #include "html2tex.h"
 #include "htmltex.h"
 #include <iostream>
+#include <fstream>
 #include <stdexcept>
 
 HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false) {
@@ -56,6 +57,43 @@ std::string HtmlTeXConverter::convert(const std::string& html) {
     std::string latex(result);
     free(result);
     return latex;
+}
+
+bool HtmlTeXConverter::convertToFile(const std::string& html, const std::string& filePath) {
+    /* validate converter and HTML code */
+    if (!isValid()) 
+        throw std::runtime_error("Converter not initialized.");
+
+    if (html.empty()) 
+        return false;
+
+    /* convert the HTML code first */
+    std::unique_ptr<char[], void(*)(char*)> result(
+        html2tex_convert(converter.get(), html.c_str()),
+        [](char* p) noexcept { 
+            std::free(p); 
+        });
+
+    if (!result) {
+        if (hasError()) throw std::runtime_error(getErrorMessage());
+        
+        /* empty but valid conversion */
+        return false;
+    }
+
+    /* write the file */
+    std::ofstream fout(filePath);
+
+    if (!fout)
+        throw std::runtime_error("Cannot open output file.");
+
+    fout << result.get();
+    fout.flush();
+
+    if (!fout)
+        throw std::runtime_error("Failed to write LaTeX output.");
+
+    return true;
 }
 
 std::string HtmlTeXConverter::convert(const HtmlParser& parser) {
