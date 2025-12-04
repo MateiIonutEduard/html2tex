@@ -13,6 +13,7 @@ private:
     void setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> new_node);
 
 public:
+    /* Create an empty, valid parser instance. */
     HtmlParser();
 
     /* Creates a parser from the input HTML. */
@@ -33,11 +34,23 @@ public:
     /* Efficiently moves an existing HtmlParser instance. */
     HtmlParser(HtmlParser&&) noexcept;
 
+    /* Return a pointer to the DOM tree’s root node. */
+    HTMLNode* GetHtmlNode() const noexcept;
+
+    /* Check whether the parser contains content. */
+    bool HasContent() const noexcept;
+
     HtmlParser& operator =(const HtmlParser&);
     HtmlParser& operator =(HtmlParser&&) noexcept;
 
     friend std::ostream& operator <<(std::ostream&, const HtmlParser&);
     friend std::istream& operator >>(std::istream&, HtmlParser&);
+
+    /* Initializes the parser from the given file stream. */
+    static HtmlParser FromStream(std::ifstream&);
+
+    /* Creates a parser from the given HTML file path. */
+    static HtmlParser FromHtml(const std::string&);
 
     /* Returns prettified HTML from this instance. */
     std::string toString() const;
@@ -50,11 +63,24 @@ private:
     bool valid;
 
 public:
+    /* Create a new valid HtmlTeXConverter instance. */
     HtmlTeXConverter();
     ~HtmlTeXConverter() = default;
 
     /* Convert the input HTML code to the corresponding LaTeX output. */
     std::string convert(const std::string&);
+
+    /* Convert the HtmlParser instance to its corresponding LaTeX output. */
+    std::string convert(const HtmlParser&);
+
+    /* Convert the input HTML code to LaTeX and write the output to the file at the specified path. */
+    bool convertToFile(const std::string&, const std::string&) const;
+
+    /* Convert the HtmlParser instance to LaTeX and write the result to the specified file path. */
+    bool convertToFile(const HtmlParser&, const std::string&) const;
+
+    /* Convert the HtmlParser instance to LaTeX and write the result to a file. */
+    bool convertToFile(const HtmlParser&, std::ofstream&) const;
 
     /*
        Set the directory where images extracted from the DOM tree are saved.
