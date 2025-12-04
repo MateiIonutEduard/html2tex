@@ -13,6 +13,7 @@ private:
     void setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> new_node);
 
 public:
+    /* Create an empty, valid parser instance. */
     HtmlParser();
 
     /* Creates a parser from the input HTML. */
@@ -62,6 +63,7 @@ private:
     bool valid;
 
 public:
+    /* Create a new valid HtmlTeXConverter instance. */
     HtmlTeXConverter();
     ~HtmlTeXConverter() = default;
 
