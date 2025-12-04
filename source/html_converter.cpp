@@ -197,6 +197,64 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, const std::string
     return true;
 }
 
+bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, std::ofstream& output) const {
+    /* fast precondition validation */
+    if (!converter || !valid) [[unlikely]]
+        throw std::runtime_error("HtmlTeXConverter: Converter not initialized.");
+
+    /* early exit for empty parser */
+    if (!parser.HasContent())
+        return false;
+
+    /* get serialized HTML - only serialize once */
+    const std::string html = parser.toString();
+
+    /* validate serialized content */
+    if (html.empty()) [[unlikely]]
+        return false;
+
+    /* convert HTML to LaTeX */
+    char* raw_result = html2tex_convert(converter.get(), html.c_str());
+
+    /* RAII with custom deleter */
+    const auto deleter = [](char* p) noexcept {
+        /* free handles nullptr */
+        std::free(p);
+    };
+
+    std::unique_ptr<char[], decltype(deleter)> result_guard(raw_result, deleter);
+
+    /* check for conversion errors */
+    if (!raw_result) [[unlikely]] {
+        if (hasError()) {
+            throw std::runtime_error(
+                std::string("HTML to LaTeX conversion failed: ") + getErrorMessage());
+        }
+
+        /* valid empty conversion */
+        return false;
+    }
+
+    /* check if result is empty */
+    if (raw_result[0] == '\0') [[unlikely]]
+        return false;
+
+    /* get result length once */
+    const std::size_t result_len = std::strlen(raw_result);
+
+    /* write entire result in one operation */
+    if (!output.write(raw_result, static_cast<std::streamsize>(result_len))) [[unlikely]]
+        throw std::runtime_error("Failed to write LaTeX output to stream.");
+
+    /* ensure data is written */
+    output.flush();
+
+    if (!output) [[unlikely]]
+        throw std::runtime_error("Failed to flush LaTeX output to stream.");
+
+    return true;
+}
+
 bool HtmlTeXConverter::hasError() const {
     return converter && html2tex_get_error(converter.get()) != 0;
 }

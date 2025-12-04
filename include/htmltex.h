@@ -79,6 +79,9 @@ public:
     /* Convert the HtmlParser instance to LaTeX and write the result to the specified file path. */
     bool convertToFile(const HtmlParser&, const std::string&) const;
 
+    /* Convert the HtmlParser instance to LaTeX and write the result to a file. */
+    bool convertToFile(const HtmlParser&, std::ofstream&) const;
+
     /*
        Set the directory where images extracted from the DOM tree are saved.
        @return true on success, false otherwise.
