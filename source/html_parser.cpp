@@ -197,6 +197,76 @@ HtmlParser HtmlParser::FromStream(std::ifstream& input) {
     return HtmlParser();
 }
 
+HtmlParser HtmlParser::FromHtml(const std::string& filePath) {
+    /* check if stream is usable */
+    std::ifstream fin(filePath, std::ios::binary);
+
+    if (!fin.is_open() || fin.bad())
+        return HtmlParser();
+
+    /* save original position */
+    std::streampos original_pos = fin.tellg();
+
+    /* try to read with reasonable limit */
+    const size_t MAX_READ = 134'217'728;
+
+    std::string content;
+    content.reserve(65536);
+
+    char buffer[4096];
+    size_t total_read = 0;
+
+    /* read chunks until EOF or limit reached */
+    while (total_read < MAX_READ && fin.good()) {
+        fin.read(buffer, sizeof(buffer));
+        std::streamsize bytes = fin.gcount();
+
+        if (bytes <= 0)
+            break;
+
+        /* check for overflow */
+        size_t bytes_size_t = static_cast<size_t>(bytes);
+        size_t remaining_limit = MAX_READ - total_read;
+
+        if (bytes_size_t > remaining_limit) {
+            /* would exceed limit - read partial */
+            if (remaining_limit > 0 && remaining_limit <= sizeof(buffer))
+                content.append(buffer, remaining_limit);
+
+            break;
+        }
+
+        content.append(buffer, bytes_size_t);
+        total_read += bytes_size_t;
+        if (fin.eof()) break;
+    }
+
+    /* restore position and return empty */
+    if (content.empty() || fin.bad()) {
+        fin.clear(); 
+        fin.seekg(original_pos);
+
+        if(fin.is_open()) fin.close();
+        return HtmlParser();
+    }
+
+    /* clear any failure flags (except EOF) */
+    if (!fin.eof()) fin.clear();
+
+    /* parse the content */
+    if (!content.empty()) {
+        HTMLNode* raw_node = html2tex_parse(content.c_str());
+
+        if (raw_node) {
+            if (fin.is_open()) fin.close();
+            return HtmlParser(raw_node);
+        }
+    }
+
+    if (fin.is_open()) fin.close();
+    return HtmlParser();
+}
+
 std::string HtmlParser::toString() const {
     if (!node) return "";
     char* output = get_pretty_html(node.get());

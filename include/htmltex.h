@@ -42,6 +42,9 @@ public:
     /* Initializes the parser from the given file stream. */
     static HtmlParser FromStream(std::ifstream&);
 
+    /*  */
+    static HtmlParser FromHtml(const std::string&);
+
     /* Returns prettified HTML from this instance. */
     std::string toString() const;
     ~HtmlParser() = default;
