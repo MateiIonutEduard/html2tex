@@ -89,51 +89,101 @@ void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_nod
 }
 
 std::istream& operator >>(std::istream& in, HtmlParser& parser) {
-    /* check if stream is in good state first */
+    /* stream already in bad state */
     if (!in.good()) {
-        parser.setParent(std::unique_ptr<HTMLNode,
-            decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
+        parser.setParent({ nullptr, &html2tex_free_node });
         return in;
     }
 
-    std::ostringstream stream;
-    char buffer[4096];
+    /* enforce maximum input size (128MB) */
+    constexpr size_t MAX_INPUT_SIZE = 134'217'728;
+    std::string html_content;
 
-    /* read stream in chunks until EOF or failure */
-    while (in.read(buffer, sizeof(buffer)) || in.gcount() > 0) {
-        stream.write(buffer, in.gcount());
-        if (in.eof()) break;
+    /* reserve reasonable initial capacity */
+    html_content.reserve(65536);
+
+    /* double buffer size for better throughput */
+    char buffer[8192];
+
+    size_t total_read = 0;
+    bool read_error = false;
+
+    /* single-pass optimized read with security checks */
+    while (in && total_read < MAX_INPUT_SIZE) {
+        in.read(buffer, sizeof(buffer));
+        const std::streamsize bytes_read = in.gcount();
+
+        /* validate bytes_read before use */
+        if (bytes_read < 0) {
+            read_error = true;
+            break;
+        }
+
+        /* check why we got 0 bytes */
+        if (bytes_read == 0) {
+            if (in.eof()) break;
+
+            if (in.fail()) {
+                read_error = true;
+                break;
+            }
+
+            /* non-blocking or empty */
+            continue;
+        }
+
+        /* convert safely and check bounds */
+        const size_t bytes_size = static_cast<size_t>(bytes_read);
+
+        /* prevent integer overflow in size calculation */
+        if (bytes_size > MAX_INPUT_SIZE - total_read) {
+            /* append only what fits within limit */
+            const size_t can_append = MAX_INPUT_SIZE - total_read;
+
+            if (can_append > 0 && can_append <= sizeof(buffer))
+                html_content.append(buffer, can_append);
+            
+            /* reached size limit */
+            break;
+        }
+
+        /* bulk append for improved performance */
+        html_content.append(buffer, bytes_size);
+        total_read += bytes_size;
+
+        /* early exit if buffer wasn't fully filled (likely EOF) */
+        if (bytes_size < sizeof(buffer))
+            break;
     }
 
-    /* check if we actually read anything */
-    std::string html_content = stream.str();
+    /* handle read errors */
+    if (read_error || in.bad()) {
+        /* preserve stream state */
+        parser.setParent({ nullptr, &html2tex_free_node });
+        return in;
+    }
 
+    /* check for empty content */
     if (html_content.empty()) {
-        /* clear failure state for future reads */
+        /* only clear non-EOF failures to allow retry */
         if (in.fail() && !in.eof()) in.clear();
 
-        parser.setParent(std::unique_ptr<HTMLNode,
-            decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
+        parser.setParent({ nullptr, &html2tex_free_node });
         return in;
     }
 
-    /* only check EOF state after ensuring that content exists */
-    if (!in.eof() && in.fail()) in.clear();
+    /* clear transient failure flags (except EOF) */
+    if (in.fail() && !in.eof()) in.clear();
 
-    HTMLNode* raw_node = parser.minify ?
-        html2tex_parse_minified(html_content.c_str()) :
-        html2tex_parse(html_content.c_str());
+    /* parse the content with minify option */
+    HTMLNode* raw_node = nullptr;
 
-    if (raw_node) {
-        parser.setParent(std::unique_ptr<HTMLNode,
-            decltype(&html2tex_free_node)>(raw_node, &html2tex_free_node));
-    }
-    else {
-        /* reset to empty state if parsing fails */
-        parser.setParent(std::unique_ptr<HTMLNode,
-            decltype(&html2tex_free_node)>(nullptr, &html2tex_free_node));
-    }
+    if (parser.minify) raw_node = html2tex_parse_minified(html_content.c_str());
+    else raw_node = html2tex_parse(html_content.c_str());
 
+    /* moves ownership */
+    if (raw_node) parser.setParent({ raw_node, &html2tex_free_node });
+    else parser.setParent({ nullptr, &html2tex_free_node });
     return in;
 }
 
