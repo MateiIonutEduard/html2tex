@@ -142,13 +142,13 @@ int main(int argc, char** argv) {
 	HtmlTeXConverter util;
 	util.setDirectory(argv[1]);
 	
-	ifstream fin(argv[2]);
+	std::ifstream fin(argv[2]);
 	HtmlParser parser; 
 	
 	fin >> parser;
 	fin.close();
     
-	ofstream fout(argv[3]);
+	std::ofstream fout(argv[3]);
 	util.convertToFile(parser, fout);
 	
 	fout.close();
