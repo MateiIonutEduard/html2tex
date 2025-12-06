@@ -12,7 +12,7 @@ HtmlParser::HtmlParser() : node(nullptr, &html2tex_free_node), minify(0)
 
 HtmlParser::HtmlParser(const std::string& html) : HtmlParser(html, 0) { }
 
-HtmlParser::HtmlParser(const std::string& html, int minify_flag)
+HtmlParser::HtmlParser(const std::string& html, int minify_flag) noexcept
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
     /* empty parser, but valid state */
     if (html.empty()) return;
@@ -27,7 +27,7 @@ HtmlParser::HtmlParser(const std::string& html, int minify_flag)
 HtmlParser::HtmlParser(HTMLNode* raw_node) : HtmlParser(raw_node, 0)
 { }
 
-HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag)
+HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag) noexcept
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
     /* object is in empty but valid state */
     if (!raw_node) return;
@@ -36,7 +36,7 @@ HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag)
     if (copied_node) node.reset(copied_node);
 }
 
-HtmlParser::HtmlParser(const HtmlParser& other)
+HtmlParser::HtmlParser(const HtmlParser& other) noexcept
     : node(nullptr, &html2tex_free_node), minify(other.minify) {
     if (other.node) {
         HTMLNode* copied_node = dom_tree_copy(other.node.get());
@@ -84,7 +84,7 @@ std::ostream& operator <<(std::ostream& out, const HtmlParser& parser) {
     return out;
 }
 
-void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> new_node) {
+void HtmlParser::setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> new_node) noexcept {
     node = std::move(new_node);
 }
 
@@ -193,7 +193,7 @@ std::istream& operator >>(std::istream& in, HtmlParser& parser) {
     return in;
 }
 
-HtmlParser HtmlParser::FromStream(std::ifstream& input) {
+HtmlParser HtmlParser::fromStream(std::ifstream& input) noexcept {
     /* fast fail checks */
     if (!input.is_open() || input.bad())
         return HtmlParser();
@@ -299,7 +299,7 @@ HtmlParser HtmlParser::FromStream(std::ifstream& input) {
     return HtmlParser();
 }
 
-HtmlParser HtmlParser::FromHtml(const std::string& filePath) {
+HtmlParser HtmlParser::fromHtml(const std::string& filePath) noexcept {
     /* open with optimal flags for reading */
     std::ifstream fin(filePath, std::ios::binary | std::ios::ate);
     if (!fin.is_open()) return HtmlParser();
@@ -352,22 +352,50 @@ HtmlParser HtmlParser::FromHtml(const std::string& filePath) {
     return HtmlParser();
 }
 
-HTMLNode* HtmlParser::GetHtmlNode() const noexcept { 
+HTMLNode* HtmlParser::getHtmlNode() const noexcept { 
     return node.get(); 
 }
 
-bool HtmlParser::HasContent() const noexcept { 
+bool HtmlParser::hasContent() const noexcept { 
     return node != nullptr; 
 }
 
-std::string HtmlParser::toString() const {
-    if (!node) return "";
-    char* output = get_pretty_html(node.get());
+void HtmlParser::writeTo(const std::string& filePath) const {
+    /* validate the state */
+    if (!hasContent()) 
+        throw std::logic_error("Parser contains no HTML content.");
 
-    /* additional safety check */
-    if (!output) return "";
-    std::string result(output);
+    /* check if the input path is not empty */
+    if (filePath.empty()) 
+        throw std::invalid_argument("File path cannot be empty.");
+    
+    /* detect whether any errors occurred */
+    const bool write_success = write_pretty_html(node.get(), filePath.c_str());
 
-    free(output);
-    return result;
+    /* build a generic error message if function failed */
+    if (!write_success) {
+        throw std::runtime_error(
+            "Failed to write HTML content to '" +
+            filePath + "'.");
+    }
+}
+
+std::string HtmlParser::toString() const noexcept {
+    /* quick exit for common case */
+    if (!node)
+        return "";
+
+    /* get formatted HTML */
+    char* const raw_output = get_pretty_html(node.get());
+
+    /* add RAII ownership for safely destroying the allocate memory */
+    const auto deleter = [](char* p) noexcept { std::free(p); };
+    std::unique_ptr<char[], decltype(deleter)> output_guard(raw_output, deleter);
+
+    /* now check for valid output */
+    if (!raw_output || raw_output[0] == '\0')
+        return "";
+    
+    /* return output string */
+    return std::string(raw_output);
 }

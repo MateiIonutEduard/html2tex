@@ -13,6 +13,7 @@ extern "C" {
 	typedef struct ConverterState ConverterState;
     typedef struct LaTeXConverter LaTeXConverter;
 	typedef struct CSSProperties CSSProperties;
+	typedef struct NodeQueue NodeQueue;
 
     /* HTML node structure */
     struct HTMLNode {
@@ -23,6 +24,11 @@ extern "C" {
         HTMLNode* next;
         HTMLNode* parent;
     };
+	
+	struct NodeQueue {
+		HTMLNode* data;
+		struct NodeQueue* next;
+	};
 
     /* HTML attribute structure */
     struct HTMLAttribute {
@@ -39,15 +45,10 @@ extern "C" {
         int in_paragraph;
         int in_list;
 		
-        int table_counter;
-		int figure_counter;
-		
-		int table_id_counter;
-		int figure_id_counter;
-		
-		int image_id_counter;
-		int image_caption_counter;
-		
+        int table_internal_counter;
+		int figure_internal_counter;
+		int image_internal_counter;
+
         int in_table;
         int in_table_row;
 		

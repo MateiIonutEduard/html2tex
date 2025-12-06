@@ -28,14 +28,10 @@ LaTeXConverter* html2tex_create(void) {
     converter->state.in_paragraph = 0;
 
     converter->state.in_list = 0;
-    converter->state.table_counter = 0;
+    converter->state.table_internal_counter = 0;
 
-    converter->state.figure_counter = 0;
-    converter->state.table_id_counter = 0;
-
-    converter->state.image_id_counter = 0;
-    converter->state.image_caption_counter = 0;
-    converter->state.figure_id_counter = 0;
+    converter->state.image_internal_counter = 0;
+    converter->state.figure_internal_counter = 0;
 
     converter->state.in_table = 0;
     converter->state.in_table_row = 0;
@@ -86,14 +82,10 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     clone->state.in_paragraph = converter->state.in_paragraph;
 
     clone->state.in_list = converter->state.in_list;
-    clone->state.table_counter = converter->state.table_counter;
+    clone->state.table_internal_counter = converter->state.table_internal_counter;
 
-    clone->state.figure_counter = converter->state.figure_counter;
-    clone->state.table_id_counter = converter->state.table_id_counter;
-
-    clone->state.image_id_counter = converter->state.image_id_counter;
-    clone->state.image_caption_counter = converter->state.image_caption_counter;
-    clone->state.figure_id_counter = converter->state.figure_id_counter;
+    clone->state.figure_internal_counter = converter->state.figure_internal_counter;
+    clone->state.image_internal_counter = converter->state.image_internal_counter;
 
     clone->state.in_table = converter->state.in_table;
     clone->state.in_table_row = converter->state.in_table_row;
