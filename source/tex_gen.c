@@ -757,8 +757,9 @@ static void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
 }
 
 static void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
-    /* find caption */
+    /* find the figure caption */
     HTMLNode* caption = NULL;
+    converter->state.figure_internal_counter++;
 
     for (HTMLNode* child = table_node->children; child; child = child->next) {
         if (child->tag && strcmp(child->tag, "caption") == 0) {
@@ -779,11 +780,9 @@ static void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_nod
     else {
         /* default caption */
         append_string(converter, "Figure ");
-
-        converter->state.figure_counter++;
         char counter_str[32];
 
-        snprintf(counter_str, sizeof(counter_str), "%d", converter->state.figure_counter);
+        snprintf(counter_str, sizeof(counter_str), "%d", converter->state.figure_internal_counter);
         append_string(converter, counter_str);
     }
 
@@ -793,10 +792,8 @@ static void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_nod
     const char* fig_id = get_attribute(table_node->attributes, "id");
     char figure_label[32];
 
-    if (!fig_id || fig_id[0] == '\0') {
-        converter->state.figure_id_counter++;
-        snprintf(figure_label, sizeof(figure_label), "figure_%d", converter->state.figure_id_counter);
-    }
+    if (!fig_id || fig_id[0] == '\0')
+        snprintf(figure_label, sizeof(figure_label), "figure_%d", converter->state.figure_internal_counter);
     else {
         strncpy(figure_label, fig_id, sizeof(figure_label) - 1);
         figure_label[sizeof(figure_label) - 1] = '\0';

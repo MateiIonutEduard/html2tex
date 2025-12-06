@@ -46,9 +46,8 @@ extern "C" {
         int in_list;
 		
         int table_internal_counter;
-		int figure_counter;
+		int figure_internal_counter;
 		int image_internal_counter;
-		int figure_id_counter;
 
         int in_table;
         int in_table_row;
