@@ -294,125 +294,199 @@ static char* generate_safe_filename(const char* src, int image_counter) {
     if (!filename) return NULL;
 
     if (is_base64_image(src)) {
-        /* for base64 images, use counter and determine extension from MIME type */
         char* mime_type = extract_mime_type(src);
-        const char* extension = get_extension_from_mime_type(mime_type);
+        const char* extension = mime_type ? get_extension_from_mime_type(mime_type) : ".bin";
 
         snprintf(filename, 256, "image_%d%s", image_counter, extension);
-        if (mime_type) free(mime_type);
+        free(mime_type);
     }
     else {
-        /* for URL images, extract filename from URL */
+        /* extract filename from URL */
         const char* last_slash = strrchr(src, '/');
-        const char* filename_start = last_slash ? last_slash + 1 : src;
+        const char* name_start = last_slash ? last_slash + 1 : src;
 
-        /* no filename in URL, use counter */
-        if (filename_start[0] == '\0') snprintf(filename, 256, "image_%d.jpg", image_counter);
-        else {
-            /* remove query parameters and hash fragments */
-            char* clean_name = malloc(strlen(filename_start) + 1);
-
-            if (!clean_name) {
-                free(filename);
-                return NULL;
-            }
-
-            char* dest = clean_name;
-
-            for (const char* p = filename_start; *p && *p != '?' && *p != '#'; p++) {
-                if (isalnum(*p) || *p == '.' || *p == '-' || *p == '_')
-                    *dest++ = *p;
-                else
-                    *dest++ = '_';
-            }
-
-            *dest = '\0';
-
-            /* if cleaned name is empty, use counter */
-            if (clean_name[0] == '\0')
-                snprintf(filename, 256, "image_%d.jpg", image_counter);
-            else {
-                /* check if it has an extension */
-                const char* dot = strrchr(clean_name, '.');
-
-                /* no valid extension, add .jpg */
-                if (!dot || dot == clean_name || (dot - clean_name) < 2)
-                    snprintf(filename, 256, "%s.jpg", clean_name);
-                else {
-                    strncpy(filename, clean_name, 255);
-                    filename[255] = '\0';
-                }
-            }
-
-            free(clean_name);
+        /* empty filename in URL ?! */
+        if (!*name_start) {
+            snprintf(filename, 256, "image_%d.jpg", image_counter);
+            return filename;
         }
+
+        /* find end of filename, before query or fragment */
+        const char* end = name_start;
+
+        while (*end && *end != '?' && *end != '#' && *end != ';')
+            end++;
+
+        size_t name_len = end - name_start;
+
+        if (name_len == 0) {
+            snprintf(filename, 256, "image_%d.jpg", image_counter);
+            return filename;
+        }
+
+        /* copy and sanitize filename */
+        char* dest = filename;
+
+        const char* src_char = name_start;
+        size_t copied = 0;
+
+        while (src_char < end && copied < 255) {
+            char c = *src_char++;
+
+            if (isalnum((unsigned char)c) || c == '.' || c == '-' || c == '_') {
+                *dest++ = c;
+                copied++;
+            }
+            else {
+                *dest++ = '_';
+                copied++;
+            }
+        }
+
+        *dest = '\0';
+
+        /* ensure it has an extension */
+        char* dot = strrchr(filename, '.');
+
+        if (!dot || dot == filename || (dot - filename) < 2)
+            strncat(filename, ".jpg", 255 - strlen(filename));
     }
 
     return filename;
 }
 
-/* Generates a filename hash using the modified djb2 function. */
-static void gen_hash(const char* input, char* output) {
-    /* use timestamp to randomize */
-    unsigned long hash = 5381 ^ (unsigned long)time(NULL);
+/* Generate deterministic hash (djb2) from input. */
+static unsigned long deterministic_hash(const char* str) {
+    unsigned long hash = 5381;
     int c;
 
-    while ((c = *input++)) hash = ((hash << 5) + hash) + c;
-    snprintf(output, 33, "%08lx", hash);
+    while ((c = *str++))
+        hash = ((hash << 5) + hash) + c;
+    
+    return hash;
 }
 
-/* Generate unique filename to avoid conflicts. */
-static char* generate_unique_filename(const char* base_filename, const char* src, int image_counter) {
+/* Generate unique filename for the specified image. */
+static char* generate_unique_filename(const char* output_dir, const char* src, int image_counter) {
     char* filename = generate_safe_filename(src, image_counter);
     if (!filename) return NULL;
 
-    /* check if the file already exists */
-    char test_path[1024];
+    /* check if file already exists */
+    char full_path[1024];
 
-#ifdef _WIN32
-    snprintf(test_path, sizeof(test_path), ".\\images\\%s", filename);
-#else
-    snprintf(test_path, sizeof(test_path), "./images/%s", filename);
-#endif
-
+    snprintf(full_path, sizeof(full_path), "%s/%s", output_dir, filename);
     struct stat st;
 
-    /* file does not exist, thus will use the generated name */
-    if (stat(test_path, &st) != 0) return filename;
+    /* file does not exist, use this filename */
+    if (stat(full_path, &st) != 0)
+        return filename;
 
-    /* file exists, generate unique name with hash */
+    /* file exists, apply deterministic hash */
     free(filename);
+    unsigned long hash = deterministic_hash(src);
 
-    char hash[33];
-    gen_hash(src, hash);
+    char hash_str[9];
+    snprintf(hash_str, sizeof(hash_str), "%08lx", hash);
+
+    if (is_base64_image(src)) {
+        char* mime_type = extract_mime_type(src);
+        const char* extension = mime_type ? get_extension_from_mime_type(mime_type) : ".bin";
+        char* unique_name = (char*)malloc(256);
+
+        if (unique_name) {
+            snprintf(unique_name, 256, "image_%d_%s%s", image_counter, hash_str, extension);
+        }
+
+        free(mime_type);
+        return unique_name;
+    }
+
+    /* for URLs, extract base name and add hash before extension */
+    const char* last_slash = strrchr(src, '/');
+    const char* name_start = last_slash ? last_slash + 1 : src;
+
+    /* empty filename */
+    if (!*name_start) {
+        char* unique_name = (char*)malloc(256);
+
+        if (unique_name)
+            snprintf(unique_name, 256, "image_%d_%s.jpg", image_counter, hash_str);
+        
+        return unique_name;
+    }
+
+    /* find filename boundaries */
+    const char* end = name_start;
+
+    while (*end && *end != '?' && *end != '#' && *end != ';')
+        end++;
+
+    /* find last dot in the filename part */
+    const char* last_dot = NULL;
+
+    for (const char* p = name_start; p < end; p++) {
+        if (*p == '.') last_dot = p;
+    }
 
     char* unique_name = malloc(256);
     if (!unique_name) return NULL;
 
-    if (is_base64_image(src)) {
-        char* mime_type = extract_mime_type(src);
-        const char* extension = get_extension_from_mime_type(mime_type);
+    /* has extension */
+    if (last_dot && last_dot > name_start) { 
+        size_t name_len = last_dot - name_start;
+        size_t ext_len = end - last_dot;
 
-        snprintf(unique_name, 256, "image_%d_%s%s", image_counter, hash, extension);
-        if (mime_type) free(mime_type);
+        if (name_len > 100) name_len = 100;
+        if (ext_len > 10) ext_len = 10;
+
+        /* copy name part */
+        char* dest = unique_name;
+        const char* src_char = name_start;
+        size_t copied = 0;
+
+        while (src_char < last_dot && copied < 100) {
+            char c = *src_char++;
+            if (isalnum((unsigned char)c) || c == '-' || c == '_') {
+                *dest++ = c;
+                copied++;
+            }
+            else {
+                *dest++ = '_';
+                copied++;
+            }
+        }
+
+        /* add hash and extension */
+        snprintf(dest, 256 - (dest - unique_name), "_%s%.*s",
+            hash_str, (int)ext_len, last_dot);
     }
     else {
-        const char* last_slash = strrchr(src, '/');
-        const char* filename_start = last_slash ? last_slash + 1 : src;
+        /* no extension found */
+        size_t name_len = end - name_start;
+        if (name_len > 100) name_len = 100;
 
-        char base[200];
-        const char* dot = strrchr(filename_start, '.');
+        /* copy sanitized name */
+        char* dest = unique_name;
+        const char* src_char = name_start;
+        size_t copied = 0;
 
-        if (dot && dot > filename_start) {
-            size_t base_len = dot - filename_start;
-            if (base_len > 100) base_len = 100;
+        if (src_char) {
+            while (src_char < end && copied < 100) {
+                char c = *src_char++;
 
-            strncpy(base, filename_start, base_len);
-            base[base_len] = '\0';
-            snprintf(unique_name, 256, "%s_%s%s", base, hash, dot);
+                if (isalnum((unsigned char)c) || c == '-' || c == '_') {
+                    *dest++ = c;
+                    copied++;
+                }
+                else {
+                    *dest++ = '_';
+                    copied++;
+                }
+            }
         }
-        else
-            snprintf(unique_name, 256, "image_%d_%s.jpg", image_counter, hash);
+
+        /* add hash and .jpg extension */
+        snprintf(dest, 256 - (dest - unique_name), "_%s.jpg", hash_str);
     }
 
     return unique_name;
