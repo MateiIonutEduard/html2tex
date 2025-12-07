@@ -242,13 +242,12 @@ static HTMLNode* parse_element(ParserState* state) {
             state->position++;
 
         /* closing tags do not create nodes */
-        free(tag_name);
+        if (tag_name) free(tag_name);
         return NULL;
     }
 
     /* parse opening tag */
     char* tag_name = parse_tag_name(state);
-
     if (!tag_name) return NULL;
     HTMLAttribute* attributes = parse_attributes(state);
 
@@ -263,20 +262,33 @@ static HTMLNode* parse_element(ParserState* state) {
     if (state->position < state->length && state->input[state->position] == '>')
         state->position++;
 
-    HTMLNode* node = malloc(sizeof(HTMLNode));
-    node->tag = tag_name;
+    HTMLNode* node = (HTMLNode*)malloc(sizeof(HTMLNode));
 
+    if (!node) {
+        free(tag_name);
+
+        while (attributes) {
+            HTMLAttribute* next = attributes->next;
+            free(attributes->key);
+            if (attributes->value) free(attributes->value);
+            free(attributes);
+            attributes = next;
+        }
+
+        return NULL;
+    }
+
+    node->tag = tag_name;
     node->content = NULL;
     node->attributes = attributes;
-
     node->children = NULL;
     node->next = NULL;
     node->parent = NULL;
 
     /* parse children if not self-closing and not a void element */
     if (!self_closing) {
-        /* void elements in HTML cannot have content */
-        const char* void_elements[] = {
+        /* HTML void element list */
+        static const char* const void_elements[] = {
             "area", "base", "br", "col", "embed", "hr", "img",
             "input", "link", "meta", "param", "source", "track", "wbr", NULL
         };
@@ -290,41 +302,78 @@ static HTMLNode* parse_element(ParserState* state) {
         }
 
         if (!is_void_element) {
+            /* cache frequently accessed values */
             HTMLNode** current_child = &node->children;
+            const char* input = state->input;
 
-            while (state->position < state->length) {
-                /* do not skip whitespace between children - it might be significant text */
+            size_t* pos = &state->position;
+            const size_t length = state->length;
+
+            while (*pos < length) {
+                /* optimized whitespace skipping inline */
+                size_t saved_pos = *pos;
+
+                while (*pos < length && (unsigned char)input[*pos] <= ' ' && input[*pos])
+                    (*pos)++;
 
                 /* check for closing tag */
-                if (state->position < state->length - 1 && state->input[state->position] == '<' && state->input[state->position + 1] == '/') {
-                    /* found closing tag - skip whitespace before checking */
-                    size_t saved_pos = state->position;
-                    skip_whitespace(state);
+                if (*pos < length - 1 && input[*pos] == '<' && input[*pos + 1] == '/') {
+                    /* found potential closing tag */
+                    size_t check_pos = *pos;
+
+                    /* skip whitespace before checking tag name */
+                    while (check_pos < length && (unsigned char)input[check_pos] <= ' ' && input[check_pos])
+                        check_pos++;
 
                     /* if we still have the closing tag after skipping whitespace */
-                    if (state->position < state->length - 1 && state->input[state->position] == '<' && state->input[state->position + 1] == '/') {
-                        state->position += 2;
-                        char* closing_tag = parse_tag_name(state);
-                        skip_whitespace(state);
+                    if (check_pos < length - 1 && input[check_pos] == '<' && input[check_pos + 1] == '/') {
+                        size_t parse_pos = check_pos + 2;
 
-                        /* only break if this is the correct closing tag for our element */
-                        if (closing_tag && tag_name && strcmp(closing_tag, tag_name) == 0) {
-                            if (state->position < state->length && state->input[state->position] == '>') {
-                                state->position++;
+                        /* parse closing tag name */
+                        char* closing_tag = NULL;
+
+                        if (parse_pos < length) {
+                            size_t start = parse_pos;
+
+                            while (parse_pos < length &&
+                                (isalnum((unsigned char)input[parse_pos]) || input[parse_pos] == '-')) {
+                                parse_pos++;
+                            }
+                            if (parse_pos > start) {
+                                size_t tag_len = parse_pos - start;
+                                closing_tag = (char*)malloc(tag_len + 1);
+
+                                if (closing_tag) {
+                                    for (size_t i = 0; i < tag_len; i++)
+                                        closing_tag[i] = (char)tolower((unsigned char)input[start + i]);
+
+                                    closing_tag[tag_len] = '\0';
+                                }
+                            }
+                        }
+
+                        /* skip whitespace after tag name */
+                        while (parse_pos < length && (unsigned char)input[parse_pos] <= ' ' && input[parse_pos])
+                            parse_pos++;
+
+                        /* only break if this is the correct closing tag */
+                        if (closing_tag && strcmp(closing_tag, tag_name) == 0) {
+                            if (parse_pos < length && input[parse_pos] == '>') {
                                 free(closing_tag);
+                                *pos = parse_pos + 1;
                                 break;
                             }
                         }
 
-                        /* not our closing tag, restore position and continue parsing */
-                        free(closing_tag);
-                        state->position = saved_pos;
+                        if (closing_tag) free(closing_tag);
+                        *pos = saved_pos;
                     }
                     else
-                        /* the whitespace was actually text content, restore position and parse as text */
-                        state->position = saved_pos;
+                        /* the whitespace was actually text content */
+                        *pos = saved_pos;
                 }
 
+                /* parse child node */
                 HTMLNode* child = parse_node(state);
 
                 if (child) {
@@ -333,7 +382,7 @@ static HTMLNode* parse_element(ParserState* state) {
                     current_child = &child->next;
                 }
                 else
-                    /* if no child was parsed, we might be at the end or have malformed HTML */
+                    /* if no child was parsed, we might be at the end */
                     break;
             }
         }
