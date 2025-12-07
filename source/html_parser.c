@@ -179,23 +179,27 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
 }
 
 static char* parse_text_content(ParserState* state) {
-    size_t start = state->position;
-    size_t length = 0;
+    const char* input = state->input;
+    size_t pos = state->position;
+    const size_t length = state->length;
+    const char* start_ptr = input + pos;
+    const char* current = start_ptr;
+    const char* const end = input + length;
 
-    while (state->position < state->length) {
-        if (state->input[state->position] == '<')
-            break;
+    /* scan for tag beginning */
+    while (current < end && *current != '<')
+        current++;
 
-        state->position++;
-        length++;
-    }
+    size_t text_len = (size_t)(current - start_ptr);
+    if (text_len == 0) return NULL;
 
-    if (length == 0) return NULL;
+    char* text = (char*)malloc(text_len + 1);
+    if (!text) return NULL;
 
-    char* text = malloc(length + 1);
-    strncpy(text, state->input + start, length);
-    text[length] = '\0';
+    memcpy(text, start_ptr, text_len);
+    text[text_len] = '\0';
 
+    state->position = (size_t)(current - input);
     return text;
 }
 
