@@ -154,7 +154,7 @@ extern "C" {
     /* Parse the virtual DOM tree without optimizations. */
     HTMLNode* html2tex_parse(const char* html);
 	
-	/* Parse the virtual DOM tree with minification for improved performance. */
+	/* Parse HTML and return a minified DOM tree. */
 	HTMLNode* html2tex_parse_minified(const char* html);
 	
 	/* Creates a new instance from the input DOM tree. */

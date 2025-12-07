@@ -383,15 +383,15 @@ HTMLNode* html2tex_parse(const char* html) {
 
 HTMLNode* html2tex_parse_minified(const char* html) {
     if (!html) return NULL;
-
-    /* first parse normally */
     HTMLNode* parsed = html2tex_parse(html);
-    if (!parsed) return NULL;
 
-    /* then minify */
+    if (!parsed) return NULL;
     HTMLNode* minified = html2tex_minify_html(parsed);
 
+    /* free parsed since minify should create new tree */
     html2tex_free_node(parsed);
+
+    /* minified DOM tree */
     return minified;
 }
 
@@ -415,7 +415,7 @@ HTMLNode* dom_tree_copy(HTMLNode* node) {
     HTMLAttribute* old_attr = node->attributes;
 
     while (old_attr) {
-        HTMLAttribute* new_attr = malloc(sizeof(HTMLAttribute));
+        HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
         if (!new_attr) {
             html2tex_free_node(new_root);
@@ -455,7 +455,8 @@ HTMLNode* dom_tree_copy(HTMLNode* node) {
 
         while (src_child) {
             /* create child copy */
-            HTMLNode* new_child = malloc(sizeof(HTMLNode));
+            HTMLNode* new_child = (HTMLNode*)malloc(sizeof(HTMLNode));
+
             if (!new_child) {
                 html2tex_free_node(new_root);
                 queue_cleanup(&src_queue, &src_rear);
