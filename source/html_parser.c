@@ -345,19 +345,18 @@ static HTMLNode* parse_element(ParserState* state) {
 HTMLNode* html2tex_parse(const char* html) {
     if (!html) return NULL;
     ParserState state;
-
     state.input = html;
-    state.position = 0;
 
+    state.position = 0;
     state.length = strlen(html);
-    HTMLNode* root = malloc(sizeof(HTMLNode));
+
+    HTMLNode* root = (HTMLNode*)malloc(sizeof(HTMLNode));
+    if (!root) return NULL;
 
     root->tag = NULL;
     root->content = NULL;
-
     root->attributes = NULL;
     root->children = NULL;
-
     root->next = NULL;
     root->parent = NULL;
 
