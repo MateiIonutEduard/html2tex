@@ -13,9 +13,17 @@ typedef struct {
 } ParserState;
 
 static void skip_whitespace(ParserState* state) {
-    while (state->position < state->length &&
-        isspace(state->input[state->position]))
-        state->position++;
+    const char* input = state->input;
+    size_t pos = state->position;
+    const size_t length = state->length;
+
+    while (pos < length) {
+        unsigned char c = (unsigned char)input[pos];
+        if (c > ' ' || c == 0) break;
+        pos++;
+    }
+
+    state->position = pos;
 }
 
 static char* parse_tag_name(ParserState* state) {
