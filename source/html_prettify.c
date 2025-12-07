@@ -43,35 +43,73 @@ static int is_inline_element_for_formatting(const char* tag_name) {
 /* This helper function is used to escape HTML special characters. */
 static char* escape_html(const char* text) {
     if (!text) return NULL;
+    const char* p = text;
+    size_t extra = 0;
 
-    size_t len = strlen(text);
-    size_t new_len = len;
+    /* count special chars efficiently */
+    while (*p) {
+        unsigned char c = (unsigned char)*p;
+        if (c == '<' || c == '>') extra += 3;
 
-    /* count special characters to determine buffer size */
-    for (const char* p = text; *p; p++) {
-        if (*p == '<' || *p == '>' || *p == '&' || *p == '"' || *p == '\'') {
-            switch (*p) {
-            case '<': case '>': new_len += 3; break;
-            case '&': new_len += 4; break;
-            case '"': new_len += 5; break;
-            case '\'': new_len += 5; break;
-            }
+        else if (c == '&') {
+            /* check if already escaped */
+            if (strncmp(p, "&lt;", 4) && strncmp(p, "&gt;", 4) &&
+                strncmp(p, "&amp;", 5) && strncmp(p, "&quot;", 6) &&
+                strncmp(p, "&apos;", 6) && strncmp(p, "&#", 2))
+                extra += 4;
         }
+
+        else if (c == '"') extra += 5;
+        else if (c == '\'') extra += 5;
+        p++;
     }
 
-    char* escaped = malloc(new_len + 1);
+    /* no escaping needed, return copy */
+    if (extra == 0) return strdup(text);
+
+    /* allocate once */
+    size_t len = p - text;
+
+    char* escaped = (char*)malloc(len + extra + 1);
     if (!escaped) return NULL;
 
+    /* copy with escaping */
     char* dest = escaped;
-    for (const char* p = text; *p; p++) {
-        switch (*p) {
-        case '<': strcpy(dest, "&lt;"); dest += 4; break;
-        case '>': strcpy(dest, "&gt;"); dest += 4; break;
-        case '&': strcpy(dest, "&amp;"); dest += 5; break;
-        case '"': strcpy(dest, "&quot;"); dest += 6; break;
-        case '\'': strcpy(dest, "&apos;"); dest += 6; break;
-        default: *dest++ = *p; break;
+    p = text;
+
+    while (*p) {
+        unsigned char c = (unsigned char)*p;
+
+        if (c == '<') {
+            memcpy(dest, "&lt;", 4);
+            dest += 4;
         }
+        else if (c == '>') {
+            memcpy(dest, "&gt;", 4);
+            dest += 4;
+        }
+        else if (c == '&') {
+            /* check if already escaped */
+            if (strncmp(p, "&lt;", 4) && strncmp(p, "&gt;", 4) &&
+                strncmp(p, "&amp;", 5) && strncmp(p, "&quot;", 6) &&
+                strncmp(p, "&apos;", 6) && strncmp(p, "&#", 2)) {
+                memcpy(dest, "&amp;", 5);
+                dest += 5;
+            }
+            else
+                *dest++ = *p;
+        }
+        else if (c == '"') {
+            memcpy(dest, "&quot;", 6);
+            dest += 6;
+        }
+        else if (c == '\'') {
+            memcpy(dest, "&apos;", 6);
+            dest += 6;
+        }
+        else
+            *dest++ = *p;
+        p++;
     }
 
     *dest = '\0';
