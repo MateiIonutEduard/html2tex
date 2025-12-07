@@ -101,37 +101,80 @@ static char* parse_quoted_string(ParserState* state) {
 
 static HTMLAttribute* parse_attributes(ParserState* state) {
     HTMLAttribute* head = NULL;
-    HTMLAttribute** current = &head;
+    HTMLAttribute** tail = &head;
 
-    while (state->position < state->length) {
-        skip_whitespace(state);
+    const char* const input = state->input;
+    size_t pos = state->position;
+    const size_t length = state->length;
 
-        if (state->input[state->position] == '>' ||
-            state->input[state->position] == '/')
-            break;
-
-        char* key = parse_tag_name(state);
-        if (!key) break;
-
-        skip_whitespace(state);
-        char* value = NULL;
-
-        if (state->position < state->length && state->input[state->position] == '=') {
-            state->position++;
-            skip_whitespace(state);
-            value = parse_quoted_string(state);
+    while (pos < length) {
+        /* fast whitespace skipping */
+        while (pos < length) {
+            unsigned char c = (unsigned char)input[pos];
+            if (c > ' ' || c == 0) break;
+            pos++;
         }
 
-        HTMLAttribute* attr = malloc(sizeof(HTMLAttribute));
-        attr->key = key;
+        if (pos >= length) break;
+        unsigned char c = (unsigned char)input[pos];
+        if (c == '>' || c == '/') break;
 
+        /* parse key */
+        state->position = pos;
+        char* key = parse_tag_name(state);
+
+        if (!key) break;
+        pos = state->position;
+
+        /* skip whitespace after key */
+        while (pos < length) {
+            c = (unsigned char)input[pos];
+            if (c > ' ' || c == 0) break;
+            pos++;
+        }
+
+        /* parse value if '=' follows */
+        char* value = NULL;
+        if (pos < length && input[pos] == '=') {
+            pos++;
+
+            /* skip whitespace after '=' */
+            while (pos < length) {
+                c = (unsigned char)input[pos];
+                if (c > ' ' || c == 0) break;
+                pos++;
+            }
+
+            state->position = pos;
+            value = parse_quoted_string(state);
+
+            /* cleanup on parse failure */
+            if (!value) {
+                free(key);
+                break;
+            }
+
+            pos = state->position;
+        }
+
+        /* allocate and link attribute */
+        HTMLAttribute* attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
+
+        if (!attr) {
+            free(key);
+            if (value) free(value);
+            break;
+        }
+
+        attr->key = key;
         attr->value = value;
         attr->next = NULL;
 
-        *current = attr;
-        current = &(*current)->next;
+        *tail = attr;
+        tail = &attr->next;
     }
 
+    state->position = pos;
     return head;
 }
 
