@@ -403,36 +403,32 @@ static HTMLNode* minify_node_recursive(HTMLNode* node, int in_preformatted) {
 HTMLNode* html2tex_minify_html(HTMLNode* root) {
     if (!root) return NULL;
 
-    /* create a new minified tree */
-    HTMLNode* minified_root = malloc(sizeof(HTMLNode));
-
+    /* alloc and zero-initialize in one call */
+    HTMLNode* minified_root = calloc(1, sizeof(HTMLNode));
     if (!minified_root) return NULL;
-    minified_root->tag = NULL;
 
-    minified_root->content = NULL;
-    minified_root->attributes = NULL;
+    /* process children iteratively with error handling */
+    HTMLNode* src_child = root->children;
+    HTMLNode** dst_tail = &minified_root->children;
 
-    minified_root->parent = NULL;
-    minified_root->next = NULL;
+    while (src_child) {
+        /* minify child node */
+        HTMLNode* minified_child = minify_node_recursive(src_child, 0);
 
-    /* minify children */
-    HTMLNode* new_children = NULL;
-
-    HTMLNode** current_child = &new_children;
-    HTMLNode* old_child = root->children;
-
-    while (old_child) {
-        HTMLNode* minified_child = minify_node_recursive(old_child, 0);
-
-        if (minified_child) {
-            minified_child->parent = minified_root;
-            *current_child = minified_child;
-            current_child = &minified_child->next;
+        /* check for minification failure */
+        if (!minified_child) {
+            /* cleanup allocated memory before returning */
+            html2tex_free_node(minified_root);
+            return NULL;
         }
 
-        old_child = old_child->next;
+        /* link child to parent */
+        minified_child->parent = minified_root;
+        *dst_tail = minified_child;
+
+        dst_tail = &minified_child->next;
+        src_child = src_child->next;
     }
 
-    minified_root->children = new_children;
     return minified_root;
 }
