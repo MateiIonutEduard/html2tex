@@ -60,41 +60,114 @@ static int is_whitespace_only(const char* text) {
 
 /* Remove the unnecessary whitespace from text content. */
 static char* minify_text_content(const char* text, int is_in_preformatted) {
-    if (!text || is_in_preformatted)
-        return text ? strdup(text) : NULL;
+    /* quick null check */
+    if (!text) return NULL;
 
-    /* for normal text, collapse multiple whitespace into single space */
-    char* result = malloc(strlen(text) + 1);
-    if (!result) return NULL;
+    /* preformatted content (copy as-is) */
+    if (is_in_preformatted) return strdup(text);
+    const unsigned char* src = (const unsigned char*)text;
 
-    char* dest = result;
+    /* empty string */
+    if (*src == '\0') return NULL;
+
+    /* single character, common in HTML */
+    if (src[1] == '\0') {
+        /* check if it's whitespace */
+        unsigned char c = src[0];
+
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r')
+            return NULL;
+
+        /* non-whitespace single char found */
+        char* result = (char*)malloc(2);
+
+        if (result) {
+            result[0] = c;
+            result[1] = '\0';
+        }
+
+        return result;
+    }
+
+    /* analyze string and compute final size */
+    const unsigned char* scan = src;
+    size_t final_size = 0;
     int in_whitespace = 0;
+    int has_content = 0;
 
-    for (const char* src = text; *src; src++) {
-        if (isspace(*src)) {
-            if (!in_whitespace && dest != result) {
-                *dest++ = ' ';
-                in_whitespace = 1;
-            }
+    while (*scan) {
+        unsigned char c = *scan;
+
+        /* using ASCII whitespace check, that is faster than isspace */
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r') {
+            /* only count space if not consecutive and not at start */
+            if (!in_whitespace && has_content)
+                final_size++;
+            
+            in_whitespace = 1;
         }
         else {
-            *dest++ = *src;
+            /* non-whitespace char */
+            final_size++;
+            has_content = 1;
             in_whitespace = 0;
+        }
+        scan++;
+    }
+
+    /* all whitespace or empty result */
+    if (final_size == 0) return NULL;
+
+    /* adjust for trailing whitespace */
+    if (in_whitespace && final_size > 0)
+        final_size--;
+
+    /* no whitespace at all */
+    if (final_size == (size_t)(scan - src)) {
+        /* just copy the string */
+        char* result = (char*)malloc(final_size + 1);
+        if (!result) return NULL;
+
+        memcpy(result, text, final_size);
+        result[final_size] = '\0';
+        return result;
+    }
+
+    /* alloc exact size needed */
+    char* result = (char*)malloc(final_size + 1);
+    if (!result) return NULL;
+
+    /* build minified string */
+    char* dest = result;
+    in_whitespace = 0;
+    int at_start = 1;
+
+    while (*src) {
+        unsigned char c = *src++;
+
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r') {
+            /* collapse multiple whitespace to single space */
+            if (!in_whitespace && !at_start)
+                *dest++ = ' ';
+
+            in_whitespace = 1;
+        }
+        else {
+            /* copy non-whitespace char */
+            *dest++ = c;
+            in_whitespace = 0;
+            at_start = 0;
         }
     }
 
+    /* remove trailing space if we added one */
+    if (in_whitespace && dest > result)
+        dest--;
+
     *dest = '\0';
-
-    /* trim leading/trailing whitespace */
-    if (dest > result && isspace(*(dest - 1)))
-        *(dest - 1) = '\0';
-
-    /* if result is empty after trimming, return NULL */
-    if (result[0] == '\0') {
-        free(result);
-        return NULL;
-    }
-
     return result;
 }
 
