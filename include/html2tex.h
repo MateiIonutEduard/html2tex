@@ -154,7 +154,7 @@ extern "C" {
     /* Parse the virtual DOM tree without optimizations. */
     HTMLNode* html2tex_parse(const char* html);
 	
-	/* Parse the virtual DOM tree with minification for improved performance. */
+	/* Parse HTML and return a minified DOM tree. */
 	HTMLNode* html2tex_parse_minified(const char* html);
 	
 	/* Creates a new instance from the input DOM tree. */
@@ -222,6 +222,10 @@ extern "C" {
 	
 	/* Convert an integer to a null-terminated string using the given radix and store it in buffer. */
 	void portable_itoa(int value, char* buffer, int radix);
+	
+	inline int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data);
+	inline HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear);
+	inline void queue_cleanup(NodeQueue** front, NodeQueue** rear);
 	
 	#ifdef _MSC_VER
 	#define strdup portable_strdup

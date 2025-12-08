@@ -6,14 +6,35 @@
 
 /* Check whether a tag is safe to minify by removing surrounding whitespace. */
 static int is_safe_to_minify_tag(const char* tag_name) {
-    if (!tag_name) return 0;
+    if (!tag_name || tag_name[0] == '\0') return 0;
 
-    /* tags where whitespace is significant */
-    const char* preserve_whitespace_tags[] = {
+    /* read-only tags where whitespace is significant */
+    static const char* const preserve_whitespace_tags[] = {
         "pre", "code", "textarea", "script", "style", NULL
     };
 
+    /* compute length once, because the most tags will fail this check */
+    size_t len = 0;
+
+    const char* p = tag_name;
+    while (*p) { len++; p++; }
+
+    /* quick length-based rejection */
+    switch (len) {
+    case 3: case 4: case 5: case 6: case 8:
+        break;
+    default:
+        return 1;
+    }
+
+    /* check first character before strcmp */
+    char first_char = tag_name[0];
+
     for (int i = 0; preserve_whitespace_tags[i]; i++) {
+        /* fast rejection before expensive strcmp function call */
+        if (preserve_whitespace_tags[i][0] != first_char) continue;
+
+        /* apply strcmp function only for the few cases */
         if (strcmp(tag_name, preserve_whitespace_tags[i]) == 0)
             return 0;
     }
@@ -24,275 +45,587 @@ static int is_safe_to_minify_tag(const char* tag_name) {
 /* Check if text content is only whitespace. */
 static int is_whitespace_only(const char* text) {
     if (!text) return 1;
+    const unsigned char* p = (const unsigned char*)text;
 
-    for (const char* p = text; *p; p++) {
-        if (!isspace(*p))
+    while (*p) {
+        unsigned char c = *p++;
+        switch (c) {
+        case ' ': case '\t': case '\n': case '\v': case '\f': case '\r':
+            continue;
+        default:
             return 0;
+        }
     }
-
-    return 1;
 }
 
 /* Remove the unnecessary whitespace from text content. */
 static char* minify_text_content(const char* text, int is_in_preformatted) {
-    if (!text || is_in_preformatted)
-        return text ? strdup(text) : NULL;
+    /* quick null check */
+    if (!text) return NULL;
 
-    /* for normal text, collapse multiple whitespace into single space */
-    char* result = malloc(strlen(text) + 1);
-    if (!result) return NULL;
+    /* preformatted content (copy as-is) */
+    if (is_in_preformatted) return strdup(text);
+    const unsigned char* src = (const unsigned char*)text;
 
-    char* dest = result;
+    /* empty string */
+    if (*src == '\0') return NULL;
+
+    /* single character, common in HTML */
+    if (src[1] == '\0') {
+        /* check if it's whitespace */
+        unsigned char c = src[0];
+
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r')
+            return NULL;
+
+        /* non-whitespace single char found */
+        char* result = (char*)malloc(2);
+
+        if (result) {
+            result[0] = c;
+            result[1] = '\0';
+        }
+
+        return result;
+    }
+
+    /* analyze string and compute final size */
+    const unsigned char* scan = src;
+    size_t final_size = 0;
     int in_whitespace = 0;
+    int has_content = 0;
 
-    for (const char* src = text; *src; src++) {
-        if (isspace(*src)) {
-            if (!in_whitespace && dest != result) {
-                *dest++ = ' ';
-                in_whitespace = 1;
-            }
+    while (*scan) {
+        unsigned char c = *scan;
+
+        /* using ASCII whitespace check, that is faster than isspace */
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r') {
+            /* only count space if not consecutive and not at start */
+            if (!in_whitespace && has_content)
+                final_size++;
+            
+            in_whitespace = 1;
         }
         else {
-            *dest++ = *src;
+            /* non-whitespace char */
+            final_size++;
+            has_content = 1;
             in_whitespace = 0;
+        }
+        scan++;
+    }
+
+    /* all whitespace or empty result */
+    if (final_size == 0) return NULL;
+
+    /* adjust for trailing whitespace */
+    if (in_whitespace && final_size > 0)
+        final_size--;
+
+    /* no whitespace at all */
+    if (final_size == (size_t)(scan - src)) {
+        /* just copy the string */
+        char* result = (char*)malloc(final_size + 1);
+        if (!result) return NULL;
+
+        memcpy(result, text, final_size);
+        result[final_size] = '\0';
+        return result;
+    }
+
+    /* alloc exact size needed */
+    char* result = (char*)malloc(final_size + 1);
+    if (!result) return NULL;
+
+    /* build minified string */
+    char* dest = result;
+    in_whitespace = 0;
+    int at_start = 1;
+
+    while (*src) {
+        unsigned char c = *src++;
+
+        if (c == ' ' || c == '\t' || c == '\n' ||
+            c == '\v' || c == '\f' || c == '\r') {
+            /* collapse multiple whitespace to single space */
+            if (!in_whitespace && !at_start)
+                *dest++ = ' ';
+
+            in_whitespace = 1;
+        }
+        else {
+            /* copy non-whitespace char */
+            *dest++ = c;
+            in_whitespace = 0;
+            at_start = 0;
         }
     }
 
+    /* remove trailing space if we added one */
+    if (in_whitespace && dest > result)
+        dest--;
+
     *dest = '\0';
-
-    /* trim leading/trailing whitespace */
-    if (dest > result && isspace(*(dest - 1)))
-        *(dest - 1) = '\0';
-
-    /* if result is empty after trimming, return NULL */
-    if (result[0] == '\0') {
-        free(result);
-        return NULL;
-    }
-
     return result;
 }
 
 /* Minify the attribute value by removing unnecessary quotes when possible. */
 static char* minify_attribute_value(const char* value) {
     if (!value) return NULL;
+    const unsigned char* src = (const unsigned char*)value;
 
-    /* if value is simple (no spaces, no special chars), we can remove quotes */
+    /* empty string */
+    if (*src == '\0') {
+        char* r = (char*)malloc(3);
+        if (r) { r[0] = '"'; r[1] = '"'; r[2] = '\0'; }
+        return r;
+    }
+
+    /* single pass to analyze and optionally build */
     int needs_quotes = 0;
+    int has_single = 0;
+    int has_double = 0;
+    size_t double_count = 0;
+    size_t len = 0;
 
-    int has_single_quote = 0;
-    int has_double_quote = 0;
+    /* quick check for simple strings */
+    while (*src) {
+        unsigned char c = *src++;
+        len++;
 
-    for (const char* p = value; *p; p++) {
-        if (isspace(*p) || *p == '=' || *p == '<' || *p == '>' || *p == '`')
+        /* check for char requiring quotes */
+        switch (c) {
+        case ' ': case '\t': case '\n': case '\r':
+        case '\f': case '\v': case '=': case '<':
+        case '>': case '`':
             needs_quotes = 1;
-        
-        if (*p == '\'') has_single_quote = 1;
-        if (*p == '"') has_double_quote = 1;
+            break;
+        case '\'':
+            has_single = 1;
+            break;
+        case '"':
+            has_double = 1;
+            double_count++;
+            break;
+        }
+
+        /* if need quotes and have both quote types, break early */
+        if (needs_quotes && has_single && has_double) break;
     }
 
-    /* empty value needs quotes */
-    if (value[0] == '\0') needs_quotes = 1;
-    if (!needs_quotes) return strdup(value);
+    /* reset pointer for potential second pass */
+    src = (const unsigned char*)value;
 
-    /* choose quote type that doesn't require escaping */
-    char* result;
-
-    if (!has_double_quote) {
-        /* use double quotes */
-        result = malloc(strlen(value) + 3);
-        if (result) sprintf(result, "\"%s\"", value);
-    }
-    else if (!has_single_quote) {
-        /* use single quotes */
-        result = malloc(strlen(value) + 3);
-        if (result) sprintf(result, "'%s'", value);
-    }
-    else {
-        /* need to escape - use double quotes and escape existing doubles */
-        size_t len = strlen(value);
-        size_t new_len = len + 3;
-
-        for (const char* p = value; *p; p++)
-            if (*p == '"') new_len++;
-
-        result = malloc(new_len);
+    /* no quotes needed */
+    if (!needs_quotes) {
+        char* result = (char*)malloc(len + 1);
 
         if (result) {
-            char* dest = result;
-            *dest++ = '"';
-
-            for (const char* p = value; *p; p++) {
-                if (*p == '"') *dest++ = '\\';
-                *dest++ = *p;
-            }
-
-            *dest++ = '"';
-            *dest = '\0';
+            memcpy(result, value, len);
+            result[len] = '\0';
         }
+
+        return result;
     }
+
+    /* determine best quote type and build result */
+    if (!has_double) {
+        /* use double quotes, no escape needed */
+        char* result = (char*)malloc(len + 3);
+        if (!result) return NULL;
+
+        result[0] = '"';
+        memcpy(result + 1, value, len);
+        result[len + 1] = '"';
+        result[len + 2] = '\0';
+        return result;
+    }
+
+    if (!has_single) {
+        /* use single quotes without escape */
+        char* result = (char*)malloc(len + 3);
+        if (!result) return NULL;
+
+        result[0] = '\'';
+        memcpy(result + 1, value, len);
+        result[len + 1] = '\'';
+        result[len + 2] = '\0';
+        return result;
+    }
+
+    /* need to escape double quotes */
+    size_t total_len = len + double_count + 3;
+
+    char* result = (char*)malloc(total_len);
+    if (!result) return NULL;
+
+    char* dest = result;
+    *dest++ = '"';
+
+    while (*src) {
+        if (*src == '"') *dest++ = '\\';
+        *dest++ = *src++;
+    }
+
+    *dest++ = '"';
+    *dest = '\0';
 
     return result;
 }
 
-/* Recursive minification function */
-static HTMLNode* minify_node_recursive(HTMLNode* node, int in_preformatted) {
+/* Fast minification function of HTML's DOM tree. */
+static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
     if (!node) return NULL;
 
-    HTMLNode* new_node = malloc(sizeof(HTMLNode));
-    if (!new_node) return NULL;
+    /* precompute essential tag lookup tables */
+    static const char* const preserve_tags[] = { "pre", "code", "textarea", "script", "style", NULL };
+    static const char* const void_tags[] = { "area", "base", "br", "col", "embed", "hr", "img",
+        "input", "link", "meta", "param", "source", "track", "wbr", NULL };
+    static const char* const essential_tags[] = { "br", "hr", "img", "input", "meta", "link", NULL };
 
-    /* copy the DOM structure */
-    new_node->tag = node->tag ? strdup(node->tag) : NULL;
-    new_node->parent = NULL;
+    /* create root node */
+    HTMLNode* new_root = (HTMLNode*)calloc(1, sizeof(HTMLNode));
+    if (!new_root) return NULL;
 
-    new_node->next = NULL;
-    new_node->children = NULL;
-
-    /* handle preformatted context */
-    int current_preformatted = in_preformatted;
-
+    /* copy root data with error checking */
     if (node->tag) {
-        if (strcmp(node->tag, "pre") == 0 || strcmp(node->tag, "code") == 0 ||
-            strcmp(node->tag, "textarea") == 0 || strcmp(node->tag, "script") == 0 ||
-            strcmp(node->tag, "style") == 0)
-            current_preformatted = 1;
-    }
+        new_root->tag = strdup(node->tag);
 
-    /* minify attributes */
-    HTMLAttribute* new_attrs = NULL;
-
-    HTMLAttribute** current_attr = &new_attrs;
-    HTMLAttribute* old_attr = node->attributes;
-
-    while (old_attr) {
-        HTMLAttribute* new_attr = malloc(sizeof(HTMLAttribute));
-
-        if (!new_attr) {
-            html2tex_free_node(new_node);
+        if (!new_root->tag) {
+            free(new_root);
             return NULL;
         }
-
-        new_attr->key = strdup(old_attr->key);
-        if (old_attr->value) new_attr->value = minify_attribute_value(old_attr->value);
-        else new_attr->value = NULL;
-        
-        new_attr->next = NULL;
-        *current_attr = new_attr;
-
-        current_attr = &new_attr->next;
-        old_attr = old_attr->next;
     }
 
-    new_node->attributes = new_attrs;
+    /* minify root attributes efficiently */
+    if (node->attributes) {
+        HTMLAttribute* new_attrs = NULL;
+        HTMLAttribute** tail = &new_attrs;
+        HTMLAttribute* src_attr = node->attributes;
 
-    /* minify content */
-    if (node->content) {
-        if (is_whitespace_only(node->content) && !current_preformatted)
-            /* remove whitespace-only text nodes outside preformatted blocks */
-            new_node->content = NULL;
-        else
-            new_node->content = minify_text_content(node->content, current_preformatted);
+        while (src_attr) {
+            HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
+            if (!new_attr) goto cleanup_root;
+            new_attr->key = strdup(src_attr->key);
+
+            if (!new_attr->key) {
+                free(new_attr);
+                goto cleanup_root;
+            }
+
+            new_attr->value = src_attr->value ?
+                minify_attribute_value(src_attr->value) : NULL;
+            new_attr->next = NULL;
+
+            *tail = new_attr;
+            tail = &new_attr->next;
+            src_attr = src_attr->next;
+        }
+
+        new_root->attributes = new_attrs;
     }
-    else new_node->content = NULL;
 
-    /* recursively minify children */
-    HTMLNode* new_children = NULL;
+    /* check if root is preformatted */
+    int root_is_preformatted = in_preformatted;
 
-    HTMLNode** current_child = &new_children;
-    HTMLNode* old_child = node->children;
+    if (node->tag) {
+        char first_char = node->tag[0];
 
-    int safe_to_minify = node->tag ? 
-        is_safe_to_minify_tag(node->tag) : 1;
-
-    while (old_child) {
-        HTMLNode* minified_child = minify_node_recursive(old_child, current_preformatted);
-
-        if (minified_child) {
-            /* remove empty text nodes between elements (except in preformatted) */
-            if (!minified_child->tag && !minified_child->content)
-                html2tex_free_node(minified_child);
-            else {
-                /* remove whitespace between block elements */
-                if (safe_to_minify && !current_preformatted) {
-                    if (minified_child->tag && is_block_element(minified_child->tag)) {
-                        /* skip whitespace before block elements */
-                        HTMLNode* next = old_child->next;
-
-                        /* skip the whitespace node */
-                        if (next && !next->tag && is_whitespace_only(next->content))
-                            old_child = next;
-                    }
+        if (first_char == 'p' || first_char == 'c' || first_char == 't' || first_char == 's') {
+            for (int i = 0; preserve_tags[i]; i++) {
+                if (strcmp(node->tag, preserve_tags[i]) == 0) {
+                    root_is_preformatted = 1;
+                    break;
                 }
+            }
+        }
+    }
 
-                minified_child->parent = new_node;
-                *current_child = minified_child;
-                current_child = &minified_child->next;
+    /* minify root content */
+    if (node->content) {
+        if (is_whitespace_only(node->content) && !root_is_preformatted)
+            new_root->content = NULL;
+        else {
+            new_root->content = minify_text_content(node->content, root_is_preformatted);
+            if (!new_root->content && node->content) goto cleanup_root;
+        }
+    }
+
+    /* check if root is void element */
+    if (node->tag) {
+        for (int i = 0; void_tags[i]; i++) {
+            if (strcmp(node->tag, void_tags[i]) == 0)
+                return new_root;
+        }
+    }
+
+    NodeQueue* src_queue_front = NULL;
+    NodeQueue* src_queue_rear = NULL;
+
+    NodeQueue* dst_queue_front = NULL;
+    NodeQueue* dst_queue_rear = NULL;
+
+    NodeQueue* preformatted_queue_front = NULL;
+    NodeQueue* preformatted_queue_rear = NULL;
+
+    /* enqueue root for processing */
+    if (!queue_enqueue(&src_queue_front, &src_queue_rear, node) ||
+        !queue_enqueue(&dst_queue_front, &dst_queue_rear, new_root) ||
+        !queue_enqueue(&preformatted_queue_front, &preformatted_queue_rear,
+            (HTMLNode*)(intptr_t)root_is_preformatted))
+        goto cleanup_all;
+
+    /* BFS processing */
+    while (src_queue_front) {
+        HTMLNode* src_current = queue_dequeue(&src_queue_front, &src_queue_rear);
+        HTMLNode* dst_current = queue_dequeue(&dst_queue_front, &dst_queue_rear);
+
+        int current_preformatted = (int)(intptr_t)queue_dequeue(&preformatted_queue_front,
+            &preformatted_queue_rear);
+
+        /* determine if current node is safe to minify */
+        if (!src_current || !dst_current) continue;
+        int current_safe_to_minify = 1;
+
+        if (src_current->tag) {
+            for (int i = 0; preserve_tags[i]; i++) {
+                if (strcmp(src_current->tag, preserve_tags[i]) == 0) {
+                    current_safe_to_minify = 0;
+                    break;
+                }
             }
         }
 
-        old_child = old_child->next;
+        /* process children with tail pointer optimization */
+        HTMLNode* src_child = src_current->children;
+        HTMLNode** dst_child_tail = &dst_current->children;
+
+        while (src_child) {
+            /* skip whitespace before block elements if safe */
+            HTMLNode* next_src_child = src_child->next;
+
+            if (current_safe_to_minify && !current_preformatted) {
+                if (src_child->tag && is_block_element(src_child->tag)) {
+                    if (next_src_child && !next_src_child->tag &&
+                        is_whitespace_only(next_src_child->content)) {
+                        src_child = next_src_child;
+                        next_src_child = src_child->next;
+                    }
+                }
+            }
+
+            /* create child node */
+            HTMLNode* new_child = (HTMLNode*)calloc(1, sizeof(HTMLNode));
+            if (!new_child) goto cleanup_all;
+
+            /* copy tag */
+            if (src_child->tag) {
+                new_child->tag = strdup(src_child->tag);
+
+                if (!new_child->tag) {
+                    free(new_child);
+                    goto cleanup_all;
+                }
+            }
+
+            /* minify attributes */
+            if (src_child->attributes) {
+                HTMLAttribute* child_attrs = NULL;
+                HTMLAttribute** attr_tail = &child_attrs;
+                HTMLAttribute* src_attr = src_child->attributes;
+
+                while (src_attr) {
+                    HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
+
+                    if (!new_attr) {
+                        free(new_child->tag);
+                        free(new_child);
+                        goto cleanup_all;
+                    }
+
+                    new_attr->key = strdup(src_attr->key);
+
+                    if (!new_attr->key) {
+                        free(new_attr);
+                        free(new_child->tag);
+
+                        free(new_child);
+                        goto cleanup_all;
+                    }
+
+                    new_attr->value = src_attr->value ?
+                        minify_attribute_value(src_attr->value) : NULL;
+                    new_attr->next = NULL;
+
+                    *attr_tail = new_attr;
+                    attr_tail = &new_attr->next;
+                    src_attr = src_attr->next;
+                }
+                new_child->attributes = child_attrs;
+            }
+
+            /* determine child's preformatted status */
+            int child_preformatted = current_preformatted;
+
+            if (src_child->tag) {
+                for (int i = 0; preserve_tags[i]; i++) {
+                    if (strcmp(src_child->tag, preserve_tags[i]) == 0) {
+                        child_preformatted = 1;
+                        break;
+                    }
+                }
+            }
+
+            /* minify content */
+            if (src_child->content) {
+                if (is_whitespace_only(src_child->content) && !child_preformatted) {
+                    new_child->content = NULL;
+                }
+                else {
+                    new_child->content = minify_text_content(src_child->content, child_preformatted);
+                    if (!new_child->content && src_child->content) {
+                        free(new_child->tag);
+                        free(new_child);
+                        goto cleanup_all;
+                    }
+                }
+            }
+
+            /* link child to parent with tail pointer */
+            *dst_child_tail = new_child;
+            dst_child_tail = &new_child->next;
+            new_child->parent = dst_current;
+
+            /* check if child is void element */
+            int child_is_void = 0;
+
+            if (src_child->tag) {
+                for (int i = 0; void_tags[i]; i++) {
+                    if (strcmp(src_child->tag, void_tags[i]) == 0) {
+                        child_is_void = 1;
+                        break;
+                    }
+                }
+            }
+
+            /* enqueue child for processing if it has children and is not void */
+            if (!child_is_void && src_child->children) {
+                if (!queue_enqueue(&src_queue_front, &src_queue_rear, src_child) ||
+                    !queue_enqueue(&dst_queue_front, &dst_queue_rear, new_child) ||
+                    !queue_enqueue(&preformatted_queue_front, &preformatted_queue_rear,
+                        (HTMLNode*)(intptr_t)child_preformatted)) {
+                    free(new_child->tag);
+                    free(new_child);
+                    goto cleanup_all;
+                }
+            }
+
+            /* remove empty non-essential nodes immediately */
+            if (new_child->tag && !child_is_void && !new_child->children && !new_child->content) {
+                int is_essential = 0;
+
+                for (int i = 0; essential_tags[i]; i++) {
+                    if (strcmp(new_child->tag, essential_tags[i]) == 0) {
+                        is_essential = 1;
+                        break;
+                    }
+                }
+
+                if (!is_essential) {
+                    /* remove from parent's list */
+                    HTMLNode* prev = dst_current->children;
+
+                    if (prev == new_child) {
+                        dst_current->children = new_child->next;
+                        dst_child_tail = &dst_current->children;
+                    }
+                    else {
+                        while (prev && prev->next != new_child)
+                            prev = prev->next;
+                        if (prev) {
+                            prev->next = new_child->next;
+
+                            if (!new_child->next)
+                                dst_child_tail = &prev->next;
+                        }
+                    }
+
+                    html2tex_free_node(new_child);
+                }
+            }
+
+            src_child = next_src_child;
+        }
     }
 
-    new_node->children = new_children;
+    /* cleanup queues */
+    queue_cleanup(&src_queue_front, &src_queue_rear);
+    queue_cleanup(&dst_queue_front, &dst_queue_rear);
+    queue_cleanup(&preformatted_queue_front, &preformatted_queue_rear);
 
-    /* remove empty nodes (except essential ones) */
-    if (new_node->tag && !new_node->children && !new_node->content) {
-        const char* essential_tags[] = {
-            "br", "hr", "img", "input", "meta", "link", NULL
-        };
-
+    /* final check for empty non-essential root */
+    if (new_root->tag && !new_root->children && !new_root->content) {
         int is_essential = 0;
 
         for (int i = 0; essential_tags[i]; i++) {
-            if (strcmp(new_node->tag, essential_tags[i]) == 0) {
+            if (strcmp(new_root->tag, essential_tags[i]) == 0) {
                 is_essential = 1;
                 break;
             }
         }
 
         if (!is_essential) {
-            html2tex_free_node(new_node);
+            html2tex_free_node(new_root);
             return NULL;
         }
     }
 
-    return new_node;
+    return new_root;
+
+cleanup_root:
+    html2tex_free_node(new_root);
+    return NULL;
+
+cleanup_all:
+    /* cleanup everything */
+    queue_cleanup(&src_queue_front, &src_queue_rear);
+    queue_cleanup(&dst_queue_front, &dst_queue_rear);
+    queue_cleanup(&preformatted_queue_front, &preformatted_queue_rear);
+    html2tex_free_node(new_root);
+    return NULL;
 }
 
 HTMLNode* html2tex_minify_html(HTMLNode* root) {
     if (!root) return NULL;
 
-    /* create a new minified tree */
-    HTMLNode* minified_root = malloc(sizeof(HTMLNode));
-
+    /* alloc and zero-initialize in one call */
+    HTMLNode* minified_root = (HTMLNode*)calloc(1, sizeof(HTMLNode));
     if (!minified_root) return NULL;
-    minified_root->tag = NULL;
 
-    minified_root->content = NULL;
-    minified_root->attributes = NULL;
+    /* process children iteratively with error handling */
+    HTMLNode* src_child = root->children;
+    HTMLNode** dst_tail = &minified_root->children;
 
-    minified_root->parent = NULL;
-    minified_root->next = NULL;
+    while (src_child) {
+        /* minify child node */
+        HTMLNode* minified_child = minify_node(src_child, 0);
 
-    /* minify children */
-    HTMLNode* new_children = NULL;
-
-    HTMLNode** current_child = &new_children;
-    HTMLNode* old_child = root->children;
-
-    while (old_child) {
-        HTMLNode* minified_child = minify_node_recursive(old_child, 0);
-
-        if (minified_child) {
-            minified_child->parent = minified_root;
-            *current_child = minified_child;
-            current_child = &minified_child->next;
+        /* check for minification failure */
+        if (!minified_child) {
+            /* cleanup allocated memory before returning */
+            html2tex_free_node(minified_root);
+            return NULL;
         }
 
-        old_child = old_child->next;
+        /* link child to parent */
+        minified_child->parent = minified_root;
+        *dst_tail = minified_child;
+
+        dst_tail = &minified_child->next;
+        src_child = src_child->next;
     }
 
-    minified_root->children = new_children;
     return minified_root;
 }
