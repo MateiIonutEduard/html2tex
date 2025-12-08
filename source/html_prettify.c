@@ -287,9 +287,8 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
         child = child->next;
     }
 
-    /* write HTML footer */
+    /* write HTML footer and close the stream */
     fprintf(file, "</body>\n</html>\n");
-
     fclose(file);
     return 1;
 }
@@ -297,45 +296,78 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
 char* get_pretty_html(HTMLNode* root) {
     if (!root) return NULL;
 
-    /* use a temporary file to build the string */
-    char* temp_filename = tmpnam(NULL);
-    if (!temp_filename) return NULL;
+#ifndef _WIN32
+    /* use open_memstream for fastest, no disk I/O */
+    char* buffer = NULL;
 
-    if (!write_pretty_html(root, temp_filename))
-        return NULL;
+    size_t size = 0;
+    FILE* stream = open_memstream(&buffer, &size);
 
-    /* read the file back into a string */
-    FILE* file = fopen(temp_filename, "rb");
+    if (stream) {
+        /* write HTML to memory stream */
+        fprintf(stream, "<!DOCTYPE html>\n<html>\n<head>\n");
+        fprintf(stream, "  <meta charset=\"UTF-8\">\n");
+        fprintf(stream, "  <title>Parsed HTML Output</title>\n");
+        fprintf(stream, "</head>\n<body>\n");
 
-    if (!file) {
-        remove(temp_filename);
+        /* write content using our buffered function */
+        HTMLNode* child = root->children;
+        while (child) {
+            write_pretty_node_buffered(stream, child, 1);
+            child = child->next;
+        }
+
+        fprintf(stream, "</body>\n</html>\n");
+        fclose(stream);
+        return buffer;
+    }
+#endif
+    FILE* temp_file = tmpfile();
+    if (!temp_file) return NULL;
+
+    /* write to temp file */
+    fprintf(temp_file, "<!DOCTYPE html>\n<html>\n<head>\n");
+    fprintf(temp_file, "  <meta charset=\"UTF-8\">\n");
+    fprintf(temp_file, "  <title>Parsed HTML Output</title>\n");
+    fprintf(temp_file, "</head>\n<body>\n");
+
+    HTMLNode* child = root->children;
+
+    while (child) {
+        write_pretty_node(temp_file, child, 1);
+        child = child->next;
+    }
+
+    fprintf(temp_file, "</body>\n</html>\n");
+
+    /* get the file size and read back */
+    if (fseek(temp_file, 0, SEEK_END) != 0) {
+        fclose(temp_file);
         return NULL;
     }
 
-    /* get file size more reliably */
-    fseek(file, 0, SEEK_END);
-
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    long file_size = ftell(temp_file);
 
     if (file_size <= 0) {
-        fclose(file);
-        remove(temp_filename);
+        fclose(temp_file);
         return strdup("");
     }
 
-    /* allocate and read file content */
-    char* html_string = (char*)malloc(file_size + 1);
-
-    if (!html_string) {
-        fclose(file);
-        remove(temp_filename);
+    if (fseek(temp_file, 0, SEEK_SET) != 0) {
+        fclose(temp_file);
         return NULL;
     }
 
-    size_t bytes_read = fread(html_string, 1, file_size, file);
+    char* html_string = (char*)malloc(file_size + 1);
+
+    if (!html_string) {
+        fclose(temp_file);
+        return NULL;
+    }
+
+    size_t bytes_read = fread(html_string, 1, file_size, temp_file);
     html_string[bytes_read] = '\0';
 
-    fclose(file); remove(temp_filename);
+    fclose(temp_file);
     return html_string;
 }
