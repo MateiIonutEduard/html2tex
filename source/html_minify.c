@@ -174,61 +174,103 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 /* Minify the attribute value by removing unnecessary quotes when possible. */
 static char* minify_attribute_value(const char* value) {
     if (!value) return NULL;
+    const unsigned char* src = (const unsigned char*)value;
 
-    /* if value is simple (no spaces, no special chars), we can remove quotes */
+    /* empty string */
+    if (*src == '\0') {
+        char* r = (char*)malloc(3);
+        if (r) { r[0] = '"'; r[1] = '"'; r[2] = '\0'; }
+        return r;
+    }
+
+    /* single pass to analyze and optionally build */
     int needs_quotes = 0;
+    int has_single = 0;
+    int has_double = 0;
+    size_t double_count = 0;
+    size_t len = 0;
 
-    int has_single_quote = 0;
-    int has_double_quote = 0;
+    /* quick check for simple strings */
+    while (*src) {
+        unsigned char c = *src++;
+        len++;
 
-    for (const char* p = value; *p; p++) {
-        if (isspace(*p) || *p == '=' || *p == '<' || *p == '>' || *p == '`')
+        /* check for char requiring quotes */
+        switch (c) {
+        case ' ': case '\t': case '\n': case '\r':
+        case '\f': case '\v': case '=': case '<':
+        case '>': case '`':
             needs_quotes = 1;
-        
-        if (*p == '\'') has_single_quote = 1;
-        if (*p == '"') has_double_quote = 1;
+            break;
+        case '\'':
+            has_single = 1;
+            break;
+        case '"':
+            has_double = 1;
+            double_count++;
+            break;
+        }
+
+        /* if need quotes and have both quote types, break early */
+        if (needs_quotes && has_single && has_double) break;
     }
 
-    /* empty value needs quotes */
-    if (value[0] == '\0') needs_quotes = 1;
-    if (!needs_quotes) return strdup(value);
+    /* reset pointer for potential second pass */
+    src = (const unsigned char*)value;
 
-    /* choose quote type that doesn't require escaping */
-    char* result;
-
-    if (!has_double_quote) {
-        /* use double quotes */
-        result = malloc(strlen(value) + 3);
-        if (result) sprintf(result, "\"%s\"", value);
-    }
-    else if (!has_single_quote) {
-        /* use single quotes */
-        result = malloc(strlen(value) + 3);
-        if (result) sprintf(result, "'%s'", value);
-    }
-    else {
-        /* need to escape - use double quotes and escape existing doubles */
-        size_t len = strlen(value);
-        size_t new_len = len + 3;
-
-        for (const char* p = value; *p; p++)
-            if (*p == '"') new_len++;
-
-        result = malloc(new_len);
+    /* no quotes needed */
+    if (!needs_quotes) {
+        char* result = (char*)malloc(len + 1);
 
         if (result) {
-            char* dest = result;
-            *dest++ = '"';
-
-            for (const char* p = value; *p; p++) {
-                if (*p == '"') *dest++ = '\\';
-                *dest++ = *p;
-            }
-
-            *dest++ = '"';
-            *dest = '\0';
+            memcpy(result, value, len);
+            result[len] = '\0';
         }
+
+        return result;
     }
+
+    /* determine best quote type and build result */
+    if (!has_double) {
+        /* use double quotes, no escape needed */
+        char* result = (char*)malloc(len + 3);
+        if (!result) return NULL;
+
+        result[0] = '"';
+        memcpy(result + 1, value, len);
+        result[len + 1] = '"';
+        result[len + 2] = '\0';
+        return result;
+    }
+
+    if (!has_single) {
+        /* use single quotes without escape */
+        char* result = (char*)malloc(len + 3);
+        if (!result) return NULL;
+
+        result[0] = '\'';
+        memcpy(result + 1, value, len);
+        result[len + 1] = '\'';
+        result[len + 2] = '\0';
+        return result;
+    }
+
+    /* need to escape double quotes */
+    size_t total_len = len + double_count + 3;
+
+    char* result = (char*)malloc(total_len);
+    if (!result) return NULL;
+
+    char* dest = result;
+    *dest++ = '"';
+
+    while (*src) {
+        if (*src == '"') *dest++ = '\\';
+        *dest++ = *src++;
+    }
+
+    *dest++ = '"';
+    *dest = '\0';
 
     return result;
 }
