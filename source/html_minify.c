@@ -49,15 +49,13 @@ static int is_whitespace_only(const char* text) {
 
     while (*p) {
         unsigned char c = *p++;
-        if (c > 32) return 0;
-
-        if (c != 32 && c != 9 &&
-            c != 10 && c != 11 &&
-            c != 12 && c != 13)
+        switch (c) {
+        case ' ': case '\t': case '\n': case '\v': case '\f': case '\r':
+            continue;
+        default:
             return 0;
+        }
     }
-
-    return 1;
 }
 
 /* Remove the unnecessary whitespace from text content. */
