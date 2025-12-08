@@ -45,9 +45,15 @@ static int is_safe_to_minify_tag(const char* tag_name) {
 /* Check if text content is only whitespace. */
 static int is_whitespace_only(const char* text) {
     if (!text) return 1;
+    const unsigned char* p = (const unsigned char*)text;
 
-    for (const char* p = text; *p; p++) {
-        if (!isspace(*p))
+    while (*p) {
+        unsigned char c = *p++;
+        if (c > 32) return 0;
+
+        if (c != 32 && c != 9 &&
+            c != 10 && c != 11 &&
+            c != 12 && c != 13)
             return 0;
     }
 
