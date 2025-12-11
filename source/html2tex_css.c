@@ -95,14 +95,51 @@ int is_block_element(const char* tag_name) {
 }
 
 int is_inline_element(const char* tag_name) {
-    if (!tag_name) return 0;
+    if (!tag_name || tag_name[0] == '\0') return 0;
 
-    const char* inline_tags[] = {
-        "span", "a", "strong", "em", "b", "i", "u", "code",
-        "font", "mark", "small", "sub", "sup", "time", NULL
+    static const char* const inline_tags[] = {
+        "a", "abbr", "b", "bdi", "bdo", "cite", "code", "data",
+        "dfn", "em", "font", "i", "kbd", "mark", "q", "rp", "rt",
+        "ruby", "samp", "small", "span", "strong", "sub", "sup",
+        "time", "u", "var", "wbr", "br", "img", "map", "object",
+        "button", "input", "label", "meter", "output", "progress",
+        "select", "textarea", NULL
     };
 
+    /* length-based tags detection */
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        len++; p++;
+
+        /* inline element tag name is invalid */
+        if (len > 8) return 0;
+    }
+
+    switch (len) {
+    case 1:  case 2:  case 3: case 4: 
+    case 5:  case 6: case 8:
+        break;
+    case 7:
+        return 0;
+    default:
+        /* length doesn't match any known inline tag */
+        return 0;
+    }
+
+    /* extract first character once */
+    const unsigned char first_char = tag_name[0];
+
     for (int i = 0; inline_tags[i]; i++) {
+        /* fast reject using first character mismatch */
+        if (first_char != (unsigned char)inline_tags[i][0]) continue;
+
+        /* length mismatch, reject it */
+        size_t tag_len = strlen(inline_tags[i]);
+        if (tag_len != len) continue;
+
+        /* finally apply expensive strcmp only for few cases */
         if (strcmp(tag_name, inline_tags[i]) == 0)
             return 1;
     }
