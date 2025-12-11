@@ -45,16 +45,48 @@ static char* clean_css_value(const char* value) {
 }
 
 int is_block_element(const char* tag_name) {
-    if (!tag_name) return 0;
+    if (!tag_name || tag_name[0] == '\0') return 0;
 
-    const char* block_tags[] = {
+    static const char* const block_tags[] = {
         "div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
         "ul", "ol", "li", "table", "tr", "td", "th",
         "blockquote", "section", "article", "header", "footer",
         "nav", "aside", "main", "figure", "figcaption", NULL
     };
 
+    /* length-based tags detection */
+    size_t len = 0;
+
+    const char* p = tag_name;
+    while (*p) { 
+        len++; p++;
+
+        /* tag name is longer then expected, reject it */
+        if (len > 10) return 0;
+    }
+
+    /* length-based fast rejection */
+    switch (len) {
+    case 1:  case 2:  case 3:  case 4:  
+    case 5: case 6:  case 7:  case 10:
+        break;
+    default:
+        /* length does not match any block tag */
+        return 0;
+    }
+    
+    /* extract first char once */
+    const unsigned char first_char = tag_name[0];
+
     for (int i = 0; block_tags[i]; i++) {
+        /* fast reject: first character mismatch */
+        if (first_char != (unsigned char)block_tags[i][0]) continue;
+
+        /* medium reject: length mismatch, cheaper than strcmp */
+        size_t tag_len = strlen(block_tags[i]);
+        if (tag_len != len) continue;
+
+        /* final verification: exact string match */
         if (strcmp(tag_name, block_tags[i]) == 0)
             return 1;
     }
