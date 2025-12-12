@@ -232,6 +232,9 @@ extern "C" {
 	/* Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
 	void queue_cleanup(NodeQueue** front, NodeQueue** rear);
 
+	/* Determine if an HTML tag should be excluded from LaTeX conversion. */
+	int should_exclude_tag(const char* tag_name);
+
 	/* Check if string contains only whitespace. */
 	int is_whitespace_only(const char* text);
 	
