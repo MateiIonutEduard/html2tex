@@ -1,8 +1,8 @@
-#include <stdio.h>
+#include <stdlib.h>
 #include "html2tex.h"
 
 inline int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
-    NodeQueue* node = malloc(sizeof(NodeQueue));
+    NodeQueue* node = (NodeQueue*)malloc(sizeof(NodeQueue));
     if (!node) return 0;
 
     node->data = data;

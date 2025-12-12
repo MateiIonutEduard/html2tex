@@ -866,17 +866,6 @@ static int is_inside_table(HTMLNode* node) {
     return 0;
 }
 
-static int is_whitespace_only(const char* text) {
-    if (!text) return 1;
-
-    for (const char* p = text; *p; p++) {
-        if (!isspace(*p)) 
-            return 0;
-    }
-
-    return 1;
-}
-
 void convert_node(LaTeXConverter* converter, HTMLNode* node) {
     if (!node) return;
 

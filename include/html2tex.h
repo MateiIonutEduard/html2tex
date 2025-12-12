@@ -231,6 +231,9 @@ extern "C" {
 
 	/* Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
 	inline void queue_cleanup(NodeQueue** front, NodeQueue** rear);
+
+	/* Check if string contains only whitespace. */
+	int is_whitespace_only(const char* text);
 	
 	#ifdef _MSC_VER
 	#define strdup portable_strdup

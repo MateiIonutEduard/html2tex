@@ -42,8 +42,7 @@ static int is_safe_to_minify_tag(const char* tag_name) {
     return 1;
 }
 
-/* Check if text content is only whitespace. */
-static int is_whitespace_only(const char* text) {
+int is_whitespace_only(const char* text) {
     if (!text) return 1;
     const unsigned char* p = (const unsigned char*)text;
 
@@ -56,6 +55,8 @@ static int is_whitespace_only(const char* text) {
             return 0;
         }
     }
+
+    return 1;
 }
 
 /* Remove the unnecessary whitespace from text content. */
