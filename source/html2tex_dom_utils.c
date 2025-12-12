@@ -3,11 +3,20 @@
 int is_block_element(const char* tag_name) {
     if (!tag_name || tag_name[0] == '\0') return 0;
 
-    static const char* const block_tags[] = {
-        "div", "p", "h1", "h2", "h3", "h4", "h5", "h6",
-        "ul", "ol", "li", "table", "tr", "td", "th",
-        "blockquote", "section", "article", "header", "footer",
-        "nav", "aside", "main", "figure", "figcaption", NULL
+    static const struct {
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } block_tags[] = {
+        {"div", 'd', 3}, {"p", 'p', 1},
+        {"h1", 'h', 2}, {"h2", 'h', 2}, {"h3", 'h', 2},
+        {"h4", 'h', 2}, {"h5", 'h', 2}, {"h6", 'h', 2},
+        {"ul", 'u', 2}, {"ol", 'o', 2}, {"li", 'l', 2},
+        {"table", 't', 5}, {"tr", 't', 2}, {"td", 't', 2}, 
+        {"th", 't', 2}, {"blockquote", 'b', 10}, {"section", 's', 7}, 
+        {"article", 'a', 7}, {"header", 'h', 6}, {"footer", 'f', 6},
+        {"nav", 'n', 3}, {"aside", 'a', 5}, {"main", 'm', 4}, 
+        {"figure", 'f', 6}, {"figcaption", 'f', 10}, {NULL, 0, 0}
     };
 
     /* length-based tags detection */
@@ -32,18 +41,17 @@ int is_block_element(const char* tag_name) {
     }
 
     /* extract first char once */
-    const unsigned char first_char = tag_name[0];
+    const unsigned char first_char = (unsigned char)tag_name[0];
 
-    for (int i = 0; block_tags[i]; i++) {
+    for (int i = 0; block_tags[i].tag; i++) {
         /* fast reject: first character mismatch */
-        if (first_char != (unsigned char)block_tags[i][0]) continue;
+        if (first_char != (unsigned char)block_tags[i].first_char) continue;
 
         /* medium reject: length mismatch, cheaper than strcmp */
-        size_t tag_len = strlen(block_tags[i]);
-        if (tag_len != len) continue;
+        if (block_tags[i].length != len) continue;
 
         /* final verification: exact string match */
-        if (strcmp(tag_name, block_tags[i]) == 0)
+        if (strcmp(tag_name, block_tags[i].tag) == 0)
             return 1;
     }
 
