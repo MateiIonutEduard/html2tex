@@ -61,31 +61,46 @@ int is_block_element(const char* tag_name) {
 int is_inline_element(const char* tag_name) {
     if (!tag_name || tag_name[0] == '\0') return 0;
 
-    static const char* const inline_tags[] = {
-        "a", "abbr", "b", "bdi", "bdo", "cite", "code", "data",
-        "dfn", "em", "font", "i", "kbd", "mark", "q", "rp", "rt",
-        "ruby", "samp", "small", "span", "strong", "sub", "sup",
-        "time", "u", "var", "wbr", "br", "img", "map", "object",
-        "button", "input", "label", "meter", "output", "progress",
-        "select", "textarea", NULL
+    static const struct {
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } inline_tags[] = {
+        {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1},
+        {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"cite", 'c', 4},
+        {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3},
+        {"em", 'e', 2}, {"font", 'f', 4}, {"i", 'i', 1},
+        {"kbd", 'k', 3}, {"mark", 'm', 4}, {"q", 'q', 1},
+        {"rp", 'r', 2}, {"rt", 'r', 2}, {"ruby", 'r', 4},
+        {"samp", 's', 4}, {"small", 's', 5}, {"span", 's', 4},
+        {"strong", 's', 6}, {"sub", 's', 3}, {"sup", 's', 3},
+        {"time", 't', 4}, {"u", 'u', 1}, {"var", 'v', 3},
+        {"wbr", 'w', 3}, {"br", 'b', 2}, {"img", 'i', 3},
+        {"map", 'm', 3}, {"object", 'o', 6}, {"button", 'b', 6},
+        {"input", 'i', 5}, {"label", 'l', 5}, {"meter", 'm', 5},
+        {"output", 'o', 6}, {"progress", 'p', 8}, {"select", 's', 6},
+        {"textarea", 't', 8}, {NULL, 0, 0}
     };
 
-    /* length-based tags detection */
+    /* compute the length with early bounds check */
     size_t len = 0;
     const char* p = tag_name;
 
     while (*p) {
-        len++; p++;
+        len++;
+        p++;
 
-        /* inline element tag name is invalid */
+        /* early exit for unreasonably long tags */
         if (len > 8) return 0;
     }
 
+    /* length-based fast rejection */
     switch (len) {
-    case 1:  case 2:  case 3: case 4:
-    case 5:  case 6: case 8:
+    case 1: case 2: case 3: case 4:
+    case 5: case 6: case 8:
         break;
     case 7:
+        /* explicitly reject length 7 */
         return 0;
     default:
         /* length doesn't match any known inline tag */
@@ -93,18 +108,18 @@ int is_inline_element(const char* tag_name) {
     }
 
     /* extract first character once */
-    const unsigned char first_char = tag_name[0];
+    const unsigned char first_char = (unsigned char)tag_name[0];
 
-    for (int i = 0; inline_tags[i]; i++) {
-        /* fast reject using first character mismatch */
-        if (first_char != (unsigned char)inline_tags[i][0]) continue;
+    /* optimized linear search with metadata filtering */
+    for (int i = 0; inline_tags[i].tag; i++) {
+        /* fast reject for first character mismatch */
+        if (first_char != inline_tags[i].first_char) continue;
 
-        /* length mismatch, reject it */
-        size_t tag_len = strlen(inline_tags[i]);
-        if (tag_len != len) continue;
+        /* reject by length mismatch */
+        if (len != inline_tags[i].length) continue;
 
-        /* finally apply expensive strcmp only for few cases */
-        if (strcmp(tag_name, inline_tags[i]) == 0)
+        /* final verification by exact string match */
+        if (strcmp(tag_name, inline_tags[i].tag) == 0)
             return 1;
     }
 
