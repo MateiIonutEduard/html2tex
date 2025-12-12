@@ -224,13 +224,13 @@ extern "C" {
 	void portable_itoa(int value, char* buffer, int radix);
 	
 	/* Adds an HTML node to the rear of the queue for breadth-first traversal. */
-	inline int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data);
+	int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data);
 
 	/* Removes and returns the HTML node from the front of the queue. */
-	inline HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear);
+	HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear);
 
 	/* Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
-	inline void queue_cleanup(NodeQueue** front, NodeQueue** rear);
+	void queue_cleanup(NodeQueue** front, NodeQueue** rear);
 
 	/* Check if string contains only whitespace. */
 	int is_whitespace_only(const char* text);

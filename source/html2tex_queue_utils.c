@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include "html2tex.h"
 
-inline int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
+int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
     NodeQueue* node = (NodeQueue*)malloc(sizeof(NodeQueue));
     if (!node) return 0;
 
@@ -15,7 +15,7 @@ inline int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
     return 1;
 }
 
-inline HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear) {
+HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear) {
     NodeQueue* node = *front;
     if (!node) return NULL;
 
@@ -29,7 +29,7 @@ inline HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear) {
     return data;
 }
 
-inline void queue_cleanup(NodeQueue** front, NodeQueue** rear) {
+void queue_cleanup(NodeQueue** front, NodeQueue** rear) {
     NodeQueue* current = *front;
 
     while (current) {
