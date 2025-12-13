@@ -697,11 +697,21 @@ static void end_table(LaTeXConverter* converter, const char* table_label) {
 }
 
 static void begin_table_row(LaTeXConverter* converter) {
+    if (!converter) {
+        fprintf(stderr, "Error: NULL converter in begin_table_row() function.\n");
+        return;
+    }
+
     converter->state.in_table_row = 1;
     converter->state.current_column = 0;
 }
 
 static void end_table_row(LaTeXConverter* converter) {
+    if (!converter) {
+        fprintf(stderr, "Error: NULL converter in end_table_row() function.\n");
+        return;
+    }
+
     if (converter->state.in_table_row) {
         append_string(converter, " \\\\ \\hline\n");
         converter->state.in_table_row = 0;
@@ -709,6 +719,11 @@ static void end_table_row(LaTeXConverter* converter) {
 }
 
 static void begin_table_cell(LaTeXConverter* converter, int is_header) {
+    if (!converter) {
+        fprintf(stderr, "Error: NULL converter in begin_table_cell() function.\n");
+        return;
+    }
+
     converter->state.in_table_cell = 1;
     converter->state.current_column++;
 
@@ -720,6 +735,11 @@ static void begin_table_cell(LaTeXConverter* converter, int is_header) {
 }
 
 static void end_table_cell(LaTeXConverter* converter, int is_header) {
+    if (!converter) {
+        fprintf(stderr, "Error: NULL converter in end_table_cell() function.\n");
+        return;
+    }
+
     if (is_header)
         append_string(converter, "}");
 
@@ -727,58 +747,119 @@ static void end_table_cell(LaTeXConverter* converter, int is_header) {
 }
 
 int count_table_columns(HTMLNode* node) {
+    /* validate input */
     if (!node) return 1;
     int max_columns = 0;
 
-    /* look through all direct children to find rows */
-    HTMLNode* child = node->children;
+    NodeQueue* front = NULL;
+    NodeQueue* rear = NULL;
 
-    while (child) {
-        if (child->tag) {
-            if (child->tag) {
-                /* skip caption elements when counting columns */
-                if (strcmp(child->tag, "caption") == 0) {
-                    child = child->next;
-                    continue;
-                }
+    /* initialize BFS queue with the node */
+    if (!queue_enqueue(&front, &rear, node))
+        return 1;
+
+    /* BFS traversal for table structure */
+    while (front) {
+        HTMLNode* current = queue_dequeue(&front, &rear);
+        if (!current) continue;
+
+        /* process all children of current node */
+        HTMLNode* child = current->children;
+
+        while (child) {
+            /* skip non-tag nodes */
+            if (!child->tag) {
+                child = child->next;
+                continue;
             }
 
-            if (strcmp(child->tag, "tr") == 0) {
-                /* this is a row - count its cells */
+            /* fast tag identification using first char */
+            char first_char = child->tag[0];
+
+            /* skip caption elements immediately */
+            if (first_char == 'c' && strcmp(child->tag, "caption") == 0) {
+                child = child->next;
+                continue;
+            }
+
+            /* check for row element */
+            if (first_char == 't' && strcmp(child->tag, "tr") == 0) {
                 int row_columns = 0;
                 HTMLNode* cell = child->children;
 
+                /* count cells in this row with colspan support */
                 while (cell) {
-                    if (cell->tag && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0)) {
-                        char* colspan_attr = get_attribute(cell->attributes, "colspan");
-                        int colspan = 1;
+                    if (cell->tag) {
+                        char cell_first_char = cell->tag[0];
 
-                        if (colspan_attr) {
-                            colspan = atoi(colspan_attr);
-                            if (colspan < 1) colspan = 1;
+                        /* check for td or th with single comparison */
+                        if ((cell_first_char == 't' && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0))) {
+                            int colspan = 1;
+
+                            /* check for colspan attribute */
+                            const char* colspan_attr = get_attribute(cell->attributes, "colspan");
+
+                            /* robust conversion with error checking */
+                            if (colspan_attr && colspan_attr[0]) {
+                                char* endptr = NULL;
+                                long colspan_val = strtol(colspan_attr, &endptr, 10);
+
+                                /* validate conversion result */
+                                if (endptr != colspan_attr && *endptr == '\0' &&
+                                    colspan_val > 0 && colspan_val <= 1000) {
+                                    colspan = (int)colspan_val;
+                                }
+                                /* handle negative or invalid values safely */
+                                else if (colspan_val < 1)
+                                    colspan = 1;
+                            }
+
+                            /* safe addition with overflow protection */
+                            if (row_columns <= INT_MAX - colspan)
+                                row_columns += colspan;
+                            else
+                                /* handle overflow */
+                                row_columns = INT_MAX;
                         }
-
-                        row_columns += colspan;
                     }
 
                     cell = cell->next;
                 }
 
+                /* update maximum columns found */
                 if (row_columns > max_columns)
                     max_columns = row_columns;
             }
-            else if (strcmp(child->tag, "thead") == 0 || strcmp(child->tag, "tbody") == 0 || strcmp(child->tag, "tfoot") == 0) {
-                /* recursively count columns in table sections */
-                int section_columns = count_table_columns(child);
+            /* handle table sections with BFS */
+            else if (first_char == 't' || first_char == 'h' || first_char == 'f') {
+                if (strcmp(child->tag, "thead") == 0 ||
+                    strcmp(child->tag, "tbody") == 0 ||
+                    strcmp(child->tag, "tfoot") == 0) {
 
-                if (section_columns > max_columns)
-                    max_columns = section_columns;
+                    /* enqueue section for processing */
+                    if (!queue_enqueue(&front, &rear, child)) {
+                        queue_cleanup(&front, &rear);
+                        return max_columns > 0 ? max_columns : 1;
+                    }
+                }
             }
-        }
+            /* handle direct table children that might contain rows */
+            else if (first_char == 't' && strcmp(child->tag, "table") == 0) {
+                /* Nested table, process it independently */
+                int nested_columns = count_table_columns(child);
 
-        child = child->next;
+                if (nested_columns > max_columns)
+                    max_columns = nested_columns;
+            }
+
+            child = child->next;
+        }
     }
 
+    /* cleanup queue */
+    queue_cleanup(&front, &rear);
+
+    /* return at least 1 column for valid tables */
     return max_columns > 0 ? max_columns : 1;
 }
 
