@@ -114,25 +114,66 @@ static void append_char(LaTeXConverter* converter, char c) {
     converter->output_size++;
 }
 
-static void escape_latex_special(LaTeXConverter* converter, const char* text)
-{
-    if (!text) return;
+static void escape_latex_special(LaTeXConverter* converter, const char* text) {
+    if (!text || !converter) return;
 
-    for (const char* p = text; *p; p++) {
-        switch (*p) {
-        case '{': append_string(converter, "\\{"); break;
-        case '}': append_string(converter, "\\}"); break;
-        case '&': append_string(converter, "\\&"); break;
-        case '%': append_string(converter, "\\%"); break;
-        case '$': append_string(converter, "\\$"); break;
-        case '#': append_string(converter, "\\#"); break;
-        case '^': append_string(converter, "\\^{}"); break;
-        case '~': append_string(converter, "\\~{}"); break;
-        case '<': append_string(converter, "\\textless{}"); break;
-        case '>': append_string(converter, "\\textgreater{}"); break;
-        case '\n': append_string(converter, "\\\\"); break;
-        default: append_char(converter, *p); break;
+    /* lookup table for LaTeX special characters */
+    static const unsigned char SPECIAL_SP[256] = {
+        ['{'] = 1,['}'] = 2,['&'] = 3,['%'] = 4,
+        ['$'] = 5,['#'] = 6,['^'] = 7,['~'] = 8,
+        ['<'] = 9,['>'] = 10,['\n'] = 11
+    };
+
+    static const char* const ESCAPED_SP[] = {
+        NULL, "\\{", "\\}", "\\&", "\\%", "\\$", 
+        "\\#", "\\^{}", "\\~{}", "\\textless{}", 
+        "\\textgreater{}", "\\\\"
+    };
+
+    const char* p = text;
+    const char* start = p;
+
+    while (*p) {
+        unsigned char c = (unsigned char)*p;
+        unsigned char type = SPECIAL_SP[c];
+
+        if (type == 0) {
+            p++;
+            continue;
         }
+
+        if (p > start) {
+            /* copy normal characters before special */
+            size_t normal_len = p - start;
+
+            ensure_capacity(converter, normal_len);
+            if (converter->error_code) return;
+
+            char* dest = converter->output + converter->output_size;
+            memcpy(dest, start, normal_len);
+
+            converter->output_size += normal_len;
+            converter->output[converter->output_size] = '\0';
+        }
+
+        /* append the escaped sequence */
+        append_string(converter, ESCAPED_SP[type]);
+        if (converter->error_code) return;
+        p++; start = p;
+    }
+
+    if (p > start) {
+        /* copy remaining normal characters */
+        size_t remaining_len = p - start;
+
+        ensure_capacity(converter, remaining_len);
+        if (converter->error_code) return;
+
+        char* dest = converter->output + converter->output_size;
+        memcpy(dest, start, remaining_len);
+
+        converter->output_size += remaining_len;
+        converter->output[converter->output_size] = '\0';
     }
 }
 
