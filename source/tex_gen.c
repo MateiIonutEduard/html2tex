@@ -253,14 +253,42 @@ void convert_children(LaTeXConverter* converter, HTMLNode* node) {
 }
 
 static void begin_environment(LaTeXConverter* converter, const char* env) {
+    if (!converter || !env) {
+        if (converter) {
+            converter->error_code = 5;
+            strncpy(converter->error_message,
+                "NULL parameter to begin_environment() function.",
+                sizeof(converter->error_message) - 1);
+        }
+
+        return;
+    }
+
     append_string(converter, "\\begin{");
+    if (converter->error_code) return;
+
     append_string(converter, env);
+    if (converter->error_code) return;
     append_string(converter, "}\n");
 }
 
 static void end_environment(LaTeXConverter* converter, const char* env) {
+    if (!converter || !env) {
+        if (converter) {
+            converter->error_code = 6;
+            strncpy(converter->error_message,
+                "NULL parameter to end_environment",
+                sizeof(converter->error_message) - 1);
+        }
+
+        return;
+    }
+
     append_string(converter, "\\end{");
+    if (converter->error_code) return;
+
     append_string(converter, env);
+    if (converter->error_code) return;
     append_string(converter, "}\n");
 }
 
