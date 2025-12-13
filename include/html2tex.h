@@ -145,7 +145,7 @@ extern "C" {
 	/* Returns the error message from the HTML-to-LaTeX conversion. */
     const char* html2tex_get_error_message(const LaTeXConverter* converter);
     
-	/* Writes the input string in LaTeX format. */
+	/* Append a string to the LaTeX output buffer with optimized copying. */
     void append_string(LaTeXConverter* converter, const char* str);
 	
 	/* Recursively converts a DOM child node to LaTeX. */

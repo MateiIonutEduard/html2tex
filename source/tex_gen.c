@@ -77,10 +77,28 @@ static void ensure_capacity(LaTeXConverter* converter, size_t needed) {
 }
 
 void append_string(LaTeXConverter* converter, const char* str) {
-    size_t len = strlen(str);
-    ensure_capacity(converter, len + 1);
+    if (!converter || !str) {
+        if (converter) {
+            converter->error_code = 4;
+            strncpy(converter->error_message,
+                "NULL parameter to append_string() function.",
+                sizeof(converter->error_message) - 1);
+        }
 
-    strcat(converter->output, str);
+        return;
+    }
+
+    size_t len = strlen(str);
+    if (len == 0) return;
+
+    ensure_capacity(converter, len + 1);
+    if (converter->error_code) return;
+
+    /* direct memory copy to the current position */
+    char* dest = converter->output + converter->output_size;
+    memcpy(dest, str, len);
+
+    dest[len] = '\0';
     converter->output_size += len;
 }
 
