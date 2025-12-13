@@ -247,6 +247,7 @@ extern "C" {
 	/* Convert a table containing only img nodes by parsing the DOM tree. */
 	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
 
+	/* Check if an HTML node is inside a table element. */
 	int is_inside_table(HTMLNode* node);
 
 	/* Check whether the HTML element is a table containing only images. */
