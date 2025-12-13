@@ -341,7 +341,7 @@ static void end_table_cell(LaTeXConverter* converter, int is_header) {
     converter->state.in_table_cell = 0;
 }
 
-static int count_table_columns(HTMLNode* node) {
+int count_table_columns(HTMLNode* node) {
     if (!node) return 1;
     int max_columns = 0;
 
@@ -458,147 +458,7 @@ static char* extract_caption_text(HTMLNode* node) {
     return buffer;
 }
 
-/* Check whether the given table element contains nested tables. */
-static int should_skip_nested_table(HTMLNode* node) {
-    if (!node) return -1;
-    NodeQueue* front = NULL;
-
-    NodeQueue* rear = NULL;
-    int result = 0;
-
-    /* if current node is a table, check for nested tables in descendants */
-    if (node->tag && strcmp(node->tag, "table") == 0) {
-        /* if no children, definitely no nested tables */
-        if (!node->children) return 0;
-
-        /* enqueue direct children */
-        HTMLNode* child = node->children;
-
-        while (child) {
-            if (!queue_enqueue(&front, &rear, child)) goto cleanup;
-            child = child->next;
-        }
-
-        /* BFS for nested tables */
-        while ((child = queue_dequeue(&front, &rear))) {
-            if (child->tag && strcmp(child->tag, "table") == 0) {
-                result = 1;
-                goto cleanup;
-            }
-
-            /* enqueue children for further search */
-            HTMLNode* grandchild = child->children;
-
-            while (grandchild) {
-                if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
-                grandchild = grandchild->next;
-            }
-        }
-    }
-
-    /* check parent hierarchy for table with nested tables */
-    for (HTMLNode* parent = node->parent; parent; parent = parent->parent) {
-        if (parent->tag && strcmp(parent->tag, "table") == 0) {
-            /* clean and reuse the queue */
-            queue_cleanup(&front, &rear);
-
-            /* enqueue parent's children */
-            HTMLNode* sibling = parent->children;
-
-            while (sibling) {
-                if (sibling != node && !queue_enqueue(&front, &rear, sibling)) goto cleanup;
-                sibling = sibling->next;
-            }
-
-            /* BFS for nested tables in parent's descendants */
-            HTMLNode* current;
-            while ((current = queue_dequeue(&front, &rear))) {
-                if (current->tag && strcmp(current->tag, "table") == 0) {
-                    result = 1;
-                    goto cleanup;
-                }
-
-                /* enqueue children for further search */
-                HTMLNode* grandchild = current->children;
-                while (grandchild) {
-                    if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
-                    grandchild = grandchild->next;
-                }
-            }
-
-            /* found nested table in parent chain? */
-            if (result) break;
-        }
-    }
-
-cleanup:
-    queue_cleanup(&front, &rear);
-    return result;
-}
-
-/* Check whether the HTML element is a table containing only images. */
-static int table_contains_only_images(HTMLNode* node) {
-    if (!node || !node->tag || strcmp(node->tag, "table") != 0)
-        return 0;
-
-    NodeQueue* front = NULL;
-    NodeQueue* rear = NULL;
-    int has_images = 0;
-
-    /* enqueue direct children */
-    for (HTMLNode* child = node->children; child; child = child->next)
-        if (!queue_enqueue(&front, &rear, child)) goto cleanup;
-
-    /* BFS traversal */
-    HTMLNode* current;
-
-    while ((current = queue_dequeue(&front, &rear))) {
-        if (current->tag) {
-            /* check for image tag */
-            if (strcmp(current->tag, "img") == 0) {
-                has_images = 1;
-                continue;
-            }
-
-            /* check for structural table elements */
-            if (strcmp(current->tag, "tbody") == 0 ||
-                strcmp(current->tag, "thead") == 0 ||
-                strcmp(current->tag, "tfoot") == 0 ||
-                strcmp(current->tag, "tr") == 0 ||
-                strcmp(current->tag, "td") == 0 ||
-                strcmp(current->tag, "th") == 0 ||
-                strcmp(current->tag, "caption") == 0) {
-
-                /* enqueue children */
-                for (HTMLNode* child = current->children; child; child = child->next)
-                    if (!queue_enqueue(&front, &rear, child)) goto cleanup;
-                
-                continue;
-            }
-
-            /* any other tag means failure */
-            has_images = 0;
-            goto cleanup;
-        }
-        else if (current->content) {
-            /* check for non-whitespace text */
-            const char* p = current->content;
-
-            while (*p) {
-                if (!isspace(*p++)) {
-                    has_images = 0;
-                    goto cleanup;
-                }
-            }
-        }
-    }
-
-cleanup:
-    queue_cleanup(&front, &rear);
-    return has_images;
-}
-
-static void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
+void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
     char* src = get_attribute(img_node->attributes, "src");
     if (!src) return;
     char* image_path = NULL;
@@ -693,7 +553,7 @@ static void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
     free(image_path);
 }
 
-static void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
+void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
     /* find the figure caption */
     HTMLNode* caption = NULL;
     converter->state.figure_internal_counter++;
@@ -739,108 +599,6 @@ static void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_nod
     append_string(converter, "\\label{fig:");
     escape_latex_special(converter, figure_label);
     append_string(converter, "}\n");
-}
-
-/* Convert a table containing only img nodes by parsing the DOM tree. */
-static void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
-    /* write figure header */
-    append_string(converter, "\\begin{figure}[htbp]\n\\centering\n");
-    append_string(converter, "\\setlength{\\fboxsep}{0pt}\n\\setlength{\\tabcolsep}{1pt}\n");
-
-    /* start tabular */
-    int columns = count_table_columns(node);
-    append_string(converter, "\\begin{tabular}{");
-
-    for (int i = 0; i < columns; i++) append_string(converter, "c");
-    append_string(converter, "}\n");
-
-    /* BFS for table rows */
-    NodeQueue* queue = NULL, * rear = NULL;
-    NodeQueue* cell_queue = NULL, * cell_rear = NULL;
-    int first_row = 1;
-
-    /* enqueue table children */
-    for (HTMLNode* child = node->children; child; child = child->next) {
-        queue_enqueue(&queue, &rear, child);
-    }
-
-    /* process table */
-    HTMLNode* current;
-
-    while ((current = queue_dequeue(&queue, &rear))) {
-        if (!current->tag) continue;
-
-        if (strcmp(current->tag, "tr") == 0) {
-            if (!first_row) append_string(converter, " \\\\\n");
-            first_row = 0;
-
-            /* process cells in row */
-            HTMLNode* cell = current->children;
-            int col_count = 0;
-
-            while (cell) {
-                if (cell->tag && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0)) {
-                    if (col_count++ > 0) append_string(converter, " & ");
-
-                    /* BFS search for image in cell */
-                    cell_queue = cell_rear = NULL;
-
-                    for (HTMLNode* cell_child = cell->children; cell_child; cell_child = cell_child->next)
-                        queue_enqueue(&cell_queue, &cell_rear, cell_child);
-
-                    int img_found = 0;
-                    HTMLNode* cell_node;
-
-                    while ((cell_node = queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
-                        if (cell_node->tag && strcmp(cell_node->tag, "img") == 0) {
-                            process_table_image(converter, cell_node);
-                            img_found = 1;
-                        }
-                        else if (cell_node->tag) {
-                            /* enqueue children for deeper search */
-                            for (HTMLNode* grandchild = cell_node->children; grandchild; grandchild = grandchild->next)
-                                queue_enqueue(&cell_queue, &cell_rear, grandchild);
-                        }
-                    }
-
-                    if (!img_found) append_string(converter, " ");
-                    queue_cleanup(&cell_queue, &cell_rear);
-                }
-
-                cell = cell->next;
-            }
-        }
-        else if (strcmp(current->tag, "tbody") == 0 || strcmp(current->tag, "thead") == 0 ||
-            strcmp(current->tag, "tfoot") == 0) {
-            /* enqueue section children */
-            for (HTMLNode* section_child = current->children; section_child; section_child = section_child->next)
-                queue_enqueue(&queue, &rear, section_child);
-        }
-    }
-
-    /* cleanup queues */
-    queue_cleanup(&queue, &rear);
-    queue_cleanup(&cell_queue, &cell_rear);
-
-    /* finish tabular and figure */
-    append_string(converter, "\n\\end{tabular}\n");
-
-    append_figure_caption(converter, node);
-    append_string(converter, "\\end{figure}\n\\FloatBarrier\n\n");
-}
-
-static int is_inside_table(HTMLNode* node) {
-    if (!node) return 0;
-    HTMLNode* current = node->parent;
-
-    while (current) {
-        if (current->tag && strcmp(current->tag, "table") == 0)
-            return 1;
-
-        current = current->parent;
-    }
-
-    return 0;
 }
 
 void convert_node(LaTeXConverter* converter, HTMLNode* node) {

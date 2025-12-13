@@ -237,7 +237,25 @@ extern "C" {
 
 	/* Check if string contains only whitespace. */
 	int is_whitespace_only(const char* text);
+
+	/* Check whether the given table element contains nested tables. */
+	int should_skip_nested_table(HTMLNode* node);
+
+	/* Detect if we're inside a table cell by checking parent hierarchy. */
+	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
+
+	/* Convert a table containing only img nodes by parsing the DOM tree. */
+	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
+
+	int is_inside_table(HTMLNode* node);
+
+	/* Check whether the HTML element is a table containing only images. */
+	int table_contains_only_images(HTMLNode* node);
 	
+	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
+	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
+	int count_table_columns(HTMLNode* node);
+
 	#ifdef _MSC_VER
 	#define strdup html2tex_strdup
 	#define html2tex_itoa(value, buffer, radix) _itoa((value), (buffer), (radix))

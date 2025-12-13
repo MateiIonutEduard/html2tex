@@ -272,26 +272,6 @@ char* css_color_to_hex(const char* color_value) {
     return result;
 }
 
-/* Detect if we're inside a table cell by checking parent hierarchy. */
-static int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
-    if (!node) return converter->state.in_table_cell;
-
-    /* first check converter state for table cell */
-    if (converter->state.in_table_cell) return 1;
-
-    /* then check the node's parent hierarchy */
-    HTMLNode* current = node->parent;
-
-    while (current) {
-        if (current->tag && (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0))
-            return 1;
-
-        current = current->parent;
-    }
-
-    return 0;
-}
-
 void apply_css_properties(LaTeXConverter* converter, CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
 
