@@ -253,7 +253,9 @@ extern "C" {
 	/* Check whether the HTML element is a table containing only images. */
 	int table_contains_only_images(HTMLNode* node);
 	
+	/* Process an image node within table context for LaTeX generation. */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
+
 	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
 	int count_table_columns(HTMLNode* node);
 
