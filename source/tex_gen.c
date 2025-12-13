@@ -863,25 +863,25 @@ int count_table_columns(HTMLNode* node) {
     return max_columns > 0 ? max_columns : 1;
 }
 
-/* new function to extract caption text */
+/* Returns the extracted caption text. */
 static char* extract_caption_text(HTMLNode* node) {
     if (!node) return NULL;
     size_t buffer_size = 256;
 
-    char* buffer = malloc(buffer_size);
+    char* buffer = (char*)malloc(buffer_size);
     if (!buffer) return NULL;
 
     buffer[0] = '\0';
     size_t current_length = 0;
 
-    /* process the current node and its children, but not siblings */
-    if (!node->tag && node->content) {
-        /* this is a text node */
+    /* process current node if it's a text node */
+    if (!node->tag && node->content && node->content[0] != '\0') {
         size_t content_len = strlen(node->content);
 
+        /* ensure capacity */
         if (current_length + content_len + 1 > buffer_size) {
             buffer_size = (current_length + content_len + 1) * 2;
-            char* new_buffer = realloc(buffer, buffer_size);
+            char* new_buffer = (char*)realloc(buffer, buffer_size);
 
             if (!new_buffer) {
                 free(buffer);
@@ -891,37 +891,55 @@ static char* extract_caption_text(HTMLNode* node) {
             buffer = new_buffer;
         }
 
-        strcat(buffer, node->content);
+        memcpy(buffer + current_length, node->content, content_len);
         current_length += content_len;
+        buffer[current_length] = '\0';
     }
 
-    /* process children recursively */
+    /* process children */
     if (node->children) {
-        char* child_text = extract_caption_text(node->children);
+        HTMLNode* child = node->children;
 
-        if (child_text) {
-            size_t child_len = strlen(child_text);
+        while (child) {
+            char* child_text = extract_caption_text(child);
 
-            if (current_length + child_len + 1 > buffer_size) {
-                buffer_size = (current_length + child_len + 1) * 2;
-                char* new_buffer = realloc(buffer, buffer_size);
+            if (child_text) {
+                size_t child_len = strlen(child_text);
 
-                if (!new_buffer) {
-                    free(buffer);
-                    free(child_text);
-                    return NULL;
+                /* ensure capacity */
+                if (current_length + child_len + 1 > buffer_size) {
+                    buffer_size = (current_length + child_len + 1) * 2;
+                    char* new_buffer = (char*)realloc(buffer, buffer_size);
+
+                    if (!new_buffer) {
+                        free(buffer);
+                        free(child_text);
+                        return NULL;
+                    }
+
+                    buffer = new_buffer;
                 }
 
-                buffer = new_buffer;
-            }
+                /* append the child text */
+                memcpy(buffer + current_length, child_text, child_len);
+                current_length += child_len;
+                buffer[current_length] = '\0';
 
-            strcat(buffer, child_text);
-            current_length += child_len;
-            free(child_text);
+                free(child_text);
+            }
+            child = child->next;
         }
     }
 
-    return buffer;
+    /* return NULL if no content was found */
+    if (current_length == 0) {
+        free(buffer);
+        return NULL;
+    }
+
+    /* trim the buffer to actual size */
+    char* result = realloc(buffer, current_length + 1);
+    return result ? result : buffer;
 }
 
 void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
