@@ -460,7 +460,7 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
     if (!converter) return;
 
     /* close all opened braces */
-    for (int i = 0; i < converter->state.css_braces; i++)
+    for (int i = 0; i < (int)converter->state.css_braces; i++)
         append_string(converter, "}");
 
     converter->state.css_braces = 0;
@@ -620,16 +620,50 @@ char* css_color_to_hex(const char* color_value) {
 }
 
 int is_css_property_inheritable(const char* property_name) {
-    if (!property_name) return 0;
-    if (strcmp(property_name, "font-weight") == 0) return 1;
+    static const struct {
+        const char* property_name;
+        unsigned char first_char;
+        const unsigned char length;
+    } inheritable_properties[] = {
+        {"font-weight", 'f', 11}, {"font-style", 'f', 10}, {"font-family", 'f', 11},
+        {"font-size", 'f', 9}, {"color", 'c', 5}, {"text-align", 't', 10},
+        {"text-decoration", 't', 15}, {NULL, 0, 0}
+    };
 
-    if (strcmp(property_name, "font-style") == 0) return 1;
-    if (strcmp(property_name, "font-family") == 0) return 1;
+    size_t len = 0;
+    const char* p = property_name;
 
-    if (strcmp(property_name, "font-size") == 0) return 1;
-    if (strcmp(property_name, "color") == 0) return 1;
+    while (*p) {
+        len++; p++;
 
-    if (strcmp(property_name, "text-align") == 0) return 1;
-    if (strcmp(property_name, "text-decoration") == 0) return 1;
+        /* CSS property name is longer then expected */
+        if (len > 15) return 0;
+    }
+
+    /* length-based fast rejection */
+    switch (len) {
+    case 5:  case 9:  case 10:
+    case 11: case 15:
+        break;
+    default:
+        /* length does not match any known CSS property */
+        return 0;
+    }
+
+    /* extract first char once */
+    const unsigned char first_char = (unsigned char)property_name[0];
+
+    for (int i = 0; inheritable_properties[i].property_name; i++) {
+        /* fast reject: first character mismatch */
+        if (first_char != inheritable_properties[i].first_char) continue;
+
+        /* medium reject: length mismatch, cheaper than strcmp */
+        if (inheritable_properties[i].length != len) continue;
+
+        /* apply strcmp function for exact string match (only few cases) */
+        if (strcmp(property_name, inheritable_properties[i].property_name) == 0)
+            return 1;
+    }
+
     return 0;
 }

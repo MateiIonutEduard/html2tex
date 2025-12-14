@@ -884,7 +884,7 @@ static char* extract_caption_text(HTMLNode* node) {
         HTMLNode* current = stack[stack_top--];
 
         /* if it's a text node, append its content */
-        if (!current->tag && current->content) {
+        if (current && !current->tag && current->content) {
             const char* text = current->content;
             size_t text_len = strlen(text);
 
