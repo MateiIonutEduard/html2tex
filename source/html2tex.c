@@ -35,15 +35,11 @@ LaTeXConverter* html2tex_create(void) {
     converter->state.css_environments = 0;
 
     converter->state.pending_margin_bottom = 0;
-    converter->state.has_bold = 0;
+    converter->state.applied_props = 0;
+    converter->state.skip_nested_table = 0;
 
-    converter->state.has_italic = 0;
-    converter->state.has_underline = 0;
-
-    converter->state.has_color = 0;
-    converter->state.has_background = 0;
-
-    converter->state.has_font_family = 0;
+    converter->state.table_has_caption = 0;
+    converter->state.pending_css_reset = 0;
     converter->error_code = 0;
 
     /* initialize image configuration */
@@ -90,15 +86,11 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     clone->state.css_environments = converter->state.css_environments;
 
     clone->state.pending_margin_bottom = converter->state.pending_margin_bottom;
-    clone->state.has_bold = converter->state.has_bold;
+    clone->state.applied_props = converter->state.applied_props;
+    clone->state.skip_nested_table = converter->state.skip_nested_table;
 
-    clone->state.has_italic = converter->state.has_italic;
-    clone->state.has_underline = converter->state.has_underline;
-
-    clone->state.has_color = converter->state.has_color;
-    clone->state.has_background = converter->state.has_background;
-
-    clone->state.has_font_family = converter->state.has_font_family;
+    clone->state.table_has_caption = converter->state.table_has_caption;
+    clone->state.pending_css_reset = converter->state.pending_css_reset;
     clone->error_code = converter->error_code;
 
     /* copy image configuration */
@@ -134,13 +126,9 @@ void html2tex_set_download_images(LaTeXConverter* converter, int enable) {
 }
 
 char* html2tex_convert(LaTeXConverter* converter, const char* html) {
-    if (!converter || !html)
-        return NULL;
-
-    /* initialize image utilities if downloading is enabled */
+    if (!converter || !html) return NULL;
     if (converter->download_images) image_utils_init();
 
-    /* reset converter state */
     if (converter->output) {
         free(converter->output);
         converter->output = NULL;
@@ -152,16 +140,18 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     converter->error_code = 0;
     converter->error_message[0] = '\0';
 
-    /* free any existing caption */
     if (converter->state.table_caption) {
         free(converter->state.table_caption);
         converter->state.table_caption = NULL;
     }
 
-    /* Reset CSS state */
-    reset_css_state(converter);
+    /* reset CSS state */
+    converter->state.applied_props = 0;
+    converter->state.css_braces = 0;
 
-    /* add LaTeX document preamble */
+    converter->state.css_environments = 0;
+    converter->state.pending_margin_bottom = 0;
+
     append_string(converter, "\\documentclass{article}\n");
     append_string(converter, "\\usepackage{hyperref}\n");
 
@@ -173,12 +163,10 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
 
     append_string(converter, "\\usepackage{placeins}\n");
     append_string(converter, "\\begin{document}\n\n");
-
-    /* parse HTML and convert */
     HTMLNode* root = html2tex_parse(html);
 
     if (root) {
-        convert_children(converter, root);
+        convert_children(converter, root, NULL);
         html2tex_free_node(root);
     }
     else {
@@ -187,21 +175,18 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         return NULL;
     }
 
-    /* add document ending */
     append_string(converter, "\n\\end{document}\n");
-
-    /* cleanup image utilities if they were initialized */
     if (converter->download_images) image_utils_cleanup();
-
-    /* return a copy of the output */
-    char* result = malloc(converter->output_size + 1);
+    char* result = (char*)malloc(converter->output_size + 1);
 
     if (result) {
         if (converter->output && converter->output_size > 0) {
             memcpy(result, converter->output, converter->output_size);
             result[converter->output_size] = '\0';
         }
-        else result[0] = '\0';
+        else {
+            result[0] = '\0';
+        }
     }
 
     return result;
