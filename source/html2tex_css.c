@@ -52,71 +52,49 @@ static CSSPropertyMask property_to_mask(const char* key) {
     return 0;
 }
 
-int css_properties_set(CSSProperties* props, const char* key, const char* value) {
+int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
     if (!props || !key || !value) return 0;
-
-    /* clean value by removing !important token */
-    char* cleaned_value = (char*)malloc(strlen(value) + 1);
-    if (!cleaned_value) return 0;
-
-    char* dest = cleaned_value;
-    const char* src = value;
-    int in_important = 0;
-
-    while (*src) {
-        if (*src == '!' && strncasecmp(src, "!important", 9) == 0) {
-            in_important = 1; src += 9;
-            continue;
-        }
-
-        if (!isspace(*src) || !in_important)
-            *dest++ = *src;
-        
-        src++;
-    }
-    *dest = '\0';
-
-    /* trim trailing whitespace */
-    while (dest > cleaned_value && isspace(*(dest - 1)))
-        *(--dest) = '\0';
 
     /* check if property already exists */
     CSSProperty* current = props->head;
     CSSProperty* prev = NULL;
 
     while (current) {
-        /* update existing value */
         if (strcasecmp(current->key, key) == 0) {
+            /* update existing value */
             free(current->value);
-            current->value = cleaned_value;
+            current->value = strdup(value);
+            current->important = important;
 
             /* update mask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
+
             return 1;
         }
-
         prev = current;
         current = current->next;
     }
 
     /* create new property */
     CSSProperty* new_prop = (CSSProperty*)malloc(sizeof(CSSProperty));
-
-    if (!new_prop) {
-        free(cleaned_value);
-        return 0;
-    }
-
+    if (!new_prop) return 0;
     new_prop->key = strdup(key);
 
     if (!new_prop->key) {
         free(new_prop);
-        free(cleaned_value);
         return 0;
     }
 
-    new_prop->value = cleaned_value;
+    new_prop->value = strdup(value);
+
+    if (!new_prop->value) {
+        free(new_prop->key);
+        free(new_prop);
+        return 0;
+    }
+
+    new_prop->important = important;
     new_prop->next = NULL;
 
     /* add to list */
@@ -171,24 +149,39 @@ CSSProperties* css_properties_merge(const CSSProperties* parent,
     CSSProperties* result = css_properties_create();
     if (!result) return NULL;
 
-    /* first, copy all inheritable properties from parent */
+    /* copy all inheritable properties from parent */
     if (parent) {
         CSSProperty* current = parent->head;
 
         while (current) {
-            if (is_css_property_inheritable(current->key)) {
-                css_properties_set(result, current->key, current->value);
-            }
-
+            if (is_css_property_inheritable(current->key))
+                css_properties_set(result, current->key, current->value, current->important);
+            
             current = current->next;
         }
     }
 
-    /* then, override with child properties */
+    /* override with child properties */
     CSSProperty* current = child->head;
 
     while (current) {
-        css_properties_set(result, current->key, current->value);
+        /* check if the property already exists in the result, from parent */
+        CSSProperty* existing = result->head;
+        int overwrite = 1;
+
+        while (existing) {
+            if (strcasecmp(existing->key, current->key) == 0) {
+                if (existing->important && !current->important)
+                    overwrite = 0;
+                
+                break;
+            }
+
+            existing = existing->next;
+        }
+
+        if (overwrite)
+            css_properties_set(result, current->key, current->value, current->important);
         current = current->next;
     }
 
@@ -212,16 +205,13 @@ CSSProperties* parse_css_style(const char* style_str) {
     while (token) {
         /* find colon separating property and value */
         char* colon = strchr(token, ':');
-
         if (colon) {
             *colon = '\0';
 
             /* trim property name */
             char* prop_start = token;
-
             while (*prop_start && isspace(*prop_start)) prop_start++;
             char* prop_end = prop_start + strlen(prop_start) - 1;
-
             while (prop_end > prop_start && isspace(*prop_end)) {
                 *prop_end = '\0';
                 prop_end--;
@@ -229,17 +219,32 @@ CSSProperties* parse_css_style(const char* style_str) {
 
             /* trim value */
             char* value_start = colon + 1;
-
             while (*value_start && isspace(*value_start)) value_start++;
-            char* value_end = value_start + strlen(value_start) - 1;
 
-            while (value_end > value_start && isspace(*value_end)) {
-                *value_end = '\0';
-                value_end--;
+            /* check for !important */
+            int important = 0;
+            char* important_pos = strstr(value_start, "!important");
+            if (important_pos) {
+                important = 1;
+
+                /* remove the !important part */
+                char* p = important_pos;
+
+                while (*p) {
+                    *p = '\0';
+                    p++;
+                }
+
+                /* trim trailing whitespace after removing !important */
+                char* value_end = value_start + strlen(value_start) - 1;
+                while (value_end > value_start && isspace(*value_end)) {
+                    *value_end = '\0';
+                    value_end--;
+                }
             }
 
             if (*prop_start && *value_start)
-                css_properties_set(props, prop_start, value_start);
+                css_properties_set(props, prop_start, value_start, important);
         }
 
         token = strtok(NULL, ";");
@@ -493,10 +498,11 @@ int css_length_to_pt(const char* length_str) {
             src += 9;
             continue;
         }
+
         *dest++ = *src++;
     }
-    *dest = '\0';
 
+    *dest = '\0';
     double value;
     char unit[10] = "";
 
@@ -523,7 +529,6 @@ int css_length_to_pt(const char* length_str) {
         result = (int)(value * 72.0);
     else
         result = (int)value;
-
     free(cleaned);
     return result;
 }
@@ -531,8 +536,8 @@ int css_length_to_pt(const char* length_str) {
 char* css_color_to_hex(const char* color_value) {
     if (!color_value) return NULL;
     char* cleaned = (char*)malloc(strlen(color_value) + 1);
-    if (!cleaned) return NULL;
 
+    if (!cleaned) return NULL;
     char* dest = cleaned;
     const char* src = color_value;
 

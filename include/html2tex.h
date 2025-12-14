@@ -63,6 +63,7 @@ extern "C" {
 	struct CSSProperty {
 		const char* key;
 		char* value;
+		unsigned int important : 1;
 		struct CSSProperty* next;
 	};
 
@@ -264,7 +265,7 @@ extern "C" {
 	void css_properties_destroy(CSSProperties* props);
 
 	/* Set or update a CSS property in the properties collection. */
-	int css_properties_set(CSSProperties* props, const char* key, const char* value);
+	int css_properties_set(CSSProperties* props, const char* key, const char* value, int important);
 
 	/* Retrieve the value of a CSS property. */
 	const char* css_properties_get(const CSSProperties* props, const char* key);
