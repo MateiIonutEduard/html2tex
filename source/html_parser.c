@@ -287,21 +287,7 @@ static HTMLNode* parse_element(ParserState* state) {
 
     /* parse children if not self-closing and not a void element */
     if (!self_closing) {
-        /* HTML void element list */
-        static const char* const void_elements[] = {
-            "area", "base", "br", "col", "embed", "hr", "img",
-            "input", "link", "meta", "param", "source", "track", "wbr", NULL
-        };
-
-        int is_void_element = 0;
-        for (int i = 0; void_elements[i]; i++) {
-            if (strcmp(tag_name, void_elements[i]) == 0) {
-                is_void_element = 1;
-                break;
-            }
-        }
-
-        if (!is_void_element) {
+        if (!is_void_element(tag_name)) {
             /* cache frequently accessed values */
             HTMLNode** current_child = &node->children;
             const char* input = state->input;
