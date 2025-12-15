@@ -1,4 +1,5 @@
 #include "html2tex.h"
+#include <stdlib.h>
 #include <ctype.h>
 
 const char* get_attribute(HTMLAttribute* attrs, const char* key) {
@@ -63,8 +64,8 @@ char* html2tex_extract_title(HTMLNode* root) {
         child = child->next;
     }
 
+    /* BFS search for title element */
     while (front) {
-        /* BFS search for title element */
         HTMLNode* current = queue_dequeue(&front, &rear);
 
         /* fast check for title tag */
@@ -73,17 +74,21 @@ char* html2tex_extract_title(HTMLNode* root) {
 
             /* extract all text content from title element */
             size_t capacity = 256;
-            char* buffer = (char*)malloc(capacity);
 
+            char* buffer = (char*)malloc(capacity);
             if (!buffer) break;
+
             size_t length = 0;
             buffer[0] = '\0';
 
             /* BFS within title node for text content */
             NodeQueue* title_front = NULL;
-
             NodeQueue* title_rear = NULL;
-            queue_enqueue(&title_front, &title_rear, current);
+
+            if (!queue_enqueue(&title_front, &title_rear, current)) {
+                free(buffer);
+                goto cleanup;
+            }
 
             while (title_front) {
                 HTMLNode* title_node = queue_dequeue(&title_front, &title_rear);
@@ -94,28 +99,47 @@ char* html2tex_extract_title(HTMLNode* root) {
 
                     /* ensure capacity */
                     if (length + text_len + 1 > capacity) {
-                        capacity = ((length + text_len) << 1) ^ 1;
-                        char* new_buffer = (char*)realloc(buffer, capacity);
+                        /* double the capacity, ensuring minimum growth */
+                        size_t new_capacity = capacity * 2;
+
+                        if (new_capacity < length + text_len + 1)
+                            new_capacity = length + text_len + 1;
+
+                        /* guard against overflow */
+                        if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {
+                            free(buffer); queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        char* new_buffer = (char*)realloc(buffer, new_capacity);
 
                         if (!new_buffer) {
-                            free(buffer);
-                            queue_cleanup(&title_front, &title_rear);
+                            free(buffer); queue_cleanup(&title_front, &title_rear);
                             goto cleanup;
                         }
 
                         buffer = new_buffer;
+                        capacity = new_capacity;
                     }
 
-                    /* append text */
-                    memcpy(buffer + length, title_node->content, text_len);
-                    length += text_len; buffer[length] = '\0';
+                    /* safe copy with bounds check */
+                    if (length + text_len < capacity) {
+                        memcpy(buffer + length, title_node->content, text_len);
+                        length += text_len;
+                        buffer[length] = '\0';
+                    }
                 }
 
                 /* enqueue children */
                 HTMLNode* title_child = title_node->children;
 
                 while (title_child) {
-                    queue_enqueue(&title_front, &title_rear, title_child);
+                    if (!queue_enqueue(&title_front, &title_rear, title_child)) {
+                        free(buffer);
+                        queue_cleanup(&title_front, &title_rear);
+                        goto cleanup;
+                    }
+
                     title_child = title_child->next;
                 }
             }
@@ -135,31 +159,37 @@ char* html2tex_extract_title(HTMLNode* root) {
                 /* trim trailing whitespace */
                 if (length > 0) {
                     char* end = buffer + length - 1;
-
                     while (end >= buffer && isspace((unsigned char)*end)) {
-                        *end = '\0'; end--;
+                        *end = '\0';
+                        end--;
                         length--;
                     }
                 }
 
                 /* move trimmed content if needed */
-                if (start != buffer && length > 0) {
+                if (start != buffer && length > 0)
                     memmove(buffer, start, length + 1);
-                }
 
                 /* resize to exact length */
-                char* trimmed = (char*)realloc(buffer, length + 1);
-                title_text = trimmed ? trimmed : buffer;
+                if (length > 0) {
+                    char* trimmed = (char*)realloc(buffer, length + 1);
+                    title_text = trimmed ? trimmed : buffer;
+                }
+                else {
+                    free(buffer);
+                    title_text = NULL;
+                }
             }
             else {
                 free(buffer);
                 title_text = NULL;
             }
 
+            /* found title, exit BFS */
             break;
         }
 
-        /* Enqueue children for further search */
+        /* enqueue children for further search */
         HTMLNode* current_child = current->children;
 
         while (current_child) {

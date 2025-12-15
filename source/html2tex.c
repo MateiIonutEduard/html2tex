@@ -162,8 +162,18 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     append_string(converter, "\\usepackage{graphicx}\n");
 
     append_string(converter, "\\usepackage{placeins}\n");
-    append_string(converter, "\\begin{document}\n\n");
     HTMLNode* root = html2tex_parse(html);
+    char* title = html2tex_extract_title(root);
+
+    if (title) {
+        append_string(converter, "\\title{");
+        append_string(converter, title);
+        append_string(converter, "}\n");
+        free(title);
+    }
+
+    append_string(converter, "\\begin{document}\n\n");
+    append_string(converter, "\\maketitle\n");
 
     if (root) {
         convert_children(converter, root, NULL);

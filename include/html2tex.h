@@ -160,7 +160,7 @@ extern "C" {
 	/* Parse the virtual DOM tree without optimizations. */
 	HTMLNode* html2tex_parse(const char* html);
 
-	/* Extracts the HTML document title using breadth-first search (BFS). */
+	/* Extracts the HTML document title using Breadth-First Search (BFS). */
 	char* html2tex_extract_title(HTMLNode* root);
 
 	/* Parse HTML and return a minified DOM tree. */
