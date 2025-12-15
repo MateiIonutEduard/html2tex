@@ -172,8 +172,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         free(title);
     }
 
-    append_string(converter, "\\begin{document}\n\n");
-    append_string(converter, "\\maketitle\n");
+    append_string(converter, "\\begin{document}\n");
+    append_string(converter, "\\maketitle\n\n");
 
     if (root) {
         convert_children(converter, root, NULL);

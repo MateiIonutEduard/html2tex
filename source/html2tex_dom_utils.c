@@ -194,7 +194,7 @@ char* html2tex_extract_title(HTMLNode* root) {
 
         while (current_child) {
             if (!queue_enqueue(&front, &rear, current_child)) {
-                free(title_text);
+                if(title_text) free(title_text);
                 goto cleanup;
             }
 
