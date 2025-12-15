@@ -44,6 +44,139 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     return NULL;
 }
 
+char* html2tex_extract_title(HTMLNode* root) {
+    if (!root) return NULL;
+    NodeQueue* front = NULL;
+
+    NodeQueue* rear = NULL;
+    char* title_text = NULL;
+
+    /* init BFS with root's direct children */
+    HTMLNode* child = root->children;
+
+    while (child) {
+        if (!queue_enqueue(&front, &rear, child)) {
+            queue_cleanup(&front, &rear);
+            return NULL;
+        }
+
+        child = child->next;
+    }
+
+    while (front) {
+        /* BFS search for title element */
+        HTMLNode* current = queue_dequeue(&front, &rear);
+
+        /* fast check for title tag */
+        if (current->tag && current->tag[0] == 't' &&
+            strcmp(current->tag, "title") == 0) {
+
+            /* extract all text content from title element */
+            size_t capacity = 256;
+            char* buffer = (char*)malloc(capacity);
+
+            if (!buffer) break;
+            size_t length = 0;
+            buffer[0] = '\0';
+
+            /* BFS within title node for text content */
+            NodeQueue* title_front = NULL;
+
+            NodeQueue* title_rear = NULL;
+            queue_enqueue(&title_front, &title_rear, current);
+
+            while (title_front) {
+                HTMLNode* title_node = queue_dequeue(&title_front, &title_rear);
+
+                /* collect text content */
+                if (!title_node->tag && title_node->content && title_node->content[0]) {
+                    size_t text_len = strlen(title_node->content);
+
+                    /* ensure capacity */
+                    if (length + text_len + 1 > capacity) {
+                        capacity = ((length + text_len) << 1) ^ 1;
+                        char* new_buffer = (char*)realloc(buffer, capacity);
+
+                        if (!new_buffer) {
+                            free(buffer);
+                            queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        buffer = new_buffer;
+                    }
+
+                    /* append text */
+                    memcpy(buffer + length, title_node->content, text_len);
+                    length += text_len; buffer[length] = '\0';
+                }
+
+                /* enqueue children */
+                HTMLNode* title_child = title_node->children;
+
+                while (title_child) {
+                    queue_enqueue(&title_front, &title_rear, title_child);
+                    title_child = title_child->next;
+                }
+            }
+
+            queue_cleanup(&title_front, &title_rear);
+
+            /* trim whitespace if we collected text */
+            if (length > 0) {
+                /* trim leading whitespace */
+                char* start = buffer;
+
+                while (*start && isspace((unsigned char)*start)) {
+                    start++;
+                    length--;
+                }
+
+                /* trim trailing whitespace */
+                if (length > 0) {
+                    char* end = buffer + length - 1;
+
+                    while (end >= buffer && isspace((unsigned char)*end)) {
+                        *end = '\0'; end--;
+                        length--;
+                    }
+                }
+
+                /* move trimmed content if needed */
+                if (start != buffer && length > 0) {
+                    memmove(buffer, start, length + 1);
+                }
+
+                /* resize to exact length */
+                char* trimmed = (char*)realloc(buffer, length + 1);
+                title_text = trimmed ? trimmed : buffer;
+            }
+            else {
+                free(buffer);
+                title_text = NULL;
+            }
+
+            break;
+        }
+
+        /* Enqueue children for further search */
+        HTMLNode* current_child = current->children;
+
+        while (current_child) {
+            if (!queue_enqueue(&front, &rear, current_child)) {
+                free(title_text);
+                goto cleanup;
+            }
+
+            current_child = current_child->next;
+        }
+    }
+
+cleanup:
+    queue_cleanup(&front, &rear);
+    return title_text;
+}
+
 int should_skip_nested_table(HTMLNode* node) {
     if (!node) return -1;
     NodeQueue* front = NULL;
