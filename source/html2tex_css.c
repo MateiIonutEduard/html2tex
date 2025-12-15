@@ -65,19 +65,20 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
             free(current->value);
             current->value = strdup(value);
             current->important = important;
-
-            /* update mask */
+            
+            /* update the mask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
-
             return 1;
         }
+
         prev = current;
         current = current->next;
     }
 
-    /* create new property */
+    /* create new CSS property */
     CSSProperty* new_prop = (CSSProperty*)malloc(sizeof(CSSProperty));
+
     if (!new_prop) return 0;
     new_prop->key = strdup(key);
 
@@ -89,7 +90,7 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
     new_prop->value = strdup(value);
 
     if (!new_prop->value) {
-        free(new_prop->key);
+        free((void*)new_prop->key);
         free(new_prop);
         return 0;
     }
@@ -141,48 +142,82 @@ int css_properties_has(const CSSProperties* props, const char* key) {
     return 0;
 }
 
+CSSProperties* css_properties_copy(const CSSProperties* src) {
+    if (!src) return NULL;
+    CSSProperties* copy = css_properties_create();
+
+    if (!copy) return NULL;
+    CSSProperty* current = src->head;
+
+    while (current) {
+        if (!css_properties_set(copy, current->key, current->value, current->important)) {
+            css_properties_destroy(copy);
+            return NULL;
+        }
+
+        current = current->next;
+    }
+
+    return copy;
+}
+
 CSSProperties* css_properties_merge(const CSSProperties* parent,
     const CSSProperties* child) {
-    if (!child) return NULL;
 
-    /* create merged properties */
+    /* early returns for edge cases */
+    if (!child) return NULL;
+    if (!parent) return css_properties_copy(child);
+
+    /* create result with estimated capacity */
     CSSProperties* result = css_properties_create();
     if (!result) return NULL;
 
-    /* copy all inheritable properties from parent */
-    if (parent) {
-        CSSProperty* current = parent->head;
-
+    /* if child has no inheritable properties, just copy child */
+    if (child->mask == 0) {
+        CSSProperty* current = child->head;
+        
         while (current) {
-            if (is_css_property_inheritable(current->key))
-                css_properties_set(result, current->key, current->value, current->important);
-            
+            css_properties_set(result, current->key, current->value, current->important);
             current = current->next;
         }
+
+        return result;
     }
 
-    /* override with child properties */
-    CSSProperty* current = child->head;
+    /* copy inheritable properties from parent */
+    CSSProperty* parent_prop = parent->head;
 
-    while (current) {
-        /* check if the property already exists in the result, from parent */
+    while (parent_prop) {
+        if (is_css_property_inheritable(parent_prop->key))
+            css_properties_set(result, parent_prop->key, parent_prop->value, parent_prop->important);
+        
+        parent_prop = parent_prop->next;
+    }
+
+    /* override with child properties using CSS cascade rules */
+    CSSProperty* child_prop = child->head;
+
+    while (child_prop) {
+        int should_override = 1;
         CSSProperty* existing = result->head;
-        int overwrite = 1;
 
         while (existing) {
-            if (strcasecmp(existing->key, current->key) == 0) {
-                if (existing->important && !current->important)
-                    overwrite = 0;
-                
+            if (strcasecmp(existing->key, child_prop->key) == 0) {
+                if (child_prop->important)
+                    should_override = 1;
+                else if (existing->important)
+                    should_override = 0;
+                else
+                    should_override = 1;
                 break;
             }
-
             existing = existing->next;
         }
 
-        if (overwrite)
-            css_properties_set(result, current->key, current->value, current->important);
-        current = current->next;
+        if (should_override)
+            css_properties_set(result, child_prop->key, child_prop->value, child_prop->important);
+
+        child_prop = child_prop->next;
     }
 
     return result;
@@ -249,7 +284,7 @@ CSSProperties* parse_css_style(const char* style_str) {
 
         token = strtok(NULL, ";");
     }
-
+    
     free(copy);
     return props;
 }

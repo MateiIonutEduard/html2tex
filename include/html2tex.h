@@ -283,6 +283,9 @@ extern "C" {
 	/* Finalize CSS application and reset the converter state. */
 	void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name);
 
+	/* Create a deep copy of the CSSProperties structure. */
+	CSSProperties* css_properties_copy(const CSSProperties* src);
+
 	/* Parses inline CSS from style. */
 	CSSProperties* parse_css_style(const char* style_str);
 
