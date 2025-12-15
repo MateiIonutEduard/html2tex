@@ -166,16 +166,17 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
 
     HTMLNode* root = html2tex_parse(html);
     char* title = html2tex_extract_title(root);
+    int has_title = 0;
 
     if (title) {
         append_string(converter, "\\title{");
         append_string(converter, title);
         append_string(converter, "}\n");
-        free(title);
+        free(title); has_title = 1;
     }
 
     append_string(converter, "\\begin{document}\n");
-    append_string(converter, "\\maketitle\n\n");
+    if(has_title) append_string(converter, "\\maketitle\n\n");
 
     if (root) {
         convert_children(converter, root, NULL);
