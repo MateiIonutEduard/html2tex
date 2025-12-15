@@ -162,6 +162,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     append_string(converter, "\\usepackage{graphicx}\n");
 
     append_string(converter, "\\usepackage{placeins}\n");
+    append_string(converter, "\\setcounter{secnumdepth}{4}\n");
+
     HTMLNode* root = html2tex_parse(html);
     char* title = html2tex_extract_title(root);
 
@@ -181,7 +183,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     }
     else {
         converter->error_code = 1;
-        strcpy(converter->error_message, "Failed to parse HTML");
+        strcpy(converter->error_message, "Failed to parse HTML.");
         return NULL;
     }
 
@@ -194,9 +196,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
             memcpy(result, converter->output, converter->output_size);
             result[converter->output_size] = '\0';
         }
-        else {
+        else
             result[0] = '\0';
-        }
     }
 
     return result;

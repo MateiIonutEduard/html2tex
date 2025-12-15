@@ -363,9 +363,8 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     int first_row = 1;
 
     /* enqueue table children */
-    for (HTMLNode* child = node->children; child; child = child->next) {
+    for (HTMLNode* child = node->children; child; child = child->next)
         queue_enqueue(&queue, &rear, child);
-    }
 
     /* process table */
     HTMLNode* current;

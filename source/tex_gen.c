@@ -1180,6 +1180,11 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inhe
         convert_children(converter, node, merged_props);
         append_string(converter, "}\n\n");
     }
+    else if (strcmp(node->tag, "h4") == 0) {
+        append_string(converter, "\\paragraph{");
+        convert_children(converter, node, merged_props);
+        append_string(converter, "}\n\n");
+    }
     else if (strcmp(node->tag, "b") == 0 || strcmp(node->tag, "strong") == 0) {
         /* only apply bold if CSS hasn't already applied it */
         if (!(converter->state.applied_props & CSS_BOLD)) {
