@@ -262,6 +262,7 @@ extern "C" {
 	/* Determines if a CSS property is inheritable per W3C CSS 2.1 specification. */
 	int is_css_property_inheritable(const char* property_name);
 
+	/* Allocates and initializes a new CSSProperties container. */
 	CSSProperties* css_properties_create(void);
 
 	/* Releases memory used by CSSProperties for managing styles. */
