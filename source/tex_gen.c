@@ -867,47 +867,70 @@ int count_table_columns(HTMLNode* node) {
 static char* extract_caption_text(HTMLNode* node) {
     if (!node) return NULL;
 
-    /* use a simple dynamic string */
+    /* optimized dynamic string buffer */
     size_t capacity = 256;
-    char* buffer = (char*)malloc(capacity);
 
+    char* buffer = (char*)malloc(capacity);
     if (!buffer) return NULL;
+
     size_t length = 0;
     buffer[0] = '\0';
 
-    /* use a stack for DFS */
-    HTMLNode* stack[256];
-    int stack_top = -1;
-    stack[++stack_top] = node;
+    /* use generic stack for iterative DFS */
+    Stack* stack = NULL;
 
-    while (stack_top >= 0) {
-        HTMLNode* current = stack[stack_top--];
+    /* start with root node */
+    if (!stack_push(&stack, (HTMLNode*)node)) {
+        free(buffer);
+        return NULL;
+    }
 
-        /* if it's a text node, append its content */
-        if (current && !current->tag && current->content) {
+    /* process nodes depth-first */
+    while (!stack_is_empty(stack)) {
+        HTMLNode* current = (HTMLNode*)stack_pop(&stack);
+        if (!current) continue;
+
+        /* process text content */
+        if (!current->tag && current->content && current->content[0]) {
             const char* text = current->content;
             size_t text_len = strlen(text);
 
-            /* check if we need to grow the buffer */
+            /* grow buffer if needed using geometric progression */
             if (length + text_len + 1 > capacity) {
-                capacity *= GROWTH_FACTOR;
-                char* new_buffer = (char*)realloc(buffer, capacity);
+                /* double capacity, but ensure minimum growth */
+                size_t new_capacity = capacity * 2;
+                if (new_capacity < length + text_len + 1) {
+                    new_capacity = length + text_len + 1;
+                }
+
+                /* overflow protection */
+                if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {
+                    stack_cleanup(&stack);
+                    free(buffer);
+                    return NULL;
+                }
+
+                char* new_buffer = (char*)realloc(buffer, new_capacity);
 
                 if (!new_buffer) {
+                    stack_cleanup(&stack);
                     free(buffer);
                     return NULL;
                 }
 
                 buffer = new_buffer;
+                capacity = new_capacity;
             }
 
+            /* append text content */
             memcpy(buffer + length, text, text_len);
             length += text_len;
             buffer[length] = '\0';
         }
 
-        /* push children in reverse order so that they are processed in the original order */
+        /* push children in reverse order for original processing order */
         if (current->children) {
+            /* count children for optimal memory */
             int child_count = 0;
             HTMLNode* child = current->children;
 
@@ -916,34 +939,59 @@ static char* extract_caption_text(HTMLNode* node) {
                 child = child->next;
             }
 
-            /* allocate array to hold children in order */
-            HTMLNode** children = (HTMLNode**)malloc(child_count * sizeof(HTMLNode*));
-
-            if (children) {
+            /* handle single child without temp stack */
+            if (child_count == 1) {
+                if (!stack_push(&stack, current->children)) {
+                    stack_cleanup(&stack);
+                    free(buffer);
+                    return NULL;
+                }
+            }
+            else {
+                /* use temporary stack for reversing children order */
+                Stack* temp_stack = NULL;
                 child = current->children;
 
-                for (int i = 0; i < child_count && child; i++) {
-                    children[i] = child;
+                /* push all children to temp stack */
+                while (child) {
+                    if (!stack_push(&temp_stack, child)) {
+                        stack_cleanup(&temp_stack);
+                        stack_cleanup(&stack);
+                        free(buffer);
+                        return NULL;
+                    }
+
                     child = child->next;
                 }
 
-                /* push in reverse order */
-                for (int i = child_count - 1; i >= 0; i--) {
-                    if (stack_top < 255)
-                        stack[++stack_top] = children[i];
+                /* transfer from temp to main stack in reverses order */
+                while (!stack_is_empty(temp_stack)) {
+                    HTMLNode* data = (HTMLNode*)stack_pop(&temp_stack);
+
+                    if (!stack_push(&stack, data)) {
+                        stack_cleanup(&temp_stack);
+                        stack_cleanup(&stack);
+
+                        free(buffer);
+                        return NULL;
+                    }
                 }
 
-                free(children);
+                stack_cleanup(&temp_stack);
             }
         }
     }
 
+    /* clean up stack */
+    stack_cleanup(&stack);
+
+    /* return NULL for empty captions */
     if (length == 0) {
         free(buffer);
         return NULL;
     }
 
-    /* trim the buffer */
+    /* trim to exact size */
     char* result = (char*)realloc(buffer, length + 1);
     return result ? result : buffer;
 }
