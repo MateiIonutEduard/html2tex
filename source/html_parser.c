@@ -469,11 +469,11 @@ HTMLNode* dom_tree_copy(HTMLNode* node) {
     new_root->attributes = new_attrs;
 
     /* BFS queue for copying children */
-    NodeQueue* src_queue = NULL;
-    NodeQueue* src_rear = NULL;
+    Queue* src_queue = NULL;
+    Queue* src_rear = NULL;
 
-    NodeQueue* dst_queue = NULL;
-    NodeQueue* dst_rear = NULL;
+    Queue* dst_queue = NULL;
+    Queue* dst_rear = NULL;
 
     /* enqueue the root and its parent copy */
     queue_enqueue(&src_queue, &src_rear, node);
@@ -481,8 +481,8 @@ HTMLNode* dom_tree_copy(HTMLNode* node) {
 
     /* process nodes in BFS order */
     while (src_queue) {
-        HTMLNode* src_current = queue_dequeue(&src_queue, &src_rear);
-        HTMLNode* dst_current = queue_dequeue(&dst_queue, &dst_rear);
+        HTMLNode* src_current = (HTMLNode*)queue_dequeue(&src_queue, &src_rear);
+        HTMLNode* dst_current = (HTMLNode*)queue_dequeue(&dst_queue, &dst_rear);
 
         /* copy children of current node */
         HTMLNode* src_child = src_current->children;
@@ -553,15 +553,15 @@ HTMLNode* dom_tree_copy(HTMLNode* node) {
 void html2tex_free_node(HTMLNode* node) {
     if (!node) return;
 
-    NodeQueue* q_front = NULL;
-    NodeQueue* q_rear = NULL;
+    Queue* q_front = NULL;
+    Queue* q_rear = NULL;
 
     /* BFS using queue */
     queue_enqueue(&q_front, &q_rear, node);
 
     while (q_front) {
         /* process all children */
-        HTMLNode* current = queue_dequeue(&q_front, &q_rear);
+        HTMLNode* current = (HTMLNode*)queue_dequeue(&q_front, &q_rear);
         HTMLNode* child = current->children;
 
         while (child) {

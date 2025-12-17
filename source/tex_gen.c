@@ -751,8 +751,8 @@ int count_table_columns(HTMLNode* node) {
     if (!node) return 1;
     int max_columns = 0;
 
-    NodeQueue* front = NULL;
-    NodeQueue* rear = NULL;
+    Queue* front = NULL;
+    Queue* rear = NULL;
 
     /* initialize BFS queue with the node */
     if (!queue_enqueue(&front, &rear, node))
@@ -760,7 +760,7 @@ int count_table_columns(HTMLNode* node) {
 
     /* BFS traversal for table structure */
     while (front) {
-        HTMLNode* current = queue_dequeue(&front, &rear);
+        HTMLNode* current = (HTMLNode*)queue_dequeue(&front, &rear);
         if (!current) continue;
 
         /* process all children of current node */

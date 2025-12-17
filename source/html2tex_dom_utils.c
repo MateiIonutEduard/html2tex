@@ -47,9 +47,9 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
 
 char* html2tex_extract_title(HTMLNode* root) {
     if (!root) return NULL;
-    NodeQueue* front = NULL;
+    Queue* front = NULL;
 
-    NodeQueue* rear = NULL;
+    Queue* rear = NULL;
     char* title_text = NULL;
 
     /* init BFS with root's direct children */
@@ -66,7 +66,7 @@ char* html2tex_extract_title(HTMLNode* root) {
 
     /* BFS search for title element */
     while (front) {
-        HTMLNode* current = queue_dequeue(&front, &rear);
+        HTMLNode* current = (HTMLNode*)queue_dequeue(&front, &rear);
 
         /* fast check for title tag */
         if (current->tag && current->tag[0] == 't' &&
@@ -82,8 +82,8 @@ char* html2tex_extract_title(HTMLNode* root) {
             buffer[0] = '\0';
 
             /* BFS within title node for text content */
-            NodeQueue* title_front = NULL;
-            NodeQueue* title_rear = NULL;
+            Queue* title_front = NULL;
+            Queue* title_rear = NULL;
 
             if (!queue_enqueue(&title_front, &title_rear, current)) {
                 free(buffer);
@@ -91,7 +91,7 @@ char* html2tex_extract_title(HTMLNode* root) {
             }
 
             while (title_front) {
-                HTMLNode* title_node = queue_dequeue(&title_front, &title_rear);
+                HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
 
                 /* collect text content */
                 if (!title_node->tag && title_node->content && title_node->content[0]) {
@@ -209,9 +209,9 @@ cleanup:
 
 int should_skip_nested_table(HTMLNode* node) {
     if (!node) return -1;
-    NodeQueue* front = NULL;
+    Queue* front = NULL;
 
-    NodeQueue* rear = NULL;
+    Queue* rear = NULL;
     int result = 0;
 
     /* if current node is a table, check for nested tables in descendants */
@@ -228,7 +228,7 @@ int should_skip_nested_table(HTMLNode* node) {
         }
 
         /* BFS for nested tables */
-        while ((child = queue_dequeue(&front, &rear))) {
+        while ((child = (HTMLNode*)queue_dequeue(&front, &rear))) {
             if (child->tag && strcmp(child->tag, "table") == 0) {
                 result = 1;
                 goto cleanup;
@@ -260,7 +260,7 @@ int should_skip_nested_table(HTMLNode* node) {
 
             /* BFS for nested tables in parent's descendants */
             HTMLNode* current;
-            while ((current = queue_dequeue(&front, &rear))) {
+            while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
                 if (current->tag && strcmp(current->tag, "table") == 0) {
                     result = 1;
                     goto cleanup;
@@ -288,8 +288,8 @@ int table_contains_only_images(HTMLNode* node) {
     if (!node || !node->tag || strcmp(node->tag, "table") != 0)
         return 0;
 
-    NodeQueue* front = NULL;
-    NodeQueue* rear = NULL;
+    Queue* front = NULL;
+    Queue* rear = NULL;
     int has_images = 0;
 
     /* enqueue direct children */
@@ -299,7 +299,7 @@ int table_contains_only_images(HTMLNode* node) {
     /* BFS traversal */
     HTMLNode* current;
 
-    while ((current = queue_dequeue(&front, &rear))) {
+    while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
         if (current->tag) {
             /* check for image tag */
             if (strcmp(current->tag, "img") == 0) {
@@ -358,8 +358,8 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     append_string(converter, "}\n");
 
     /* BFS for table rows */
-    NodeQueue* queue = NULL, * rear = NULL;
-    NodeQueue* cell_queue = NULL, * cell_rear = NULL;
+    Queue* queue = NULL, * rear = NULL;
+    Queue* cell_queue = NULL, * cell_rear = NULL;
     int first_row = 1;
 
     /* enqueue table children */
@@ -369,7 +369,7 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     /* process table */
     HTMLNode* current;
 
-    while ((current = queue_dequeue(&queue, &rear))) {
+    while ((current = (HTMLNode*)queue_dequeue(&queue, &rear))) {
         if (!current->tag) continue;
 
         if (strcmp(current->tag, "tr") == 0) {
@@ -393,7 +393,7 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
                     int img_found = 0;
                     HTMLNode* cell_node;
 
-                    while ((cell_node = queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
+                    while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
                         if (cell_node->tag && strcmp(cell_node->tag, "img") == 0) {
                             process_table_image(converter, cell_node);
                             img_found = 1;

@@ -18,7 +18,7 @@ extern "C" {
 	typedef struct CSSPropertyDef CSSPropertyDef;
 
 	typedef struct CSSProperties CSSProperties;
-	typedef struct NodeQueue NodeQueue;
+	typedef struct Queue Queue;
 
 	/* HTML node structure */
 	struct HTMLNode {
@@ -30,9 +30,9 @@ extern "C" {
 		HTMLNode* parent;
 	};
 
-	struct NodeQueue {
-		HTMLNode* data;
-		struct NodeQueue* next;
+	struct Queue {
+		void* data;
+		struct Queue* next;
 	};
 
 	/* HTML attribute structure */
@@ -221,13 +221,13 @@ extern "C" {
 	void portable_itoa(int value, char* buffer, int radix);
 
 	/* Adds an HTML node to the rear of the queue for breadth-first traversal. */
-	int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data);
+	int queue_enqueue(Queue** front, Queue** rear, void* data);
 
 	/* Removes and returns the HTML node from the front of the queue. */
-	HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear);
+	void* queue_dequeue(Queue** front, Queue** rear);
 
 	/* Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
-	void queue_cleanup(NodeQueue** front, NodeQueue** rear);
+	void queue_cleanup(Queue** front, Queue** rear);
 
 	/* Determine if an HTML tag should be excluded from LaTeX conversion. */
 	int should_exclude_tag(const char* tag_name);

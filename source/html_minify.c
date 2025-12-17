@@ -345,14 +345,14 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
         }
     }
 
-    NodeQueue* src_queue_front = NULL;
-    NodeQueue* src_queue_rear = NULL;
+    Queue* src_queue_front = NULL;
+    Queue* src_queue_rear = NULL;
 
-    NodeQueue* dst_queue_front = NULL;
-    NodeQueue* dst_queue_rear = NULL;
+    Queue* dst_queue_front = NULL;
+    Queue* dst_queue_rear = NULL;
 
-    NodeQueue* preformatted_queue_front = NULL;
-    NodeQueue* preformatted_queue_rear = NULL;
+    Queue* preformatted_queue_front = NULL;
+    Queue* preformatted_queue_rear = NULL;
 
     /* enqueue root for processing */
     if (!queue_enqueue(&src_queue_front, &src_queue_rear, node) ||
@@ -363,8 +363,8 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
 
     /* BFS processing */
     while (src_queue_front) {
-        HTMLNode* src_current = queue_dequeue(&src_queue_front, &src_queue_rear);
-        HTMLNode* dst_current = queue_dequeue(&dst_queue_front, &dst_queue_rear);
+        HTMLNode* src_current = (HTMLNode*)queue_dequeue(&src_queue_front, &src_queue_rear);
+        HTMLNode* dst_current = (HTMLNode*)queue_dequeue(&dst_queue_front, &dst_queue_rear);
 
         int current_preformatted = (int)(intptr_t)queue_dequeue(&preformatted_queue_front,
             &preformatted_queue_rear);
