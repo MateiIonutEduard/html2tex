@@ -9,8 +9,13 @@ static int is_safe_to_minify_tag(const char* tag_name) {
     if (!tag_name || tag_name[0] == '\0') return 0;
 
     /* read-only tags where whitespace is significant */
-    static const char* const preserve_whitespace_tags[] = {
-        "pre", "code", "textarea", "script", "style", NULL
+    static const struct { 
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } preserve_whitespace_tags[] = {
+        {"pre", 'p', 3}, {"code", 'c', 4}, {"textarea", 't', 8},
+        {"script", 's', 6}, {"style", 's', 5}, {NULL, 0, 0}
     };
 
     /* compute length once, because the most tags will fail this check */
@@ -30,12 +35,15 @@ static int is_safe_to_minify_tag(const char* tag_name) {
     /* check first character before strcmp */
     char first_char = tag_name[0];
 
-    for (int i = 0; preserve_whitespace_tags[i]; i++) {
+    for (int i = 0; preserve_whitespace_tags[i].tag; i++) {
         /* fast rejection before expensive strcmp function call */
-        if (preserve_whitespace_tags[i][0] != first_char) continue;
+        if ((unsigned char)preserve_whitespace_tags[i].first_char != first_char) continue;
+
+        /* reject by length mismatch */
+        if (preserve_whitespace_tags[i].length != len) continue;
 
         /* apply strcmp function only for the few cases */
-        if (strcmp(tag_name, preserve_whitespace_tags[i]) == 0)
+        if (strcmp(tag_name, preserve_whitespace_tags[i].tag) == 0)
             return 0;
     }
 
