@@ -15,7 +15,7 @@ static void ensure_capacity(LaTeXConverter* converter, size_t needed) {
     /* initialize if this is the first allocation */
     if (converter->output_capacity == 0) {
         converter->output_capacity = INITIAL_CAPACITY;
-        converter->output = malloc(converter->output_capacity);
+        converter->output = (char*)malloc(converter->output_capacity);
 
         if (!converter->output) {
             converter->error_code = 1;

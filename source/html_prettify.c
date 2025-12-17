@@ -8,14 +8,14 @@
 static int is_inline_element_for_formatting(const char* tag_name) {
     if (!tag_name || tag_name[0] == '\0') return 0;
 
-    static const struct { 
+    static const struct {
         const char* tag;
         unsigned char first_char;
         const unsigned char length;
     } inline_tags[] = {
-        {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1}, {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"br", 'b', 2}, 
-        {"cite", 'c', 4}, {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3}, {"em", 'e', 2}, {"font", 'f', 4}, 
-        {"i", 'i', 1}, {"kbd", 'k', 3}, {"mark", 'm', 4}, {"q", 'q', 1}, {"rp", 'r', 2}, {"rt", 'r', 2}, 
+        {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1}, {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"br", 'b', 2},
+        {"cite", 'c', 4}, {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3}, {"em", 'e', 2}, {"font", 'f', 4},
+        {"i", 'i', 1}, {"kbd", 'k', 3}, {"mark", 'm', 4}, {"q", 'q', 1}, {"rp", 'r', 2}, {"rt", 'r', 2},
         {"ruby", 'r', 4}, {"samp", 's', 4}, {"small", 's', 5}, {"span", 's', 4}, {"strong", 's', 6},
         {"sub", 's', 3}, {"sup", 's', 3}, {"time", 't', 4}, {"u", 'u', 1}, {"var", 'v', 3}, {"wbr", 'w', 3}, {NULL, 0, 0}
     };
@@ -28,7 +28,7 @@ static int is_inline_element_for_formatting(const char* tag_name) {
 
     /* quick length-based rejection */
     switch (len) {
-    case 1: case 2: case 3: 
+    case 1: case 2: case 3:
     case 4: case 5: case 6:
         break;
     default:
@@ -133,41 +133,13 @@ static char* escape_html(const char* text) {
 static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
     if (!node || !file) return;
 
-    /* use fixed size buffer for efficient writing */
-    static char buffer[8192];
-    static size_t buf_pos = 0;
-
-    /* helper macros used for buffered writes */
-#define FLUSH_BUFFER() \
-        if (buf_pos > 0) { \
-            fwrite(buffer, 1, buf_pos, file); \
-            buf_pos = 0; \
-        }
-
-#define CHECK_BUFFER(needed) \
-        if (buf_pos + (needed) >= sizeof(buffer)) FLUSH_BUFFER()
-
-#define BUFFER_WRITE(str, len) \
-        do { \
-            CHECK_BUFFER(len); \
-            memcpy(buffer + buf_pos, (str), (len)); \
-            buf_pos += (len); \
-        } while(0)
-
-#define BUFFER_PRINTF(fmt, ...) \
-        do { \
-            int needed = snprintf(NULL, 0, fmt, __VA_ARGS__); \
-            CHECK_BUFFER(needed + 1); \
-            buf_pos += snprintf(buffer + buf_pos, sizeof(buffer) - buf_pos, fmt, __VA_ARGS__); \
-        } while(0)
-
-    /* indentation */
+    /* create indentation */
     for (int i = 0; i < indent_level; i++)
-        BUFFER_WRITE("  ", 2);
+        fprintf(file, "  ");
 
     if (node->tag) {
-        /* node element */
-        BUFFER_PRINTF("<%s", node->tag);
+        /* element node */
+        fprintf(file, "<%s", node->tag);
 
         /* write attributes */
         HTMLAttribute* attr = node->attributes;
@@ -175,56 +147,37 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         while (attr) {
             if (attr->value) {
                 char* escaped_value = escape_html(attr->value);
-
-                if (escaped_value) {
-                    BUFFER_PRINTF(" %s=\"%s\"", attr->key, escaped_value);
-                    free(escaped_value);
-                }
-                else
-                    BUFFER_PRINTF(" %s=\"%s\"", attr->key, attr->value);
+                fprintf(file, " %s=\"%s\"", attr->key, escaped_value ? escaped_value : attr->value);
+                if (escaped_value) free(escaped_value);
             }
             else
-                BUFFER_PRINTF(" %s", attr->key);
+                fprintf(file, " %s", attr->key);
+
             attr = attr->next;
         }
 
-        /* check if inline */
+        /* check if this element should be inline */
         int is_inline = is_inline_element_for_formatting(node->tag);
 
-        /* check if self-closing */
+        /* check if this is a self-closing tag or has children */
         if (!node->children && !node->content)
-            BUFFER_WRITE(" />\n", 4);
+            fprintf(file, " />\n");
         else {
             /* write content if present */
-            BUFFER_WRITE(">", 1);
+            fprintf(file, ">");
 
             if (node->content) {
                 char* escaped_content = escape_html(node->content);
 
                 if (escaped_content) {
-                    /* check if it is whitespace only */
-                    int all_whitespace = 1;
-
-                    for (char* p = escaped_content; *p; p++) {
-                        if (!isspace((unsigned char)*p)) {
-                            all_whitespace = 0;
-                            break;
-                        }
-                    }
-
-                    if (!all_whitespace)
-                        BUFFER_PRINTF("%s", escaped_content);
+                    fprintf(file, "%s", escaped_content);
                     free(escaped_content);
                 }
             }
 
-            /* write children elements */
+            /* write children with proper indentation */
             if (node->children) {
-                if (!is_inline)
-                    BUFFER_WRITE("\n", 1);
-
-                /* flush before recursion */
-                FLUSH_BUFFER();
+                if (!is_inline) fprintf(file, "\n");
                 HTMLNode* child = node->children;
 
                 while (child) {
@@ -233,48 +186,40 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                 }
 
                 if (!is_inline) {
-                    /* indentation required for closing tag */
                     for (int i = 0; i < indent_level; i++)
-                        BUFFER_WRITE("  ", 2);
+                        fprintf(file, "  ");
                 }
             }
 
-            BUFFER_PRINTF("</%s>\n", node->tag);
+            fprintf(file, "</%s>\n", node->tag);
         }
     }
     else {
-        /* text node element */
+        /* text node */
         if (node->content) {
             char* escaped_content = escape_html(node->content);
 
             if (escaped_content) {
-                /* check if whitespace-only */
+                /* check if this is mostly whitespace */
                 int all_whitespace = 1;
 
                 for (char* p = escaped_content; *p; p++) {
-                    if (!isspace((unsigned char)*p)) {
+                    if (!isspace(*p)) {
                         all_whitespace = 0;
                         break;
                     }
                 }
 
                 if (!all_whitespace)
-                    BUFFER_PRINTF("%s\n", escaped_content);
+                    fprintf(file, "%s\n", escaped_content);
                 else
-                    BUFFER_WRITE("\n", 1);
+                    /* for whitespace-only nodes, just output a newline */
+                    fprintf(file, "\n");
+
                 free(escaped_content);
             }
         }
     }
-
-    /* final flush if we are at the top level */
-    if (indent_level == 0)
-        FLUSH_BUFFER();
-
-#undef FLUSH_BUFFER
-#undef CHECK_BUFFER
-#undef BUFFER_WRITE
-#undef BUFFER_PRINTF
 }
 
 int write_pretty_html(HTMLNode* root, const char* filename) {
