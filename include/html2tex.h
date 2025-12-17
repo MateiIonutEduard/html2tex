@@ -18,6 +18,7 @@ extern "C" {
 	typedef struct CSSPropertyDef CSSPropertyDef;
 
 	typedef struct CSSProperties CSSProperties;
+	typedef struct Stack Stack;
 	typedef struct Queue Queue;
 
 	/* HTML node structure */
@@ -33,6 +34,11 @@ extern "C" {
 	struct Queue {
 		void* data;
 		struct Queue* next;
+	};
+
+	struct Stack {
+		void* data;
+		struct Stack* next;
 	};
 
 	/* HTML attribute structure */
@@ -219,6 +225,21 @@ extern "C" {
 
 	/* Convert an integer to a null-terminated string using the given radix and store it in buffer. */
 	void portable_itoa(int value, char* buffer, int radix);
+
+	/* Pushes a data element onto the stack. */
+	int stack_push(Stack** top, void* data);
+
+	/* Pops and returns the top element from the stack. */
+	void* stack_pop(Stack** top);
+
+	/* Recursively frees all stack nodes and resets the stack to empty. */
+	void stack_cleanup(Stack** top);
+
+	/* Tests whether the stack is empty. */
+	int stack_is_empty(Stack* top);
+
+	/* Returns the top element without removing it from the stack. */
+	void* stack_peek(Stack* top);
 
 	/* Adds an HTML node to the rear of the queue for breadth-first traversal. */
 	int queue_enqueue(Queue** front, Queue** rear, void* data);
