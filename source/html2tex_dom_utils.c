@@ -589,9 +589,6 @@ int is_void_element(const char* tag_name) {
     case 2: case 3: case 4:
     case 5: case 6:
         break;
-    case 1:
-        /* explicitly reject length 1 */
-        return 0;
     default:
         /* length doesn't match any known void tag */
         return 0;

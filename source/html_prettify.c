@@ -32,7 +32,7 @@ static int is_inline_element_for_formatting(const char* tag_name) {
     case 4: case 5: case 6:
         break;
     default:
-        return 1;
+        return 0;
     }
 
     /* check first character */
