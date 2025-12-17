@@ -6,34 +6,47 @@
 
 /* This helper function to check if element is inline, required for formatting. */
 static int is_inline_element_for_formatting(const char* tag_name) {
-    if (!tag_name) return 0;
+    if (!tag_name || tag_name[0] == '\0') return 0;
 
-    static const char* const inline_tags[] = {
-        "a", "abbr", "b", "bdi", "bdo", "br", "cite", "code",
-        "data", "dfn", "em", "font", "i", "kbd", "mark", "q",
-        "rp", "rt", "ruby", "samp", "small", "span", "strong",
-        "sub", "sup", "time", "u", "var", "wbr", NULL
+    static const struct { 
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } inline_tags[] = {
+        {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1}, {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"br", 'b', 2}, 
+        {"cite", 'c', 4}, {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3}, {"em", 'e', 2}, {"font", 'f', 4}, 
+        {"i", 'i', 1}, {"kbd", 'k', 3}, {"mark", 'm', 4}, {"q", 'q', 1}, {"rp", 'r', 2}, {"rt", 'r', 2}, 
+        {"ruby", 'r', 4}, {"samp", 's', 4}, {"small", 's', 5}, {"span", 's', 4}, {"strong", 's', 6},
+        {"sub", 's', 3}, {"sup", 's', 3}, {"time", 't', 4}, {"u", 'u', 1}, {"var", 'v', 3}, {"wbr", 'w', 3}, {NULL, 0, 0}
     };
 
-    /* fast check for single-char tags */
-    if (tag_name[1] == '\0') {
-        char c = tag_name[0];
+    /* compute length once, because the most tags will fail this check */
+    size_t len = 0;
 
-        return c == 'a' || c == 'b' 
-            || c == 'i' || c == 'u' 
-            || c == 'q' || c == 's' 
-            || c == 'v';
+    const char* p = tag_name;
+    while (*p) { len++; p++; }
+
+    /* quick length-based rejection */
+    switch (len) {
+    case 1: case 2: case 3: 
+    case 4: case 5: case 6:
+        break;
+    default:
+        return 1;
     }
 
-    /* optimize linear search with length check */
-    size_t len = strlen(tag_name);
+    /* check first character */
+    unsigned char first_char = (unsigned char)tag_name[0];
 
-    for (int i = 0; inline_tags[i]; i++) {
+    for (int i = 0; inline_tags[i].tag; i++) {
+        /* fast rejection for first char mismatch */
+        if (inline_tags[i].first_char != first_char) continue;
+
         /* fast reject by length first */
-        if (strlen(inline_tags[i]) != len) continue;
+        if (inline_tags[i].length != len) continue;
 
         /* compare the rest of tag name */
-        if (strcmp(tag_name, inline_tags[i]) == 0)
+        if (strcmp(tag_name, inline_tags[i].tag) == 0)
             return 1;
     }
 

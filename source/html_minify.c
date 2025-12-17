@@ -33,11 +33,11 @@ static int is_safe_to_minify_tag(const char* tag_name) {
     }
 
     /* check first character before strcmp */
-    char first_char = tag_name[0];
+    unsigned char first_char = (unsigned char)tag_name[0];
 
     for (int i = 0; preserve_whitespace_tags[i].tag; i++) {
         /* fast rejection before expensive strcmp function call */
-        if ((unsigned char)preserve_whitespace_tags[i].first_char != first_char) continue;
+        if (preserve_whitespace_tags[i].first_char != first_char) continue;
 
         /* reject by length mismatch */
         if (preserve_whitespace_tags[i].length != len) continue;
