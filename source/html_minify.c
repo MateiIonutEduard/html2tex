@@ -265,11 +265,9 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
 
     /* precompute essential tag lookup tables */
     static const char* const preserve_tags[] = { "pre", "code", "textarea", "script", "style", NULL };
-    static const char* const void_tags[] = { "area", "base", "br", "col", "embed", "hr", "img",
-        "input", "link", "meta", "param", "source", "track", "wbr", NULL };
     static const char* const essential_tags[] = { "br", "hr", "img", "input", "meta", "link", NULL };
 
-    /* create root node */
+    /* create the root node */
     HTMLNode* new_root = (HTMLNode*)calloc(1, sizeof(HTMLNode));
     if (!new_root) return NULL;
 
@@ -338,12 +336,8 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
     }
 
     /* check if root is void element */
-    if (node->tag) {
-        for (int i = 0; void_tags[i]; i++) {
-            if (strcmp(node->tag, void_tags[i]) == 0)
-                return new_root;
-        }
-    }
+    if (node->tag && is_void_element(node->tag))
+        return new_root;
 
     Queue* src_queue_front = NULL;
     Queue* src_queue_rear = NULL;
@@ -485,13 +479,9 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
             /* check if child is void element */
             int child_is_void = 0;
 
-            if (src_child->tag) {
-                for (int i = 0; void_tags[i]; i++) {
-                    if (strcmp(src_child->tag, void_tags[i]) == 0) {
-                        child_is_void = 1;
-                        break;
-                    }
-                }
+            if (src_child->tag && is_void_element(src_child->tag)) {
+                child_is_void = 1;
+                break;
             }
 
             /* enqueue child for processing if it has children and is not void */
