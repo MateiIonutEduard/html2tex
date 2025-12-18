@@ -232,7 +232,7 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     }
 
     /* write HTML header */
-    fprintf(file, "<!DOCTYPE html>\n<html>\n<head>\n");
+    fprintf(file, "<html>\n<head>\n");
     fprintf(file, "  <meta charset=\"UTF-8\">\n");
     fprintf(file, "  <title>Parsed HTML Output</title>\n");
     fprintf(file, "</head>\n<body>\n");
@@ -263,7 +263,7 @@ char* get_pretty_html(HTMLNode* root) {
 
     if (stream) {
         /* write HTML to memory stream */
-        fprintf(stream, "<!DOCTYPE html>\n<html>\n<head>\n");
+        fprintf(stream, "<html>\n<head>\n");
         fprintf(stream, "  <meta charset=\"UTF-8\">\n");
         fprintf(stream, "  <title>Parsed HTML Output</title>\n");
         fprintf(stream, "</head>\n<body>\n");
@@ -284,7 +284,7 @@ char* get_pretty_html(HTMLNode* root) {
     if (!temp_file) return NULL;
 
     /* write to temp file */
-    fprintf(temp_file, "<!DOCTYPE html>\n<html>\n<head>\n");
+    fprintf(temp_file, "<html>\n<head>\n");
     fprintf(temp_file, "  <meta charset=\"UTF-8\">\n");
     fprintf(temp_file, "  <title>Parsed HTML Output</title>\n");
     fprintf(temp_file, "</head>\n<body>\n");
