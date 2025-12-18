@@ -166,105 +166,16 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 /* Minify the attribute value by removing unnecessary quotes when possible. */
 static char* minify_attribute_value(const char* value) {
     if (!value) return NULL;
-    const unsigned char* src = (const unsigned char*)value;
 
     /* empty string */
-    if (*src == '\0') {
+    if (*value == '\0') {
         char* r = (char*)malloc(3);
         if (r) { r[0] = '"'; r[1] = '"'; r[2] = '\0'; }
         return r;
     }
 
-    /* single pass to analyze and optionally build */
-    int needs_quotes = 0;
-    int has_single = 0;
-    int has_double = 0;
-    size_t double_count = 0;
-    size_t len = 0;
-
-    /* quick check for simple strings */
-    while (*src) {
-        unsigned char c = *src++;
-        len++;
-
-        /* check for char requiring quotes */
-        switch (c) {
-        case ' ': case '\t': case '\n': case '\r':
-        case '\f': case '\v': case '=': case '<':
-        case '>': case '`':
-            needs_quotes = 1;
-            break;
-        case '\'':
-            has_single = 1;
-            break;
-        case '"':
-            has_double = 1;
-            double_count++;
-            break;
-        }
-
-        /* if need quotes and have both quote types, break early */
-        if (needs_quotes && has_single && has_double) break;
-    }
-
-    /* reset pointer for potential second pass */
-    src = (const unsigned char*)value;
-
-    /* no quotes needed */
-    if (!needs_quotes) {
-        char* result = (char*)malloc(len + 1);
-
-        if (result) {
-            memcpy(result, value, len);
-            result[len] = '\0';
-        }
-
-        return result;
-    }
-
-    /* determine best quote type and build result */
-    if (!has_double) {
-        /* use double quotes, no escape needed */
-        char* result = (char*)malloc(len + 3);
-        if (!result) return NULL;
-
-        result[0] = '"';
-        memcpy(result + 1, value, len);
-        result[len + 1] = '"';
-        result[len + 2] = '\0';
-        return result;
-    }
-
-    if (!has_single) {
-        /* use single quotes without escape */
-        char* result = (char*)malloc(len + 3);
-        if (!result) return NULL;
-
-        result[0] = '\'';
-        memcpy(result + 1, value, len);
-        result[len + 1] = '\'';
-        result[len + 2] = '\0';
-        return result;
-    }
-
-    /* need to escape double quotes */
-    size_t total_len = len + double_count + 3;
-
-    char* result = (char*)malloc(total_len);
-    if (!result) return NULL;
-
-    char* dest = result;
-    *dest++ = '"';
-
-    while (*src) {
-        if (*src == '"') *dest++ = '\\';
-        *dest++ = *src++;
-    }
-
-    *dest++ = '"';
-    *dest = '\0';
-
-    return result;
+    /* return the exact copy */
+    return strdup(value);
 }
 
 /* Fast minification function of HTML's DOM tree. */
