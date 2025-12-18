@@ -34,7 +34,6 @@ LaTeXConverter* html2tex_create(void) {
     converter->state.css_braces = 0;
     converter->state.css_environments = 0;
 
-    converter->state.pending_margin_bottom = 0;
     converter->state.applied_props = 0;
     converter->state.skip_nested_table = 0;
 
@@ -85,7 +84,6 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     clone->state.css_braces = converter->state.css_braces;
     clone->state.css_environments = converter->state.css_environments;
 
-    clone->state.pending_margin_bottom = converter->state.pending_margin_bottom;
     clone->state.applied_props = converter->state.applied_props;
     clone->state.skip_nested_table = converter->state.skip_nested_table;
 
@@ -148,9 +146,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     /* reset CSS state */
     converter->state.applied_props = 0;
     converter->state.css_braces = 0;
-
     converter->state.css_environments = 0;
-    converter->state.pending_margin_bottom = 0;
 
     append_string(converter, "\\documentclass{article}\n");
     append_string(converter, "\\usepackage{hyperref}\n");

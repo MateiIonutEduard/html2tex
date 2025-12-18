@@ -52,15 +52,19 @@ extern "C" {
 	   Each bit represents whether a specific property type is applied.
 	 */
 	enum CSSPropertyMask {
-		CSS_BOLD = 1,
-		CSS_ITALIC = 2,
-		CSS_UNDERLINE = 4,
-		CSS_COLOR = 8,
-		CSS_BACKGROUND = 16,
-		CSS_FONT_FAMILY = 32,
-		CSS_FONT_SIZE = 64,
-		CSS_TEXT_ALIGN = 128,
-		CSS_BORDER = 256
+		CSS_BOLD = 1 << 0,
+		CSS_ITALIC = 1 << 1,
+		CSS_UNDERLINE = 1 << 2,
+		CSS_COLOR = 1 << 3,
+		CSS_BACKGROUND = 1 << 4,
+		CSS_FONT_FAMILY = 1 << 5,
+		CSS_FONT_SIZE = 1 << 6,
+		CSS_TEXT_ALIGN = 1 << 7,
+		CSS_BORDER = 1 << 8,
+		CSS_MARGIN_LEFT = 1 << 9,
+		CSS_MARGIN_RIGHT = 1 << 10,
+		CSS_MARGIN_TOP = 1 << 11,
+		CSS_MARGIN_BOTTOM = 1 << 12
 	};
 
 	/* Compact CSS property storage using key-value pairs.
@@ -112,8 +116,6 @@ extern "C" {
 		/* CSS conversion state */
 		unsigned int css_braces : 8;
 		unsigned int css_environments : 8;
-
-		int pending_margin_bottom : 16;
 		CSSPropertyMask applied_props;
 
 		/* flags required for special handling */

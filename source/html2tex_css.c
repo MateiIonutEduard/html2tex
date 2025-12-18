@@ -49,6 +49,12 @@ static CSSPropertyMask property_to_mask(const char* key) {
     if (strcmp(key, "text-align") == 0) return CSS_TEXT_ALIGN;
     if (strcmp(key, "border") == 0) return CSS_BORDER;
 
+    if (strcmp(key, "margin-left") == 0) return CSS_MARGIN_LEFT;
+    if (strcmp(key, "margin-right") == 0) return CSS_MARGIN_RIGHT;
+
+    if (strcmp(key, "margin-top") == 0) return CSS_MARGIN_TOP;
+    if (strcmp(key, "margin-bottom") == 0) return CSS_MARGIN_BOTTOM;
+
     return 0;
 }
 
@@ -467,6 +473,36 @@ void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props,
         free(hex_color);
     }
 
+    /* get top and left margins (block elements) */
+    const char* margin_left = css_properties_get(props, "margin-left");
+    const char* margin_top = css_properties_get(props, "margin-top");
+
+    if (is_block && !inside_table_cell) {
+        /* top margin */
+        if (margin_top && !(converter->state.applied_props & CSS_MARGIN_TOP)) {
+            int pt = css_length_to_pt(margin_top);
+
+            if (pt != 0) {
+                char margin_cmd[32];
+                snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n", pt);
+                append_string(converter, margin_cmd);
+                converter->state.applied_props |= CSS_MARGIN_TOP;
+            }
+        }
+
+        /* left margin */
+        if (margin_left && !(converter->state.applied_props & CSS_MARGIN_LEFT)) {
+            int pt = css_length_to_pt(margin_left);
+
+            if (pt != 0) {
+                char margin_cmd[32];
+                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
+                append_string(converter, margin_cmd);
+                converter->state.applied_props |= CSS_MARGIN_LEFT;
+            }
+        }
+    }
+
     /* apply font properties */
     const char* font_weight = css_properties_get(props, "font-weight");
     if (font_weight) apply_font_weight(converter, font_weight);
@@ -498,6 +534,38 @@ void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props,
 
 void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
     if (!converter) return;
+    int inside_table_cell = converter->state.in_table_cell;
+    int is_block = is_block_element(tag_name);
+
+    /* output the right and bottom margins for block elements */
+    if (is_block && !inside_table_cell) {
+        const char* margin_right = css_properties_get(props, "margin-right");
+        const char* margin_bottom = css_properties_get(props, "margin-bottom");
+
+        if (margin_right && !(converter->state.applied_props & CSS_MARGIN_RIGHT)) {
+            int pt = css_length_to_pt(margin_right);
+
+            if (pt != 0) {
+                char margin_cmd[32];
+                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
+                append_string(converter, margin_cmd);
+                converter->state.applied_props |= CSS_MARGIN_RIGHT;
+            }
+        }
+
+        if (margin_bottom && !(converter->state.applied_props & CSS_MARGIN_BOTTOM)) {
+            int pt = css_length_to_pt(margin_bottom);
+
+            if (pt != 0) {
+                char margin_cmd[32];
+                if (pt < 0) snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}", pt);
+                else snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace{%dpt}", pt);
+                append_string(converter, margin_cmd);
+                converter->state.applied_props |= CSS_MARGIN_BOTTOM;
+            }
+        }
+    }
+
 
     /* close all opened braces */
     for (int i = 0; i < (int)converter->state.css_braces; i++)
