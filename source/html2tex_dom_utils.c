@@ -613,6 +613,60 @@ int is_void_element(const char* tag_name) {
     return 0;
 }
 
+int is_essential_element(const char* tag_name) {
+    if (!tag_name || tag_name[0] == '\0')
+        return 0;
+
+    static const struct { 
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } essential_tags[] = {
+        {"br", 'b', 2}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
+        {"meta", 'm', 4}, {"link", 'l', 4}, {NULL, 0, 0}
+    };
+
+    /* length with early bounds check */
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        len++;
+        p++;
+
+        /* early exit for unexpected essential tags */
+        if (len > 5) return 0;
+    }
+
+    /* length-based fast rejection */
+    switch (len) {
+    case 2: case 3:
+    case 4: case 5:
+        break;
+    default:
+        /* length doesn't match any known element */
+        return 0;
+    }
+
+    /* extract first character */
+    const unsigned char first_char = (unsigned char)tag_name[0];
+
+    /* optimized linear search with metadata filtering */
+    for (int i = 0; essential_tags[i].tag; i++) {
+        /* fast reject for first character mismatch */
+        if (first_char != essential_tags[i].first_char) continue;
+
+        /* reject by length mismatch */
+        if (len != essential_tags[i].length) continue;
+
+        /* exact string match by calling strcmp for few times */
+        if (strcmp(tag_name, essential_tags[i].tag) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
 int should_exclude_tag(const char* tag_name) {
     if (!tag_name || tag_name[0] == '\0') return 0;
     static const struct {

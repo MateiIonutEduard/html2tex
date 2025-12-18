@@ -220,6 +220,9 @@ extern "C" {
 	/* Determines if an HTML element is a self-closing element per HTML5 spec. */
 	int is_void_element(const char* tag_name);
 
+	/* Determines if an HTML element is an essential self-closing element per HTML5 spec. */
+	int is_essential_element(const char* tag_name);
+
 	/* Returns a null-terminated duplicate of the string referenced by str. */
 	char* html2tex_strdup(const char* str);
 
