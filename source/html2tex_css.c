@@ -34,26 +34,59 @@ void css_properties_destroy(CSSProperties* props) {
 }
 
 static CSSPropertyMask property_to_mask(const char* key) {
-    if (!key) return 0;
+    if (!key || key[0] == '\0') return 0;
 
-    if (strcmp(key, "font-weight") == 0) return CSS_BOLD;
-    if (strcmp(key, "font-style") == 0) return CSS_ITALIC;
+    static const struct {
+        const char* property_name;
+        unsigned char first_char;
+        const unsigned char length;
+        CSSPropertyMask mask;
+    } props[] = {
+        {"font-weight", 'f', 11, CSS_BOLD}, {"font-style", 'f', 10, CSS_ITALIC},
+        {"text-decoration", 't', 15, CSS_UNDERLINE }, {"color", 'c', 5, CSS_COLOR},
+        {"background-color", 'b', 16, CSS_BACKGROUND}, {"font-family", 'f', 11, CSS_FONT_FAMILY},
+        {"font-size", 'f', 9, CSS_FONT_SIZE}, {"text-align", 't', 10, CSS_TEXT_ALIGN},
+        {"border", 'b', 6, CSS_BORDER}, {"margin-left", 'm', 11, CSS_MARGIN_LEFT},
+        {"margin-right", 'm', 12, CSS_MARGIN_RIGHT}, {"margin-top", 'm', 10, CSS_MARGIN_TOP},
+        {"margin-bottom", 'm', 13, CSS_MARGIN_BOTTOM}, {NULL, 0, 0, 0}
+    };
 
-    if (strcmp(key, "text-decoration") == 0) return CSS_UNDERLINE;
-    if (strcmp(key, "color") == 0) return CSS_COLOR;
+    /* length-based detection */
+    size_t len = 0;
+    const char* p = key;
 
-    if (strcmp(key, "background-color") == 0) return CSS_BACKGROUND;
-    if (strcmp(key, "font-family") == 0) return CSS_FONT_FAMILY;
-    if (strcmp(key, "font-size") == 0) return CSS_FONT_SIZE;
+    while (*p) {
+        len++; p++;
 
-    if (strcmp(key, "text-align") == 0) return CSS_TEXT_ALIGN;
-    if (strcmp(key, "border") == 0) return CSS_BORDER;
+        /* reject unknown property */
+        if (len > 16) return 0;
+    }
 
-    if (strcmp(key, "margin-left") == 0) return CSS_MARGIN_LEFT;
-    if (strcmp(key, "margin-right") == 0) return CSS_MARGIN_RIGHT;
+    /* length-based fast rejection */
+    switch (len) {
+    case 5:  case 6:  case 9:  
+    case 10: case 11: case 12:  
+    case 13:  case 15: case 16:
+        break;
+    default:
+        /* length does not match */
+        return 0;
+    }
 
-    if (strcmp(key, "margin-top") == 0) return CSS_MARGIN_TOP;
-    if (strcmp(key, "margin-bottom") == 0) return CSS_MARGIN_BOTTOM;
+    /* extract first char for fast comparison */
+    const unsigned char first_char = (unsigned char)tolower(key[0]);
+
+    for (int i = 0; props[i].property_name; i++) {
+        /* first character mismatch */
+        if (first_char != props[i].first_char) continue;
+
+        /* length mismatch */
+        if (props[i].length != len) continue;
+
+        /* exact string match via strcmp function */
+        if (strcasecmp(key, props[i].property_name) == 0)
+            return props[i].mask;
+    }
 
     return 0;
 }
