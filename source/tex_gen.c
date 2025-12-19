@@ -1176,6 +1176,7 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
     append_string(converter, "}\n");
 }
 
+static void html2tex_process_tabular(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inline_props, CSSProperties* merged_props);
 static void html2tex_process_image(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inline_props, CSSProperties* merged_props, const char* style_attr);
 
 void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inherited_props) {
@@ -1334,17 +1335,8 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inhe
         html2tex_process_image(converter, node, inline_props, merged_props, style_attr);
     /* table support */
     else if (strcmp(node->tag, "table") == 0) {
-        if (table_contains_only_images(node)) {
-            convert_image_table(converter, node);
-
-            if (merged_props)
-                css_properties_end(converter, merged_props, node->tag);
-
-            /* cleanup resources */
-            if (merged_props) css_properties_destroy(merged_props);
-            if (inline_props) css_properties_destroy(inline_props);
-            return;
-        }
+        if (table_contains_only_images(node))
+            html2tex_process_tabular(converter, node, inline_props, merged_props);
         else {
             /* Rreset CSS for table element */
             converter->state.applied_props = 0;
@@ -1511,8 +1503,21 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inhe
     if (inline_props) css_properties_destroy(inline_props);
 }
 
+void html2tex_process_tabular(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inline_props, CSSProperties* merged_props) {
+    if (!converter || !node) return;
+    convert_image_table(converter, node);
+
+    if (merged_props)
+        css_properties_end(converter, merged_props, node->tag);
+
+    /* cleanup the resources */
+    if (merged_props) css_properties_destroy(merged_props);
+    if (inline_props) css_properties_destroy(inline_props);
+}
+
 void html2tex_process_image(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inline_props, CSSProperties* merged_props, const char* style_attr) {
-    if (strcmp(node->tag, "img") != 0) return;
+    if (!converter || !node) return;
+    if (node->tag && strcmp(node->tag, "img") != 0) return;
 
     if (is_inside_table(node)) {
         const char* src = get_attribute(node->attributes, "src");
