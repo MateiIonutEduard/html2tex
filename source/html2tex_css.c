@@ -83,7 +83,7 @@ static CSSPropertyMask property_to_mask(const char* key) {
         /* length mismatch */
         if (props[i].length != len) continue;
 
-        /* exact string match via strcmp function */
+        /* exact string match via strcasecmp function */
         if (strcasecmp(key, props[i].property_name) == 0)
             return props[i].mask;
     }
