@@ -1,5 +1,159 @@
 #include "html2tex.h"
+#include <stdlib.h>
 #include <ctype.h>
+
+HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
+    /* validate input parameters */
+    if (!root || !predicate)
+        return NULL;
+
+    Stack* node_stack = NULL;
+    Stack* css_stack = NULL;
+    HTMLElement* result = NULL;
+
+    /* push root node with initial CSS properties */
+    if (!stack_push(&node_stack, (void*)root) ||
+        !stack_push(&css_stack, (void*)inherited_props))
+        goto cleanup;
+
+    /* pop current context */
+    while (!stack_is_empty(node_stack)) {
+        CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
+        HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
+
+        if (!current_node) {
+            if (current_css && current_css != inherited_props)
+                css_properties_destroy(current_css);
+            continue;
+        }
+
+        /* merge CSS properties with inline styles if node has style attribute */
+        CSSProperties* merged_css = current_css;
+
+        if (current_node->tag) {
+            const char* style_attr = get_attribute(current_node->attributes, "style");
+
+            if (style_attr) {
+                CSSProperties* inline_css = parse_css_style(style_attr);
+
+                if (inline_css) {
+                    merged_css = css_properties_merge(current_css, inline_css);
+                    css_properties_destroy(inline_css);
+                }
+            }
+        }
+
+        /* check current node with predicate */
+        if (predicate(current_node, data)) {
+            result = (HTMLElement*)malloc(sizeof(HTMLElement));
+
+            if (!result) {
+                if (merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                
+                if (current_css != inherited_props)
+                    css_properties_destroy(current_css);
+                
+                goto cleanup;
+            }
+
+            result->node = current_node;
+
+            /* copy the CSS properties for the result */
+            if (merged_css) result->css_props = css_properties_copy(merged_css);
+            else result->css_props = css_properties_create();
+
+            if (!result->css_props) {
+                free(result);
+                result = NULL;
+            }
+
+            /* clean up CSS allocations */
+            if (merged_css != current_css && merged_css != inherited_props)
+                css_properties_destroy(merged_css);
+
+            if (current_css != inherited_props)
+                css_properties_destroy(current_css);
+
+            break;
+        }
+
+        /* if node has children, push them onto stack for processing */
+        if (current_node->children) {
+            HTMLNode* child = current_node->children;
+            HTMLNode* last_child = child;
+
+            while (last_child->next)
+                last_child = last_child->next;
+
+            /* push from last to first */
+            HTMLNode* current_child = last_child;
+
+            while (current_child) {
+                CSSProperties* child_css = merged_css;
+
+                if (child_css && child_css != inherited_props) {
+                    child_css = css_properties_copy(merged_css);
+
+                    if (!child_css) {
+                        if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
+                        if (current_css != inherited_props) css_properties_destroy(current_css);
+                        goto cleanup;
+                    }
+                }
+
+                /* push child onto stack */
+                if (!stack_push(&node_stack, (void*)current_child) ||
+                    !stack_push(&css_stack, (void*)child_css)) {
+                    if (child_css && child_css != merged_css && child_css != inherited_props) css_properties_destroy(child_css);
+                    if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
+                    if (current_css != inherited_props) css_properties_destroy(current_css);
+                    goto cleanup;
+                }
+
+                /* move to previous sibling */
+                if (current_child == current_node->children)
+                    current_child = NULL;
+                else {
+                    HTMLNode* prev = current_node->children;
+                    while (prev->next != current_child) prev = prev->next;
+                    current_child = prev;
+                }
+            }
+        }
+
+        /* clean up CSS allocations for current node */
+        if (merged_css != current_css && merged_css != inherited_props)
+            css_properties_destroy(merged_css);
+        
+        if (current_css != inherited_props)
+            css_properties_destroy(current_css);
+    }
+
+cleanup:
+    /* clean up any remaining CSS properties on the stack */
+    while (!stack_is_empty(css_stack)) {
+        CSSProperties* css = (CSSProperties*)stack_pop(&css_stack);
+        if (css && css != inherited_props) css_properties_destroy(css);
+    }
+
+    /* clean up any remaining nodes on the stack */
+    while (!stack_is_empty(node_stack))
+        stack_pop(&node_stack);
+
+    /* clean up stacks */
+    stack_cleanup(&node_stack);
+    stack_cleanup(&css_stack);
+    return result;
+}
+
+void html_element_destroy(HTMLElement* elem) {
+    if (elem) {
+        if (elem->css_props)
+            css_properties_destroy(elem->css_props);
+        free(elem);
+    }
+}
 
 const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     if (!key || key[0] == '\0') return NULL;
@@ -44,11 +198,173 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     return NULL;
 }
 
+char* html2tex_extract_title(HTMLNode* root) {
+    if (!root) return NULL;
+    Queue* front = NULL;
+
+    Queue* rear = NULL;
+    char* title_text = NULL;
+
+    /* init BFS with root's direct children */
+    HTMLNode* child = root->children;
+
+    while (child) {
+        if (!queue_enqueue(&front, &rear, child)) {
+            queue_cleanup(&front, &rear);
+            return NULL;
+        }
+
+        child = child->next;
+    }
+
+    /* BFS search for title element */
+    while (front) {
+        HTMLNode* current = (HTMLNode*)queue_dequeue(&front, &rear);
+
+        /* fast check for title tag */
+        if (current->tag && current->tag[0] == 't' &&
+            strcmp(current->tag, "title") == 0) {
+
+            /* extract all text content from title element */
+            size_t capacity = 256;
+
+            char* buffer = (char*)malloc(capacity);
+            if (!buffer) break;
+
+            size_t length = 0;
+            buffer[0] = '\0';
+
+            /* BFS within title node for text content */
+            Queue* title_front = NULL;
+            Queue* title_rear = NULL;
+
+            if (!queue_enqueue(&title_front, &title_rear, current)) {
+                free(buffer);
+                goto cleanup;
+            }
+
+            while (title_front) {
+                HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
+
+                /* collect text content */
+                if (!title_node->tag && title_node->content && title_node->content[0]) {
+                    size_t text_len = strlen(title_node->content);
+
+                    /* ensure capacity */
+                    if (length + text_len + 1 > capacity) {
+                        /* double the capacity, ensuring minimum growth */
+                        size_t new_capacity = capacity * 2;
+
+                        if (new_capacity < length + text_len + 1)
+                            new_capacity = length + text_len + 1;
+
+                        /* guard against overflow */
+                        if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {
+                            free(buffer); queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        char* new_buffer = (char*)realloc(buffer, new_capacity);
+
+                        if (!new_buffer) {
+                            free(buffer); queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        buffer = new_buffer;
+                        capacity = new_capacity;
+                    }
+
+                    /* safe copy with bounds check */
+                    if (length + text_len < capacity) {
+                        memcpy(buffer + length, title_node->content, text_len);
+                        length += text_len;
+                        buffer[length] = '\0';
+                    }
+                }
+
+                /* enqueue children */
+                HTMLNode* title_child = title_node->children;
+
+                while (title_child) {
+                    if (!queue_enqueue(&title_front, &title_rear, title_child)) {
+                        free(buffer);
+                        queue_cleanup(&title_front, &title_rear);
+                        goto cleanup;
+                    }
+
+                    title_child = title_child->next;
+                }
+            }
+
+            queue_cleanup(&title_front, &title_rear);
+
+            /* trim whitespace if we collected text */
+            if (length > 0) {
+                /* trim leading whitespace */
+                char* start = buffer;
+
+                while (*start && isspace((unsigned char)*start)) {
+                    start++;
+                    length--;
+                }
+
+                /* trim trailing whitespace */
+                if (length > 0) {
+                    char* end = buffer + length - 1;
+                    while (end >= buffer && isspace((unsigned char)*end)) {
+                        *end = '\0';
+                        end--;
+                        length--;
+                    }
+                }
+
+                /* move trimmed content if needed */
+                if (start != buffer && length > 0)
+                    memmove(buffer, start, length + 1);
+
+                /* resize to exact length */
+                if (length > 0) {
+                    char* trimmed = (char*)realloc(buffer, length + 1);
+                    title_text = trimmed ? trimmed : buffer;
+                }
+                else {
+                    free(buffer);
+                    title_text = NULL;
+                }
+            }
+            else {
+                free(buffer);
+                title_text = NULL;
+            }
+
+            /* found title, exit BFS */
+            break;
+        }
+
+        /* enqueue children for further search */
+        HTMLNode* current_child = current->children;
+
+        while (current_child) {
+            if (!queue_enqueue(&front, &rear, current_child)) {
+                if(title_text) free(title_text);
+                goto cleanup;
+            }
+
+            current_child = current_child->next;
+        }
+    }
+
+cleanup:
+    queue_cleanup(&front, &rear);
+    return title_text;
+}
+
 int should_skip_nested_table(HTMLNode* node) {
     if (!node) return -1;
-    NodeQueue* front = NULL;
+    Queue* front = NULL;
 
-    NodeQueue* rear = NULL;
+    Queue* rear = NULL;
     int result = 0;
 
     /* if current node is a table, check for nested tables in descendants */
@@ -65,7 +381,7 @@ int should_skip_nested_table(HTMLNode* node) {
         }
 
         /* BFS for nested tables */
-        while ((child = queue_dequeue(&front, &rear))) {
+        while ((child = (HTMLNode*)queue_dequeue(&front, &rear))) {
             if (child->tag && strcmp(child->tag, "table") == 0) {
                 result = 1;
                 goto cleanup;
@@ -97,7 +413,7 @@ int should_skip_nested_table(HTMLNode* node) {
 
             /* BFS for nested tables in parent's descendants */
             HTMLNode* current;
-            while ((current = queue_dequeue(&front, &rear))) {
+            while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
                 if (current->tag && strcmp(current->tag, "table") == 0) {
                     result = 1;
                     goto cleanup;
@@ -125,8 +441,8 @@ int table_contains_only_images(HTMLNode* node) {
     if (!node || !node->tag || strcmp(node->tag, "table") != 0)
         return 0;
 
-    NodeQueue* front = NULL;
-    NodeQueue* rear = NULL;
+    Queue* front = NULL;
+    Queue* rear = NULL;
     int has_images = 0;
 
     /* enqueue direct children */
@@ -136,7 +452,7 @@ int table_contains_only_images(HTMLNode* node) {
     /* BFS traversal */
     HTMLNode* current;
 
-    while ((current = queue_dequeue(&front, &rear))) {
+    while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
         if (current->tag) {
             /* check for image tag */
             if (strcmp(current->tag, "img") == 0) {
@@ -195,19 +511,18 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     append_string(converter, "}\n");
 
     /* BFS for table rows */
-    NodeQueue* queue = NULL, * rear = NULL;
-    NodeQueue* cell_queue = NULL, * cell_rear = NULL;
+    Queue* queue = NULL, * rear = NULL;
+    Queue* cell_queue = NULL, * cell_rear = NULL;
     int first_row = 1;
 
     /* enqueue table children */
-    for (HTMLNode* child = node->children; child; child = child->next) {
+    for (HTMLNode* child = node->children; child; child = child->next)
         queue_enqueue(&queue, &rear, child);
-    }
 
     /* process table */
     HTMLNode* current;
 
-    while ((current = queue_dequeue(&queue, &rear))) {
+    while ((current = (HTMLNode*)queue_dequeue(&queue, &rear))) {
         if (!current->tag) continue;
 
         if (strcmp(current->tag, "tr") == 0) {
@@ -231,7 +546,7 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
                     int img_found = 0;
                     HTMLNode* cell_node;
 
-                    while ((cell_node = queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
+                    while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
                         if (cell_node->tag && strcmp(cell_node->tag, "img") == 0) {
                             process_table_image(converter, cell_node);
                             img_found = 1;
@@ -389,6 +704,116 @@ int is_inline_element(const char* tag_name) {
 
         /* final verification by exact string match */
         if (strcmp(tag_name, inline_tags[i].tag) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+int is_void_element(const char* tag_name) {
+    if (!tag_name || tag_name[0] == '\0') 
+        return 0;
+
+    static const struct {
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } void_tags[] = { 
+        {"area", 'a', 4}, {"base", 'b', 4}, {"br", 'b', 2}, {"col", 'c', 3}, 
+        {"embed", 'e', 5}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
+        {"link", 'l', 4}, {"meta", 'm', 4}, {"param", 'p', 5}, {"source", 's', 6}, 
+        {"track", 't', 5}, {"wbr", 'w', 3}, {NULL, 0, 0} 
+    };
+
+    /* compute the length with early bounds check */
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        len++;
+        p++;
+
+        /* early exit for unexpected void tags */
+        if (len > 6) return 0;
+    }
+
+    /* length-based fast rejection */
+    switch (len) {
+    case 2: case 3: case 4:
+    case 5: case 6:
+        break;
+    default:
+        /* length doesn't match any known void tag */
+        return 0;
+    }
+
+    /* extract first character */
+    const unsigned char first_char = (unsigned char)tag_name[0];
+
+    /* optimized linear search with metadata filtering */
+    for (int i = 0; void_tags[i].tag; i++) {
+        /* fast reject for first character mismatch */
+        if (first_char != void_tags[i].first_char) continue;
+
+        /* reject by length mismatch */
+        if (len != void_tags[i].length) continue;
+
+        /* final check by using exact string match */
+        if (strcmp(tag_name, void_tags[i].tag) == 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+int is_essential_element(const char* tag_name) {
+    if (!tag_name || tag_name[0] == '\0')
+        return 0;
+
+    static const struct { 
+        const char* tag;
+        unsigned char first_char;
+        const unsigned char length;
+    } essential_tags[] = {
+        {"br", 'b', 2}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
+        {"meta", 'm', 4}, {"link", 'l', 4}, {NULL, 0, 0}
+    };
+
+    /* length with early bounds check */
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        len++;
+        p++;
+
+        /* early exit for unexpected essential tags */
+        if (len > 5) return 0;
+    }
+
+    /* length-based fast rejection */
+    switch (len) {
+    case 2: case 3:
+    case 4: case 5:
+        break;
+    default:
+        /* length doesn't match any known element */
+        return 0;
+    }
+
+    /* extract first character */
+    const unsigned char first_char = (unsigned char)tag_name[0];
+
+    /* optimized linear search with metadata filtering */
+    for (int i = 0; essential_tags[i].tag; i++) {
+        /* fast reject for first character mismatch */
+        if (first_char != essential_tags[i].first_char) continue;
+
+        /* reject by length mismatch */
+        if (len != essential_tags[i].length) continue;
+
+        /* exact string match by calling strcmp for few times */
+        if (strcmp(tag_name, essential_tags[i].tag) == 0)
             return 1;
     }
 

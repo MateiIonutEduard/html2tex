@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include "html2tex.h"
 
-int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
-    NodeQueue* node = (NodeQueue*)malloc(sizeof(NodeQueue));
+int queue_enqueue(Queue** front, Queue** rear, void* data) {
+    Queue* node = (Queue*)malloc(sizeof(Queue));
     if (!node) return 0;
 
     node->data = data;
@@ -15,11 +15,11 @@ int queue_enqueue(NodeQueue** front, NodeQueue** rear, HTMLNode* data) {
     return 1;
 }
 
-HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear) {
-    NodeQueue* node = *front;
+void* queue_dequeue(Queue** front, Queue** rear) {
+    Queue* node = *front;
     if (!node) return NULL;
 
-    HTMLNode* data = node->data;
+    void* data = node->data;
     *front = node->next;
 
     if (!*front)
@@ -29,11 +29,11 @@ HTMLNode* queue_dequeue(NodeQueue** front, NodeQueue** rear) {
     return data;
 }
 
-void queue_cleanup(NodeQueue** front, NodeQueue** rear) {
-    NodeQueue* current = *front;
+void queue_cleanup(Queue** front, Queue** rear) {
+    Queue* current = *front;
 
     while (current) {
-        NodeQueue* next = current->next;
+        Queue* next = current->next;
         free(current);
         current = next;
     }
