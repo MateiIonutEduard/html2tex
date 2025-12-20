@@ -18,6 +18,8 @@ extern "C" {
 	typedef struct CSSPropertyDef CSSPropertyDef;
 
 	typedef struct CSSProperties CSSProperties;
+	typedef struct HTMLElement HTMLElement;
+
 	typedef struct Stack Stack;
 	typedef struct Queue Queue;
 
@@ -90,6 +92,11 @@ extern "C" {
 		unsigned char inheritable;
 		unsigned char has_length;
 		unsigned char has_color;
+	};
+
+	struct HTMLElement {
+		HTMLNode* node;
+		CSSProperties* css_props;
 	};
 
 	/* converter configuration */
@@ -322,6 +329,11 @@ extern "C" {
 	/* Parses inline CSS from style. */
 	CSSProperties* parse_css_style(const char* style_str);
 
+	/* Find first DOM node matching criteria with computed CSS. */
+	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
+
+	/* Safely deallocates an HTMLElement structure. */
+	void html_element_destroy(HTMLElement* elem);
 #ifdef _MSC_VER
 #define strdup html2tex_strdup
 #define html2tex_itoa(value, buffer, radix) _itoa((value), (buffer), (radix))

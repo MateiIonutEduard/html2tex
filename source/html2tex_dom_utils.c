@@ -2,6 +2,159 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
+    /* validate input parameters */
+    if (!root || !predicate)
+        return NULL;
+
+    Stack* node_stack = NULL;
+    Stack* css_stack = NULL;
+    HTMLElement* result = NULL;
+
+    /* push root node with initial CSS properties */
+    if (!stack_push(&node_stack, (void*)root) ||
+        !stack_push(&css_stack, (void*)inherited_props))
+        goto cleanup;
+
+    /* pop current context */
+    while (!stack_is_empty(node_stack)) {
+        CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
+        HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
+
+        if (!current_node) {
+            if (current_css && current_css != inherited_props)
+                css_properties_destroy(current_css);
+            continue;
+        }
+
+        /* merge CSS properties with inline styles if node has style attribute */
+        CSSProperties* merged_css = current_css;
+
+        if (current_node->tag) {
+            const char* style_attr = get_attribute(current_node->attributes, "style");
+
+            if (style_attr) {
+                CSSProperties* inline_css = parse_css_style(style_attr);
+
+                if (inline_css) {
+                    merged_css = css_properties_merge(current_css, inline_css);
+                    css_properties_destroy(inline_css);
+                }
+            }
+        }
+
+        /* check current node with predicate */
+        if (predicate(current_node, data)) {
+            result = (HTMLElement*)malloc(sizeof(HTMLElement));
+
+            if (!result) {
+                if (merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                
+                if (current_css != inherited_props)
+                    css_properties_destroy(current_css);
+                
+                goto cleanup;
+            }
+
+            result->node = current_node;
+
+            /* copy the CSS properties for the result */
+            if (merged_css) result->css_props = css_properties_copy(merged_css);
+            else result->css_props = css_properties_create();
+
+            if (!result->css_props) {
+                free(result);
+                result = NULL;
+            }
+
+            /* clean up CSS allocations */
+            if (merged_css != current_css && merged_css != inherited_props)
+                css_properties_destroy(merged_css);
+
+            if (current_css != inherited_props)
+                css_properties_destroy(current_css);
+
+            break;
+        }
+
+        /* if node has children, push them onto stack for processing */
+        if (current_node->children) {
+            HTMLNode* child = current_node->children;
+            HTMLNode* last_child = child;
+
+            while (last_child->next)
+                last_child = last_child->next;
+
+            /* push from last to first */
+            HTMLNode* current_child = last_child;
+
+            while (current_child) {
+                CSSProperties* child_css = merged_css;
+
+                if (child_css && child_css != inherited_props) {
+                    child_css = css_properties_copy(merged_css);
+
+                    if (!child_css) {
+                        if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
+                        if (current_css != inherited_props) css_properties_destroy(current_css);
+                        goto cleanup;
+                    }
+                }
+
+                /* push child onto stack */
+                if (!stack_push(&node_stack, (void*)current_child) ||
+                    !stack_push(&css_stack, (void*)child_css)) {
+                    if (child_css && child_css != merged_css && child_css != inherited_props) css_properties_destroy(child_css);
+                    if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
+                    if (current_css != inherited_props) css_properties_destroy(current_css);
+                    goto cleanup;
+                }
+
+                /* move to previous sibling */
+                if (current_child == current_node->children)
+                    current_child = NULL;
+                else {
+                    HTMLNode* prev = current_node->children;
+                    while (prev->next != current_child) prev = prev->next;
+                    current_child = prev;
+                }
+            }
+        }
+
+        /* clean up CSS allocations for current node */
+        if (merged_css != current_css && merged_css != inherited_props)
+            css_properties_destroy(merged_css);
+        
+        if (current_css != inherited_props)
+            css_properties_destroy(current_css);
+    }
+
+cleanup:
+    /* clean up any remaining CSS properties on the stack */
+    while (!stack_is_empty(css_stack)) {
+        CSSProperties* css = (CSSProperties*)stack_pop(&css_stack);
+        if (css && css != inherited_props) css_properties_destroy(css);
+    }
+
+    /* clean up any remaining nodes on the stack */
+    while (!stack_is_empty(node_stack))
+        stack_pop(&node_stack);
+
+    /* clean up stacks */
+    stack_cleanup(&node_stack);
+    stack_cleanup(&css_stack);
+    return result;
+}
+
+void html_element_destroy(HTMLElement* elem) {
+    if (elem) {
+        if (elem->css_props)
+            css_properties_destroy(elem->css_props);
+        free(elem);
+    }
+}
+
 const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     if (!key || key[0] == '\0') return NULL;
     size_t key_len = 0;
