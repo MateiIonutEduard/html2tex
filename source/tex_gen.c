@@ -880,7 +880,7 @@ static char* extract_caption_text(HTMLNode* node) {
     Stack* stack = NULL;
 
     /* start with root node */
-    if (!stack_push(&stack, (HTMLNode*)node)) {
+    if (!stack_push(&stack, (void*)node)) {
         free(buffer);
         return NULL;
     }
@@ -941,7 +941,7 @@ static char* extract_caption_text(HTMLNode* node) {
 
             /* handle single child without temp stack */
             if (child_count == 1) {
-                if (!stack_push(&stack, current->children)) {
+                if (!stack_push(&stack, (void*)current->children)) {
                     stack_cleanup(&stack);
                     free(buffer);
                     return NULL;
@@ -954,7 +954,7 @@ static char* extract_caption_text(HTMLNode* node) {
 
                 /* push all children to temp stack */
                 while (child) {
-                    if (!stack_push(&temp_stack, child)) {
+                    if (!stack_push(&temp_stack, (void*)child)) {
                         stack_cleanup(&temp_stack);
                         stack_cleanup(&stack);
                         free(buffer);
@@ -968,7 +968,7 @@ static char* extract_caption_text(HTMLNode* node) {
                 while (!stack_is_empty(temp_stack)) {
                     HTMLNode* data = (HTMLNode*)stack_pop(&temp_stack);
 
-                    if (!stack_push(&stack, data)) {
+                    if (!stack_push(&stack, (void*)data)) {
                         stack_cleanup(&temp_stack);
                         stack_cleanup(&stack);
 
@@ -1089,10 +1089,8 @@ void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
         size_t dir_len = strlen(converter->image_output_dir);
         escape_latex_special(converter, image_path + dir_len + 1);
     }
-    else {
+    else
         escape_latex(converter, image_path);
-    }
-
     append_string(converter, "}");
 
     if (has_background)
