@@ -696,32 +696,35 @@ void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props,
         free(hex_color);
     }
 
-    /* get top and left margins (block elements) */
-    const char* margin_left = css_properties_get(props, "margin-left");
-    const char* margin_top = css_properties_get(props, "margin-top");
-
+    /* get margins with shorthand support */
     if (is_block && !inside_table_cell) {
         /* top margin */
+        const char* margin_top = get_margin_value(props, "margin-top");
         if (margin_top && !(converter->state.applied_props & CSS_MARGIN_TOP)) {
             int pt = css_length_to_pt(margin_top);
-
             if (pt != 0) {
                 char margin_cmd[32];
                 snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n", pt);
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_TOP;
             }
+            if (margin_top != css_properties_get(props, "margin-top")) {
+                free((void*)margin_top);
+            }
         }
 
         /* left margin */
+        const char* margin_left = get_margin_value(props, "margin-left");
         if (margin_left && !(converter->state.applied_props & CSS_MARGIN_LEFT)) {
             int pt = css_length_to_pt(margin_left);
-
             if (pt != 0) {
                 char margin_cmd[32];
                 snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_LEFT;
+            }
+            if (margin_left != css_properties_get(props, "margin-left")) {
+                free((void*)margin_left);
             }
         }
     }
