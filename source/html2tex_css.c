@@ -204,7 +204,6 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
     if (strcasecmp(key, "margin") == 0) {
         int success = parse_margin_shorthand(props, value, important);
         if (success) props->mask |= CSS_MARGIN;
-
         return success;
     }
 
@@ -765,8 +764,8 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
 
     /* output the right and bottom margins for block elements */
     if (is_block && !inside_table_cell) {
-        const char* margin_right = css_properties_get(props, "margin-right");
-        const char* margin_bottom = css_properties_get(props, "margin-bottom");
+        /* right margin */
+        const char* margin_right = get_margin_value(props, "margin-right");
 
         if (margin_right && !(converter->state.applied_props & CSS_MARGIN_RIGHT)) {
             int pt = css_length_to_pt(margin_right);
@@ -777,8 +776,13 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_RIGHT;
             }
+
+            if (margin_right != css_properties_get(props, "margin-right"))
+                free((void*)margin_right);
         }
 
+        /* bottom margin */
+        const char* margin_bottom = get_margin_value(props, "margin-bottom");
         if (margin_bottom && !(converter->state.applied_props & CSS_MARGIN_BOTTOM)) {
             int pt = css_length_to_pt(margin_bottom);
 
@@ -789,6 +793,9 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_BOTTOM;
             }
+
+            if (margin_bottom != css_properties_get(props, "margin-bottom"))
+                free((void*)margin_bottom);
         }
     }
 
