@@ -5,6 +5,160 @@
 #include <ctype.h>
 #include <math.h>
 
+/* Parses CSS margin shorthand property and sets individual margin properties. */
+static int css_properties_set_margin_shorthand(CSSProperties* props, const char* value) {
+    if (!props || !value || value[0] == '\0')
+        return 0;
+
+    /* prevent excessive processing */
+    size_t len = strlen(value);
+    if (len > 512) return 0;
+
+    /* parse the input string efficiently */
+    const char* p = value;
+    const char* end = value + len;
+    int important = 0;
+
+    /* scan backwards from end to find !important, case-insensitive comparison */
+    if (len >= 10) {
+        const char* search = end - 1;
+
+        /* skip trailing whitespace */
+        while (search > p && isspace((unsigned char)*search))
+            search--;
+
+        if (search - p + 1 >= 10) {
+            const char* important_start = search - 9;
+
+            if (important_start >= p) {
+                int match = 1;
+                if (*important_start != '!') match = 0;
+
+                else {
+                    const char* test = important_start + 1;
+                    char expected[] = "important";
+
+                    for (int i = 0; i < 9; i++) {
+                        char c1 = test[i];
+                        char c2 = expected[i];
+
+                        if (c1 != c2 && tolower((unsigned char)c1) != tolower((unsigned char)c2)) {
+                            match = 0;
+                            break;
+                        }
+                    }
+                }
+
+                if (match) {
+                    if (important_start == p || isspace((unsigned char)important_start[-1])) {
+                        important = 1;
+                        end = important_start;
+
+                        while (end > p && isspace((unsigned char)end[-1]))
+                            end--;
+                    }
+                }
+            }
+        }
+    }
+
+    /* parse margin values */
+    char tokens[4][32];
+    int token_count = 0;
+    int current_token_len = 0;
+
+    while (p < end && token_count < 4) {
+        while (p < end && isspace((unsigned char)*p)) p++;
+        if (p >= end) break;
+
+        /* parse a single value token */
+        const char* token_start = p;
+        current_token_len = 0;
+
+        /* parse until whitespace or end */
+        while (p < end && !isspace((unsigned char)*p) && current_token_len < 31)
+            tokens[token_count][current_token_len++] = *p++;
+
+        if (current_token_len == 0) continue;
+        tokens[token_count][current_token_len] = '\0';
+        token_count++;
+
+        /* skip whitespace for next token */
+        while (p < end && isspace((unsigned char)*p))
+            p++;
+    }
+
+    /* validate if parsed at least one value */
+    if (token_count == 0) 
+        return 0;
+
+    /* ensure it consumed all input, except the whitespace */
+    while (p < end && isspace((unsigned char)*p))
+        p++;
+
+    if (p != end)
+        return 0;
+
+    /* expand tokens according to CSS shorthand rules */
+    char expanded[4][32] = { 0 };
+
+    switch (token_count) {
+    case 1:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[0]);
+        strcpy(expanded[2], tokens[0]);
+        strcpy(expanded[3], tokens[0]);
+        break;
+
+    case 2:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[0]);
+        strcpy(expanded[3], tokens[1]);
+        break;
+
+    case 3:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[2]);
+        strcpy(expanded[3], tokens[1]);
+        break;
+
+    case 4:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[2]);
+        strcpy(expanded[3], tokens[3]);
+        break;
+
+    default:
+        return 0;
+    }
+
+    int success = 1;
+
+    /* set individual margin properties */
+    if (!css_properties_set(props, "margin-top", expanded[0], important)) success = 0;
+    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0; 
+    if (!css_properties_set(props, "margin-bottom", expanded[2], important)) success = 0;
+    if (!css_properties_set(props, "margin-left", expanded[3], important)) success = 0;
+
+    return success;
+}
+
+/* Detect if a CSS property is a margin shorthand. */
+static int handle_margin_shorthand(CSSProperties* props, const char* key, const char* value) {
+    if (!props || !key || !value)
+        return 0;
+
+    /* check if this is a margin shorthand property */
+    if (strcasecmp(key, "margin") == 0)
+        return css_properties_set_margin_shorthand(props, value);
+
+    /* no margin shorthand property */
+    return 0;
+}
+
 CSSProperties* css_properties_create(void) {
     CSSProperties* props = (CSSProperties*)calloc(1, sizeof(CSSProperties));
     if (!props) return NULL;
@@ -33,112 +187,6 @@ void css_properties_destroy(CSSProperties* props) {
     free(props);
 }
 
-/* Parse margin shorthand property and expand it into individual properties. */
-static int parse_margin_shorthand(CSSProperties* props, const char* value, int important) {
-    if (!props || !value || !*value) return 0;
-
-    /* common single-value case */
-    const char* p = value;
-    int has_multiple_values = 0;
-
-    /* quick scan to determine if we have multiple values */
-    while (*p) {
-        if (*p == ' ' || *p == '\t') {
-            has_multiple_values = 1;
-            break;
-        }
-
-        p++;
-    }
-
-    if (!has_multiple_values) {
-        /* apply to all sides */
-        return css_properties_set(props, "margin-top", value, important) &&
-            css_properties_set(props, "margin-right", value, important) &&
-            css_properties_set(props, "margin-bottom", value, important) &&
-            css_properties_set(props, "margin-left", value, important);
-    }
-
-    /* parse token by token */
-    char* copy = strdup(value);
-    if (!copy) return 0;
-
-    char* tokens[4] = { 0 };
-    int token_count = 0;
-    char* token_start = copy;
-    char* current = copy;
-    int in_token = 0;
-
-    /* manual tokenization for better performance */
-    while (*current && token_count < 4) {
-        if (*current == ' ' || *current == '\t' || *current == '\n' || *current == '\r') {
-            if (in_token) {
-                *current = '\0';
-                tokens[token_count++] = token_start;
-                in_token = 0;
-            }
-        }
-        else {
-            if (!in_token) {
-                token_start = current;
-                in_token = 1;
-            }
-        }
-
-        current++;
-    }
-
-    /* handle the last token if present */
-    if (in_token && token_count < 4)
-        tokens[token_count++] = token_start;
-
-    /* validate token count */
-    if (token_count < 1 || token_count > 4) {
-        free(copy);
-        return 0;
-    }
-
-    /* apply CSS shorthand rules with minimal branching */
-    int success = 0;
-
-    switch (token_count) {
-    case 1:
-        /* all four margins equal */
-        success = css_properties_set(props, "margin-top", tokens[0], important) &&
-            css_properties_set(props, "margin-right", tokens[0], important) &&
-            css_properties_set(props, "margin-bottom", tokens[0], important) &&
-            css_properties_set(props, "margin-left", tokens[0], important);
-        break;
-
-    case 2:
-        /* top / bottom | right / left */
-        success = css_properties_set(props, "margin-top", tokens[0], important) &&
-            css_properties_set(props, "margin-right", tokens[1], important) &&
-            css_properties_set(props, "margin-bottom", tokens[0], important) &&
-            css_properties_set(props, "margin-left", tokens[1], important);
-        break;
-
-    case 3:
-        /* top | right / left | bottom */
-        success = css_properties_set(props, "margin-top", tokens[0], important) &&
-            css_properties_set(props, "margin-right", tokens[1], important) &&
-            css_properties_set(props, "margin-bottom", tokens[2], important) &&
-            css_properties_set(props, "margin-left", tokens[1], important);
-        break;
-
-    case 4:
-        /* top | right | bottom | left */
-        success = css_properties_set(props, "margin-top", tokens[0], important) &&
-            css_properties_set(props, "margin-right", tokens[1], important) &&
-            css_properties_set(props, "margin-bottom", tokens[2], important) &&
-            css_properties_set(props, "margin-left", tokens[3], important);
-        break;
-    }
-
-    free(copy);
-    return success;
-}
-
 static CSSPropertyMask property_to_mask(const char* key) {
     if (!key || key[0] == '\0') return 0;
 
@@ -154,7 +202,7 @@ static CSSPropertyMask property_to_mask(const char* key) {
         {"font-size", 'f', 9, CSS_FONT_SIZE}, {"text-align", 't', 10, CSS_TEXT_ALIGN},
         {"border", 'b', 6, CSS_BORDER}, {"margin-left", 'm', 11, CSS_MARGIN_LEFT},
         {"margin-right", 'm', 12, CSS_MARGIN_RIGHT}, {"margin-top", 'm', 10, CSS_MARGIN_TOP},
-        {"margin-bottom", 'm', 13, CSS_MARGIN_BOTTOM}, {"margin", 'm', 6, CSS_MARGIN}, {NULL, 0, 0, 0}
+        {"margin-bottom", 'm', 13, CSS_MARGIN_BOTTOM}, {NULL, 0, 0, 0}
     };
 
     /* length-based detection */
@@ -170,8 +218,8 @@ static CSSPropertyMask property_to_mask(const char* key) {
 
     /* length-based fast rejection */
     switch (len) {
-    case 5:  case 6:  case 9:  
-    case 10: case 11: case 12:  
+    case 5:  case 6:  case 9:
+    case 10: case 11: case 12:
     case 13:  case 15: case 16:
         break;
     default:
@@ -200,11 +248,9 @@ static CSSPropertyMask property_to_mask(const char* key) {
 int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
     if (!props || !key || !value) return 0;
 
-    /* handle margin shorthand property */
+    /* Handle margin shorthand property */
     if (strcasecmp(key, "margin") == 0) {
-        int success = parse_margin_shorthand(props, value, important);
-        if (success) props->mask |= CSS_MARGIN;
-        return success;
+        return css_properties_set_margin_shorthand(props, value);
     }
 
     /* check if property already exists */
@@ -217,7 +263,7 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
             free(current->value);
             current->value = strdup(value);
             current->important = important;
-            
+
             /* update the mask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
@@ -275,7 +321,7 @@ const char* css_properties_get(const CSSProperties* props, const char* key) {
     while (current) {
         if (strcasecmp(current->key, key) == 0)
             return current->value;
-        
+
         current = current->next;
     }
 
@@ -327,7 +373,7 @@ CSSProperties* css_properties_merge(const CSSProperties* parent,
     /* if child has no inheritable properties, just copy child */
     if (child->mask == 0) {
         CSSProperty* current = child->head;
-        
+
         while (current) {
             css_properties_set(result, current->key, current->value, current->important);
             current = current->next;
@@ -342,7 +388,7 @@ CSSProperties* css_properties_merge(const CSSProperties* parent,
     while (parent_prop) {
         if (is_css_property_inheritable(parent_prop->key))
             css_properties_set(result, parent_prop->key, parent_prop->value, parent_prop->important);
-        
+
         parent_prop = parent_prop->next;
     }
 
@@ -436,7 +482,7 @@ CSSProperties* parse_css_style(const char* style_str) {
 
         token = strtok(NULL, ";");
     }
-    
+
     free(copy);
     return props;
 }
@@ -568,82 +614,6 @@ static void apply_font_size(LaTeXConverter* converter, const char* size) {
     }
 }
 
-/* Get the margin value with shorthand support. */
-static const char* get_margin_value(const CSSProperties* props, const char* side) {
-    if (!props || !side) return NULL;
-    const char* value = css_properties_get(props, side);
-    if (value) return value;
-
-    /* if individual side not found, check for margin shorthand */
-    const char* margin_shorthand = css_properties_get(props, "margin");
-    if (!margin_shorthand) return NULL;
-
-    /* parse shorthand to get the specific side value */
-    char* copy = strdup(margin_shorthand);
-    if (!copy) return NULL;
-
-    char* tokens[4] = { 0 };
-    int token_count = 0;
-    char* token_start = copy;
-
-    char* current = copy;
-    int in_token = 0;
-
-    /* manual tokenization */
-    while (*current && token_count < 4) {
-        if (*current == ' ' || *current == '\t' || *current == '\n' || *current == '\r') {
-            if (in_token) {
-                *current = '\0';
-                tokens[token_count++] = token_start;
-                in_token = 0;
-            }
-        }
-        else {
-            if (!in_token) {
-                token_start = current;
-                in_token = 1;
-            }
-        }
-
-        current++;
-    }
-
-    if (in_token && token_count < 4)
-        tokens[token_count++] = token_start;
-
-    const char* result = NULL;
-
-    /* determine which side we're looking for */
-    if (strcmp(side, "margin-top") == 0) {
-        if (token_count >= 1) 
-            result = tokens[0];
-    }
-    else if (strcmp(side, "margin-right") == 0) {
-        if (token_count == 1) result = tokens[0];
-        else if (token_count >= 2) result = tokens[1];
-    }
-    else if (strcmp(side, "margin-bottom") == 0) {
-        if (token_count == 1 || token_count == 2) result = tokens[0];
-        else if (token_count >= 3) result = tokens[2];
-    }
-    else if (strcmp(side, "margin-left") == 0) {
-        if (token_count == 1) result = tokens[0];
-        else if (token_count == 2) result = tokens[1];
-        else if (token_count == 3) result = tokens[1];
-        else if (token_count == 4) result = tokens[3];
-    }
-
-    /* return a copy of the result if found */
-    if (result) {
-        char* result_copy = strdup(result);
-        free(copy);
-        return result_copy;
-    }
-
-    free(copy);
-    return NULL;
-}
-
 void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
     int inside_table_cell = converter->state.in_table_cell;
@@ -695,35 +665,32 @@ void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props,
         free(hex_color);
     }
 
-    /* get margins with shorthand support */
+    /* get top and left margins (block elements) */
+    const char* margin_left = css_properties_get(props, "margin-left");
+    const char* margin_top = css_properties_get(props, "margin-top");
+
     if (is_block && !inside_table_cell) {
         /* top margin */
-        const char* margin_top = get_margin_value(props, "margin-top");
         if (margin_top && !(converter->state.applied_props & CSS_MARGIN_TOP)) {
             int pt = css_length_to_pt(margin_top);
+
             if (pt != 0) {
                 char margin_cmd[32];
                 snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n", pt);
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_TOP;
             }
-            if (margin_top != css_properties_get(props, "margin-top")) {
-                free((void*)margin_top);
-            }
         }
 
         /* left margin */
-        const char* margin_left = get_margin_value(props, "margin-left");
         if (margin_left && !(converter->state.applied_props & CSS_MARGIN_LEFT)) {
             int pt = css_length_to_pt(margin_left);
+
             if (pt != 0) {
                 char margin_cmd[32];
                 snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_LEFT;
-            }
-            if (margin_left != css_properties_get(props, "margin-left")) {
-                free((void*)margin_left);
             }
         }
     }
@@ -764,8 +731,8 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
 
     /* output the right and bottom margins for block elements */
     if (is_block && !inside_table_cell) {
-        /* right margin */
-        const char* margin_right = get_margin_value(props, "margin-right");
+        const char* margin_right = css_properties_get(props, "margin-right");
+        const char* margin_bottom = css_properties_get(props, "margin-bottom");
 
         if (margin_right && !(converter->state.applied_props & CSS_MARGIN_RIGHT)) {
             int pt = css_length_to_pt(margin_right);
@@ -776,13 +743,8 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_RIGHT;
             }
-
-            if (margin_right != css_properties_get(props, "margin-right"))
-                free((void*)margin_right);
         }
 
-        /* bottom margin */
-        const char* margin_bottom = get_margin_value(props, "margin-bottom");
         if (margin_bottom && !(converter->state.applied_props & CSS_MARGIN_BOTTOM)) {
             int pt = css_length_to_pt(margin_bottom);
 
@@ -793,9 +755,6 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
                 append_string(converter, margin_cmd);
                 converter->state.applied_props |= CSS_MARGIN_BOTTOM;
             }
-
-            if (margin_bottom != css_properties_get(props, "margin-bottom"))
-                free((void*)margin_bottom);
         }
     }
 
