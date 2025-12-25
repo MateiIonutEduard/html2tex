@@ -569,6 +569,82 @@ static void apply_font_size(LaTeXConverter* converter, const char* size) {
     }
 }
 
+/* Get the margin value with shorthand support. */
+static const char* get_margin_value(const CSSProperties* props, const char* side) {
+    if (!props || !side) return NULL;
+    const char* value = css_properties_get(props, side);
+    if (value) return value;
+
+    /* if individual side not found, check for margin shorthand */
+    const char* margin_shorthand = css_properties_get(props, "margin");
+    if (!margin_shorthand) return NULL;
+
+    /* parse shorthand to get the specific side value */
+    char* copy = strdup(margin_shorthand);
+    if (!copy) return NULL;
+
+    char* tokens[4] = { 0 };
+    int token_count = 0;
+    char* token_start = copy;
+
+    char* current = copy;
+    int in_token = 0;
+
+    /* manual tokenization */
+    while (*current && token_count < 4) {
+        if (*current == ' ' || *current == '\t' || *current == '\n' || *current == '\r') {
+            if (in_token) {
+                *current = '\0';
+                tokens[token_count++] = token_start;
+                in_token = 0;
+            }
+        }
+        else {
+            if (!in_token) {
+                token_start = current;
+                in_token = 1;
+            }
+        }
+
+        current++;
+    }
+
+    if (in_token && token_count < 4)
+        tokens[token_count++] = token_start;
+
+    const char* result = NULL;
+
+    /* determine which side we're looking for */
+    if (strcmp(side, "margin-top") == 0) {
+        if (token_count >= 1) 
+            result = tokens[0];
+    }
+    else if (strcmp(side, "margin-right") == 0) {
+        if (token_count == 1) result = tokens[0];
+        else if (token_count >= 2) result = tokens[1];
+    }
+    else if (strcmp(side, "margin-bottom") == 0) {
+        if (token_count == 1 || token_count == 2) result = tokens[0];
+        else if (token_count >= 3) result = tokens[2];
+    }
+    else if (strcmp(side, "margin-left") == 0) {
+        if (token_count == 1) result = tokens[0];
+        else if (token_count == 2) result = tokens[1];
+        else if (token_count == 3) result = tokens[1];
+        else if (token_count == 4) result = tokens[3];
+    }
+
+    /* return a copy of the result if found */
+    if (result) {
+        char* result_copy = strdup(result);
+        free(copy);
+        return result_copy;
+    }
+
+    free(copy);
+    return NULL;
+}
+
 void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
     int inside_table_cell = converter->state.in_table_cell;
