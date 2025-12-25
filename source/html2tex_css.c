@@ -48,7 +48,7 @@ static CSSPropertyMask property_to_mask(const char* key) {
         {"font-size", 'f', 9, CSS_FONT_SIZE}, {"text-align", 't', 10, CSS_TEXT_ALIGN},
         {"border", 'b', 6, CSS_BORDER}, {"margin-left", 'm', 11, CSS_MARGIN_LEFT},
         {"margin-right", 'm', 12, CSS_MARGIN_RIGHT}, {"margin-top", 'm', 10, CSS_MARGIN_TOP},
-        {"margin-bottom", 'm', 13, CSS_MARGIN_BOTTOM}, {NULL, 0, 0, 0}
+        {"margin-bottom", 'm', 13, CSS_MARGIN_BOTTOM}, {"margin", 'm', 6, CSS_MARGIN}, {NULL, 0, 0, 0}
     };
 
     /* length-based detection */

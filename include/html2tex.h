@@ -66,7 +66,8 @@ extern "C" {
 		CSS_MARGIN_LEFT = 1 << 9,
 		CSS_MARGIN_RIGHT = 1 << 10,
 		CSS_MARGIN_TOP = 1 << 11,
-		CSS_MARGIN_BOTTOM = 1 << 12
+		CSS_MARGIN_BOTTOM = 1 << 12,
+		CSS_MARGIN = 1 << 13
 	};
 
 	/* Compact CSS property storage using key-value pairs.
