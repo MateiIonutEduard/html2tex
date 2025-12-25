@@ -33,6 +33,112 @@ void css_properties_destroy(CSSProperties* props) {
     free(props);
 }
 
+/* Parse margin shorthand property and expand it into individual properties. */
+static int parse_margin_shorthand(CSSProperties* props, const char* value, int important) {
+    if (!props || !value || !*value) return 0;
+
+    /* common single-value case */
+    const char* p = value;
+    int has_multiple_values = 0;
+
+    /* quick scan to determine if we have multiple values */
+    while (*p) {
+        if (*p == ' ' || *p == '\t') {
+            has_multiple_values = 1;
+            break;
+        }
+
+        p++;
+    }
+
+    if (!has_multiple_values) {
+        /* apply to all sides */
+        return css_properties_set(props, "margin-top", value, important) &&
+            css_properties_set(props, "margin-right", value, important) &&
+            css_properties_set(props, "margin-bottom", value, important) &&
+            css_properties_set(props, "margin-left", value, important);
+    }
+
+    /* parse token by token */
+    char* copy = strdup(value);
+    if (!copy) return 0;
+
+    char* tokens[4] = { 0 };
+    int token_count = 0;
+    char* token_start = copy;
+    char* current = copy;
+    int in_token = 0;
+
+    /* manual tokenization for better performance */
+    while (*current && token_count < 4) {
+        if (*current == ' ' || *current == '\t' || *current == '\n' || *current == '\r') {
+            if (in_token) {
+                *current = '\0';
+                tokens[token_count++] = token_start;
+                in_token = 0;
+            }
+        }
+        else {
+            if (!in_token) {
+                token_start = current;
+                in_token = 1;
+            }
+        }
+
+        current++;
+    }
+
+    /* handle the last token if present */
+    if (in_token && token_count < 4)
+        tokens[token_count++] = token_start;
+
+    /* validate token count */
+    if (token_count < 1 || token_count > 4) {
+        free(copy);
+        return 0;
+    }
+
+    /* apply CSS shorthand rules with minimal branching */
+    int success = 0;
+
+    switch (token_count) {
+    case 1:
+        /* all four margins equal */
+        success = css_properties_set(props, "margin-top", tokens[0], important) &&
+            css_properties_set(props, "margin-right", tokens[0], important) &&
+            css_properties_set(props, "margin-bottom", tokens[0], important) &&
+            css_properties_set(props, "margin-left", tokens[0], important);
+        break;
+
+    case 2:
+        /* top / bottom | right / left */
+        success = css_properties_set(props, "margin-top", tokens[0], important) &&
+            css_properties_set(props, "margin-right", tokens[1], important) &&
+            css_properties_set(props, "margin-bottom", tokens[0], important) &&
+            css_properties_set(props, "margin-left", tokens[1], important);
+        break;
+
+    case 3:
+        /* top | right / left | bottom */
+        success = css_properties_set(props, "margin-top", tokens[0], important) &&
+            css_properties_set(props, "margin-right", tokens[1], important) &&
+            css_properties_set(props, "margin-bottom", tokens[2], important) &&
+            css_properties_set(props, "margin-left", tokens[1], important);
+        break;
+
+    case 4:
+        /* top | right | bottom | left */
+        success = css_properties_set(props, "margin-top", tokens[0], important) &&
+            css_properties_set(props, "margin-right", tokens[1], important) &&
+            css_properties_set(props, "margin-bottom", tokens[2], important) &&
+            css_properties_set(props, "margin-left", tokens[3], important);
+        break;
+    }
+
+    free(copy);
+    return success;
+}
+
 static CSSPropertyMask property_to_mask(const char* key) {
     if (!key || key[0] == '\0') return 0;
 
