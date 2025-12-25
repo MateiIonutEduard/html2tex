@@ -1275,13 +1275,15 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inhe
         const char* color_attr = get_attribute(node->attributes, "color");
         char* text_color = NULL;
 
-        if (style_attr)
+        if (style_attr) 
             text_color = extract_color_from_style(style_attr, "color");
 
         if (merged_props && text_color)
             convert_children(converter, node, merged_props);
         else if (merged_props && !text_color) {
-            if (color_attr) apply_color(converter, color_attr, 0);
+            if (color_attr && !(merged_props->mask & CSS_COLOR)) 
+                apply_color(converter, color_attr, 0);
+
             convert_children(converter, node, merged_props);
             append_string(converter, "}");
         }

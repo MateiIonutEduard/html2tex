@@ -5,6 +5,160 @@
 #include <ctype.h>
 #include <math.h>
 
+/* Parses CSS margin shorthand property and sets individual margin properties. */
+static int css_properties_set_margin_shorthand(CSSProperties* props, const char* value) {
+    if (!props || !value || value[0] == '\0')
+        return 0;
+
+    /* prevent excessive processing */
+    size_t len = strlen(value);
+    if (len > 512) return 0;
+
+    /* parse the input string efficiently */
+    const char* p = value;
+    const char* end = value + len;
+    int important = 0;
+
+    /* scan backwards from end to find !important, case-insensitive comparison */
+    if (len >= 10) {
+        const char* search = end - 1;
+
+        /* skip trailing whitespace */
+        while (search > p && isspace((unsigned char)*search))
+            search--;
+
+        if (search - p + 1 >= 10) {
+            const char* important_start = search - 9;
+
+            if (important_start >= p) {
+                int match = 1;
+                if (*important_start != '!') match = 0;
+
+                else {
+                    const char* test = important_start + 1;
+                    char expected[] = "important";
+
+                    for (int i = 0; i < 9; i++) {
+                        char c1 = test[i];
+                        char c2 = expected[i];
+
+                        if (c1 != c2 && tolower((unsigned char)c1) != tolower((unsigned char)c2)) {
+                            match = 0;
+                            break;
+                        }
+                    }
+                }
+
+                if (match) {
+                    if (important_start == p || isspace((unsigned char)important_start[-1])) {
+                        important = 1;
+                        end = important_start;
+
+                        while (end > p && isspace((unsigned char)end[-1]))
+                            end--;
+                    }
+                }
+            }
+        }
+    }
+
+    /* parse margin values */
+    char tokens[4][32];
+    int token_count = 0;
+    int current_token_len = 0;
+
+    while (p < end && token_count < 4) {
+        while (p < end && isspace((unsigned char)*p)) p++;
+        if (p >= end) break;
+
+        /* parse a single value token */
+        const char* token_start = p;
+        current_token_len = 0;
+
+        /* parse until whitespace or end */
+        while (p < end && !isspace((unsigned char)*p) && current_token_len < 31)
+            tokens[token_count][current_token_len++] = *p++;
+
+        if (current_token_len == 0) continue;
+        tokens[token_count][current_token_len] = '\0';
+        token_count++;
+
+        /* skip whitespace for next token */
+        while (p < end && isspace((unsigned char)*p))
+            p++;
+    }
+
+    /* validate if parsed at least one value */
+    if (token_count == 0) 
+        return 0;
+
+    /* ensure it consumed all input, except the whitespace */
+    while (p < end && isspace((unsigned char)*p))
+        p++;
+
+    if (p != end)
+        return 0;
+
+    /* expand tokens according to CSS shorthand rules */
+    char expanded[4][32] = { 0 };
+
+    switch (token_count) {
+    case 1:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[0]);
+        strcpy(expanded[2], tokens[0]);
+        strcpy(expanded[3], tokens[0]);
+        break;
+
+    case 2:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[0]);
+        strcpy(expanded[3], tokens[1]);
+        break;
+
+    case 3:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[2]);
+        strcpy(expanded[3], tokens[1]);
+        break;
+
+    case 4:
+        strcpy(expanded[0], tokens[0]);
+        strcpy(expanded[1], tokens[1]);
+        strcpy(expanded[2], tokens[2]);
+        strcpy(expanded[3], tokens[3]);
+        break;
+
+    default:
+        return 0;
+    }
+
+    int success = 1;
+
+    /* set individual margin properties */
+    if (!css_properties_set(props, "margin-top", expanded[0], important)) success = 0;
+    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0; 
+    if (!css_properties_set(props, "margin-bottom", expanded[2], important)) success = 0;
+    if (!css_properties_set(props, "margin-left", expanded[3], important)) success = 0;
+
+    return success;
+}
+
+/* Detect if a CSS property is a margin shorthand. */
+static int handle_margin_shorthand(CSSProperties* props, const char* key, const char* value) {
+    if (!props || !key || !value)
+        return 0;
+
+    /* check if this is a margin shorthand property */
+    if (strcasecmp(key, "margin") == 0)
+        return css_properties_set_margin_shorthand(props, value);
+
+    /* no margin shorthand property */
+    return 0;
+}
+
 CSSProperties* css_properties_create(void) {
     CSSProperties* props = (CSSProperties*)calloc(1, sizeof(CSSProperties));
     if (!props) return NULL;
@@ -64,8 +218,8 @@ static CSSPropertyMask property_to_mask(const char* key) {
 
     /* length-based fast rejection */
     switch (len) {
-    case 5:  case 6:  case 9:  
-    case 10: case 11: case 12:  
+    case 5:  case 6:  case 9:
+    case 10: case 11: case 12:
     case 13:  case 15: case 16:
         break;
     default:
@@ -94,6 +248,10 @@ static CSSPropertyMask property_to_mask(const char* key) {
 int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
     if (!props || !key || !value) return 0;
 
+    /* handle margin shorthand property */
+    if (strcasecmp(key, "margin") == 0)
+        return css_properties_set_margin_shorthand(props, value);
+
     /* check if property already exists */
     CSSProperty* current = props->head;
     CSSProperty* prev = NULL;
@@ -104,7 +262,7 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
             free(current->value);
             current->value = strdup(value);
             current->important = important;
-            
+
             /* update the mask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
@@ -162,7 +320,7 @@ const char* css_properties_get(const CSSProperties* props, const char* key) {
     while (current) {
         if (strcasecmp(current->key, key) == 0)
             return current->value;
-        
+
         current = current->next;
     }
 
@@ -214,7 +372,7 @@ CSSProperties* css_properties_merge(const CSSProperties* parent,
     /* if child has no inheritable properties, just copy child */
     if (child->mask == 0) {
         CSSProperty* current = child->head;
-        
+
         while (current) {
             css_properties_set(result, current->key, current->value, current->important);
             current = current->next;
@@ -229,7 +387,7 @@ CSSProperties* css_properties_merge(const CSSProperties* parent,
     while (parent_prop) {
         if (is_css_property_inheritable(parent_prop->key))
             css_properties_set(result, parent_prop->key, parent_prop->value, parent_prop->important);
-        
+
         parent_prop = parent_prop->next;
     }
 
@@ -323,7 +481,7 @@ CSSProperties* parse_css_style(const char* style_str) {
 
         token = strtok(NULL, ";");
     }
-    
+
     free(copy);
     return props;
 }
