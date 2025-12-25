@@ -200,6 +200,14 @@ static CSSPropertyMask property_to_mask(const char* key) {
 int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
     if (!props || !key || !value) return 0;
 
+    /* handle margin shorthand property */
+    if (strcasecmp(key, "margin") == 0) {
+        int success = parse_margin_shorthand(props, value, important);
+        if (success) props->mask |= CSS_MARGIN;
+
+        return success;
+    }
+
     /* check if property already exists */
     CSSProperty* current = props->head;
     CSSProperty* prev = NULL;
