@@ -239,7 +239,9 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     FILE* file = fopen(filename, "w");
 
     if (!file) {
-        fprintf(stderr, "Error: Could not open file %s for writing.\n", filename);
+        fputs("Error: Could not open file ", stderr);
+        fputs(filename, stderr);
+        fputs(" for writing.\n", stderr);
         return 0;
     }
 
@@ -309,7 +311,7 @@ char* get_pretty_html(HTMLNode* root) {
             child = child->next;
         }
 
-        fprintf(stream, "</body>\n</html>\n");
+        fputs("</body>\n</html>\n", stream);
         fclose(stream);
         return buffer;
     }
