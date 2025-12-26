@@ -232,19 +232,21 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     }
 
     /* write HTML header */
-    fprintf(file, "<html>\n<head>\n");
-    fprintf(file, "  <meta charset=\"UTF-8\">\n");
+    fputs("<html>\n<head>\n", file);
+    fputs("  <meta charset=\"UTF-8\">\n", file);
     char* html_title = html2tex_extract_title(root);
     int default_title = !html_title ? 1 : 0;
+    fputs("  <title>", file);
 
-    if (default_title)
-        fprintf(file, "  <title>Parsed HTML Output</title>\n");
+    if (!html_title)
+        fputs("Parsed HTML Output", file);
     else {
-        fprintf(file, "  <title>%s</title>\n", html_title);
+        fputs(html_title, file);
         free(html_title);
     }
 
-    fprintf(file, "</head>\n<body>\n");
+    fputs("</title>\n", file);
+    fputs("</head>\n<body>\n", file);
 
     /* write the parsed content */
     HTMLNode* child = root->children;
@@ -255,7 +257,7 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     }
 
     /* write HTML footer and close the stream */
-    fprintf(file, "</body>\n</html>\n");
+    fputs("</body>\n</html>\n", file);
     fclose(file);
     return 1;
 }
@@ -272,15 +274,26 @@ char* get_pretty_html(HTMLNode* root) {
 
     if (stream) {
         /* write HTML to memory stream */
-        fprintf(stream, "<html>\n<head>\n");
-        fprintf(stream, "  <meta charset=\"UTF-8\">\n");
-        fprintf(stream, "  <title>Parsed HTML Output</title>\n");
-        fprintf(stream, "</head>\n<body>\n");
+        fputs("<html>\n<head>\n", stream);
+        fputs("  <meta charset=\"UTF-8\">\n", stream);
+        char* html_title = html2tex_extract_title(root);
+        fputs("  <title>", stream);
+
+        if (!html_title)
+            fputs("Parsed HTML Output", stream);
+        else {
+            fputs(html_title, stream);
+            free(html_title);
+        }
+
+        fputs("</title>\n", stream);
+        fputs("</head>\n<body>\n", stream);
 
         /* write content using our buffered function */
         HTMLNode* child = root->children;
+
         while (child) {
-            write_pretty_node_buffered(stream, child, 1);
+            write_pretty_node(stream, child, 1);
             child = child->next;
         }
 
@@ -293,11 +306,20 @@ char* get_pretty_html(HTMLNode* root) {
     if (!temp_file) return NULL;
 
     /* write to temp file */
-    fprintf(temp_file, "<html>\n<head>\n");
-    fprintf(temp_file, "  <meta charset=\"UTF-8\">\n");
-    fprintf(temp_file, "  <title>Parsed HTML Output</title>\n");
-    fprintf(temp_file, "</head>\n<body>\n");
+    fputs("<html>\n<head>\n", temp_file);
+    fputs("  <meta charset=\"UTF-8\">\n", temp_file);
+    char* html_title = html2tex_extract_title(root);
+    fputs("  <title>", temp_file);
 
+    if (!html_title)
+        fputs("Parsed HTML Output", temp_file);
+    else {
+        fputs(html_title, temp_file);
+        free(html_title);
+    }
+
+    fputs("</title>\n", temp_file);
+    fputs("</head>\n<body>\n", temp_file);
     HTMLNode* child = root->children;
 
     while (child) {
@@ -305,7 +327,7 @@ char* get_pretty_html(HTMLNode* root) {
         child = child->next;
     }
 
-    fprintf(temp_file, "</body>\n</html>\n");
+    fputs("</body>\n</html>\n", temp_file);
 
     /* get the file size and read back */
     if (fseek(temp_file, 0, SEEK_END) != 0) {
