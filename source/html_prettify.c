@@ -135,11 +135,12 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 
     /* create indentation */
     for (int i = 0; i < indent_level; i++)
-        fprintf(file, "  ");
+        fputs("  ", file);
 
     if (node->tag) {
         /* element node */
-        fprintf(file, "<%s", node->tag);
+        fputs("<", file);
+        fputs(node->tag, file);
 
         /* write attributes */
         HTMLAttribute* attr = node->attributes;
@@ -147,11 +148,18 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         while (attr) {
             if (attr->value) {
                 char* escaped_value = escape_html(attr->value);
-                fprintf(file, " %s=\"%s\"", attr->key, escaped_value ? escaped_value : attr->value);
-                if (escaped_value) free(escaped_value);
+                fputs(" ", file); fputs(attr->key, file); fputs("=\"", file);
+
+                fputs(escaped_value ? escaped_value : attr->value, file);
+                fputs("\"", file);
+
+                if (escaped_value) 
+                    free(escaped_value);
             }
-            else
-                fprintf(file, " %s", attr->key);
+            else {
+                fputs(" ", file);
+                fputs(attr->key, file);
+            }
 
             attr = attr->next;
         }
@@ -161,23 +169,23 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 
         /* check if this is a self-closing tag or has children */
         if (!node->children && !node->content)
-            fprintf(file, " />\n");
+            fputs(" />\n", file);
         else {
             /* write content if present */
-            fprintf(file, ">");
+            fputs(">", file);
 
             if (node->content) {
                 char* escaped_content = escape_html(node->content);
 
                 if (escaped_content) {
-                    fprintf(file, "%s", escaped_content);
+                    fputs(escaped_content, file);
                     free(escaped_content);
                 }
             }
 
             /* write children with proper indentation */
             if (node->children) {
-                if (!is_inline) fprintf(file, "\n");
+                if (!is_inline) fputs("\n", file);
                 HTMLNode* child = node->children;
 
                 while (child) {
@@ -187,11 +195,13 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 
                 if (!is_inline) {
                     for (int i = 0; i < indent_level; i++)
-                        fprintf(file, "  ");
+                        fputs("  ", file);
                 }
             }
 
-            fprintf(file, "</%s>\n", node->tag);
+            fputs("</", file);
+            fputs(node->tag, file);
+            fputs(">\n", file);
         }
     }
     else {
@@ -210,11 +220,13 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                     }
                 }
 
-                if (!all_whitespace)
-                    fprintf(file, "%s\n", escaped_content);
+                if (!all_whitespace) {
+                    fputs(escaped_content, file);
+                    fputs("\n", file);
+                }
                 else
                     /* for whitespace-only nodes, just output a newline */
-                    fprintf(file, "\n");
+                    fputs("\n", file);
 
                 free(escaped_content);
             }
