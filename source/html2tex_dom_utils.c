@@ -2,6 +2,133 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+char* html2tex_compress_html(const char* html) {
+    if (!html) return NULL;
+    size_t len = strlen(html);
+    if (len == 0) return strdup("");
+
+    char* result = (char*)malloc(len + 1);
+    if (!result) return NULL;
+    const char* src = html;
+    char* dest = result;
+
+    int in_tag = 0;
+    int in_comment = 0;
+    int in_script_style = 0;
+    int in_quotes = 0;
+    char quote_char = 0;
+    int last_char_was_gt = 0;
+    int skip_whitespace = 0;
+
+    while (*src) {
+        unsigned char c = (unsigned char)*src;
+
+        /* handle comments */
+        if (!in_quotes && !in_tag && !in_script_style) {
+            if (c == '<' && strncmp(src, "<!--", 4) == 0) {
+                in_comment = 1;
+            }
+            else if (c == '-' && in_comment && strncmp(src, "-->", 3) == 0) {
+                in_comment = 0;
+                *dest++ = '-'; *dest++ = '-'; *dest++ = '>';
+                src += 2; goto next_char;
+            }
+        }
+
+        if (in_comment) {
+            *dest++ = *src++;
+            continue;
+        }
+
+        /* detect script/style tags */
+        if (!in_quotes && c == '<') {
+            const char* tag_start = src + 1;
+            while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
+
+            if (strncasecmp(tag_start, "script", 6) == 0 ||
+                strncasecmp(tag_start, "style", 5) == 0) {
+                in_script_style = 1;
+            }
+        }
+        /* check for closing script/style tags */
+        else if (!in_quotes && c == '<' && strncmp(src, "</", 2) == 0) {
+            const char* tag_start = src + 2;
+            while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
+
+            if (strncasecmp(tag_start, "script", 6) == 0 ||
+                strncasecmp(tag_start, "style", 5) == 0) {
+                in_script_style = 0;
+            }
+        }
+
+        /* preserve all content inside script/style tags */
+        if (in_script_style) {
+            *dest++ = *src++;
+            continue;
+        }
+
+        /* handle quotes in attributes */
+        if (in_tag && !in_quotes && (c == '\'' || c == '"')) {
+            in_quotes = 1;
+            quote_char = c;
+        }
+        else if (in_quotes && c == quote_char)
+            in_quotes = 0;
+
+        /* tag detection */
+        if (!in_quotes) {
+            if (c == '<') {
+                in_tag = 1;
+                skip_whitespace = 0;
+            }
+            else if (c == '>') {
+                in_tag = 0;
+                last_char_was_gt = 1;
+                skip_whitespace = 1;
+            }
+        }
+
+        /* whitespace handling */
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v') {
+            if (in_tag || in_quotes)
+                *dest++ = c;
+            else if (last_char_was_gt)
+                skip_whitespace = 1;
+            else if (skip_whitespace) {
+                /* skip consecutive whitespace between tags */
+                /* do nothing, just skip this whitespace */
+            }
+            else {
+                *dest++ = ' ';
+                skip_whitespace = 1;
+            }
+        }
+        else {
+            /* non-whitespace character */
+            if (skip_whitespace && !in_tag && !last_char_was_gt && dest > result) {
+                char last = *(dest - 1);
+                if (last != ' ' && last != '>' && last != '<') {
+                    *dest++ = ' ';
+                }
+            }
+
+            *dest++ = c;
+            skip_whitespace = 0;
+            last_char_was_gt = 0;
+        }
+
+    next_char:
+        src++;
+    }
+
+    *dest = '\0';
+
+    /* trim to actual size */
+    size_t final_len = dest - result;
+    char* final_result = (char*)realloc(result, final_len + 1);
+    return final_result ? final_result : result;
+}
+
 HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
     /* validate input parameters */
     if (!root || !predicate)

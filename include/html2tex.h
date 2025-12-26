@@ -329,6 +329,9 @@ extern "C" {
 	/* Parses inline CSS from style. */
 	CSSProperties* parse_css_style(const char* style_str);
 
+	/* Removes whitespace between HTML tags while preserving text content. */
+	char* html2tex_compress_html(const char* html);
+
 	/* Find first DOM node matching criteria with computed CSS. */
 	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
 

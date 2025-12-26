@@ -125,6 +125,9 @@ void html2tex_set_download_images(LaTeXConverter* converter, int enable) {
 
 char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     if (!converter || !html) return NULL;
+    char* compact_html = html2tex_compress_html(html);
+
+    if (!compact_html) return NULL;
     if (converter->download_images) image_utils_init();
 
     if (converter->output) {
@@ -160,7 +163,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     append_string(converter, "\\usepackage{placeins}\n");
     append_string(converter, "\\setcounter{secnumdepth}{4}\n");
 
-    HTMLNode* root = html2tex_parse(html);
+    HTMLNode* root = html2tex_parse(compact_html);
     char* title = html2tex_extract_title(root);
     int has_title = 0;
 
@@ -197,6 +200,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
             result[0] = '\0';
     }
 
+    free(compact_html);
     return result;
 }
 
