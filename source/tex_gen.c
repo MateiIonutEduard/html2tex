@@ -588,7 +588,7 @@ static void begin_table(LaTeXConverter* converter, int columns) {
 
 static void end_table(LaTeXConverter* converter, const char* table_label) {
     if (!converter) {
-        fprintf(stderr, "Error: NULL converter in end_table() function.\n");
+        fputs("Error: NULL converter in end_table() function.\n", stderr);
         return;
     }
 
@@ -698,7 +698,7 @@ static void end_table(LaTeXConverter* converter, const char* table_label) {
 
 static void begin_table_row(LaTeXConverter* converter) {
     if (!converter) {
-        fprintf(stderr, "Error: NULL converter in begin_table_row() function.\n");
+        fputs("Error: NULL converter in begin_table_row() function.\n", stderr);
         return;
     }
 
@@ -708,7 +708,7 @@ static void begin_table_row(LaTeXConverter* converter) {
 
 static void end_table_row(LaTeXConverter* converter) {
     if (!converter) {
-        fprintf(stderr, "Error: NULL converter in end_table_row() function.\n");
+        fputs("Error: NULL converter in end_table_row() function.\n", stderr);
         return;
     }
 
@@ -720,7 +720,7 @@ static void end_table_row(LaTeXConverter* converter) {
 
 static void begin_table_cell(LaTeXConverter* converter, int is_header) {
     if (!converter) {
-        fprintf(stderr, "Error: NULL converter in begin_table_cell() function.\n");
+        fputs("Error: NULL converter in begin_table_cell() function.\n", stderr);
         return;
     }
 
@@ -736,7 +736,7 @@ static void begin_table_cell(LaTeXConverter* converter, int is_header) {
 
 static void end_table_cell(LaTeXConverter* converter, int is_header) {
     if (!converter) {
-        fprintf(stderr, "Error: NULL converter in end_table_cell() function.\n");
+        fputs("Error: NULL converter in end_table_cell() function.\n", stderr);
         return;
     }
 
