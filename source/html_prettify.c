@@ -234,7 +234,16 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     /* write HTML header */
     fprintf(file, "<html>\n<head>\n");
     fprintf(file, "  <meta charset=\"UTF-8\">\n");
-    fprintf(file, "  <title>Parsed HTML Output</title>\n");
+    char* html_title = html2tex_extract_title(root);
+    int default_title = !html_title ? 1 : 0;
+
+    if (default_title)
+        fprintf(file, "  <title>Parsed HTML Output</title>\n");
+    else {
+        fprintf(file, "  <title>%s</title>\n", html_title);
+        free(html_title);
+    }
+
     fprintf(file, "</head>\n<body>\n");
 
     /* write the parsed content */
