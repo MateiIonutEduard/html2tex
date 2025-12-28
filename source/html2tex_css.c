@@ -307,9 +307,8 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
         return 0;
 
     /* handle special case for margin shorthand */
-    if (strcasecmp(key, "margin") == 0) {
+    if (strcasecmp(key, "margin") == 0)
         return css_properties_set_margin_shorthand(props, value);
-    }
 
     /* check if property already exists */
     CSSProperty* current = props->head;
@@ -425,66 +424,64 @@ CSSProperties* css_properties_copy(const CSSProperties* src) {
     return copy;
 }
 
-CSSProperties* css_properties_merge(const CSSProperties* parent,
-    const CSSProperties* child) {
-
-    /* early returns for edge cases */
-    if (!child) return NULL;
+CSSProperties* css_properties_merge(const CSSProperties* parent, const CSSProperties* child) {
+    /* validate input for edge cases */
+    if (!child) return parent ? css_properties_copy(parent) : NULL;
     if (!parent) return css_properties_copy(child);
 
-    /* create result with estimated capacity */
+    /* if child has no inheritable properties, just copy child */
+    if ((child->mask & CSS_INHERITABLE_MASK) == 0)
+        return css_properties_copy(child);
+
+    /* ownership transferred to caller on success */
     CSSProperties* result = css_properties_create();
     if (!result) return NULL;
 
-    /* if child has no inheritable properties, just copy child */
-    if (child->mask == 0) {
-        CSSProperty* current = child->head;
-
-        while (current) {
-            css_properties_set(result, current->key, current->value, current->important);
-            current = current->next;
-        }
-
-        return result;
-    }
-
-    /* copy inheritable properties from parent */
+    /* copy all parent properties first, will be overridden by child */
     CSSProperty* parent_prop = parent->head;
-
     while (parent_prop) {
-        if (is_css_property_inheritable(parent_prop->key))
-            css_properties_set(result, parent_prop->key, parent_prop->value, parent_prop->important);
+        if (is_css_property_inheritable(parent_prop->key)) {
+            if (!css_properties_set(result, parent_prop->key,
+                parent_prop->value, parent_prop->important)) {
+                goto cleanup_failure;
+            }
+        }
 
         parent_prop = parent_prop->next;
     }
 
-    /* override with child properties using CSS cascade rules */
+    /* apply child properties with correct cascade */
     CSSProperty* child_prop = child->head;
 
     while (child_prop) {
-        int should_override = 1;
         CSSProperty* existing = result->head;
+        int should_override = 1;
 
         while (existing) {
             if (strcasecmp(existing->key, child_prop->key) == 0) {
-                if (child_prop->important)
-                    should_override = 1;
-                else if (existing->important)
-                    should_override = 0;
-                else
-                    should_override = 1;
+                if (child_prop->important && !existing->important) should_override = 1;
+                else if (!child_prop->important && existing->important) should_override = 0;
+                else should_override = 1;
                 break;
             }
+
             existing = existing->next;
         }
 
-        if (should_override)
-            css_properties_set(result, child_prop->key, child_prop->value, child_prop->important);
+        if (should_override) {
+            if (!css_properties_set(result, child_prop->key,
+                child_prop->value, child_prop->important))
+                goto cleanup_failure;
+        }
 
         child_prop = child_prop->next;
     }
 
     return result;
+
+cleanup_failure:
+    css_properties_destroy(result);
+    return NULL;
 }
 
 CSSProperties* parse_css_style(const char* style_str) {

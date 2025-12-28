@@ -346,6 +346,12 @@ extern "C" {
 #define CSS_KEY_PROPERTY_LENGTH 128
 #endif
 
+#ifndef CSS_INHERITABLE_MASK
+#define CSS_INHERITABLE_MASK (CSS_BOLD | CSS_ITALIC | CSS_UNDERLINE | \
+                             CSS_COLOR | CSS_FONT_FAMILY | CSS_FONT_SIZE | \
+                             CSS_TEXT_ALIGN)
+#endif
+
 #ifndef MAX_REASONABLE_MARGIN_LENGTH
 #define MAX_REASONABLE_MARGIN_LENGTH 256
 #endif
