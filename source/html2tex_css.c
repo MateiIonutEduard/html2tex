@@ -284,11 +284,32 @@ static CSSPropertyMask property_to_mask(const char* key) {
 }
 
 int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
-    if (!props || !key || !value) return 0;
+    /* efficient input validation */
+    if (!props || !key || !value)
+        return 0;
 
-    /* handle margin shorthand property */
-    if (strcasecmp(key, "margin") == 0)
+    /* prevent empty keys and obviously bad input */
+    if (key[0] == '\0') return 0;
+
+    /* sanity check for injection attempts in CSS property names */
+    const char* dangerous_chars = "<>;\"'";
+
+    for (const char* c = dangerous_chars; *c; c++) {
+        if (strchr(key, *c))
+            return 0;
+    }
+
+    /* length limits to prevent DoS */
+    size_t key_len = strlen(key);
+    size_t value_len = strlen(value);
+
+    if (key_len > CSS_KEY_PROPERTY_LENGTH || value_len > CSS_MAX_PROPERTY_LENGTH)
+        return 0;
+
+    /* handle special case for margin shorthand */
+    if (strcasecmp(key, "margin") == 0) {
         return css_properties_set_margin_shorthand(props, value);
+    }
 
     /* check if property already exists */
     CSSProperty* current = props->head;
@@ -296,12 +317,14 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
 
     while (current) {
         if (strcasecmp(current->key, key) == 0) {
-            /* update existing value */
-            free(current->value);
-            current->value = strdup(value);
-            current->important = important;
+            char* new_value = strdup(value);
+            if (!new_value) return 0;
 
-            /* update the mask */
+            free(current->value);
+            current->value = new_value;
+            current->important = important ? 1 : 0;
+
+            /* update bitmask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
             return 1;
@@ -311,29 +334,28 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
         current = current->next;
     }
 
-    /* create new CSS property */
-    CSSProperty* new_prop = (CSSProperty*)malloc(sizeof(CSSProperty));
+    /* create new property */
+    CSSProperty* new_prop = NULL;
+    char* key_copy = NULL;
+    char* value_copy = NULL;
 
-    if (!new_prop) return 0;
-    new_prop->key = strdup(key);
+    /* allocate and initialize */
+    new_prop = (CSSProperty*)calloc(1, sizeof(CSSProperty));
+    if (!new_prop) goto cleanup_failure;
 
-    if (!new_prop->key) {
-        free(new_prop);
-        return 0;
-    }
+    key_copy = strdup(key);
+    if (!key_copy) goto cleanup_failure;
 
-    new_prop->value = strdup(value);
+    value_copy = strdup(value);
+    if (!value_copy) goto cleanup_failure;
 
-    if (!new_prop->value) {
-        free((void*)new_prop->key);
-        free(new_prop);
-        return 0;
-    }
-
-    new_prop->important = important;
+    /* initialize after all allocations succeeded */
+    new_prop->key = key_copy;
+    new_prop->value = value_copy;
+    new_prop->important = important ? 1 : 0;
     new_prop->next = NULL;
 
-    /* add to list */
+    /* insert into list */
     if (!props->head) {
         props->head = new_prop;
         props->tail = new_prop;
@@ -345,10 +367,17 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
 
     props->count++;
 
-    /* update mask */
+    /* update metadata */
     CSSPropertyMask mask = property_to_mask(key);
     if (mask) props->mask |= mask;
     return 1;
+
+cleanup_failure:
+    /* cleanup path for any allocation failure */
+    if (key_copy) free(key_copy);
+    if (value_copy) free(value_copy);
+    if (new_prop) free(new_prop);
+    return 0;
 }
 
 const char* css_properties_get(const CSSProperties* props, const char* key) {
