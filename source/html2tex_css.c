@@ -759,110 +759,146 @@ static void apply_font_size(LaTeXConverter* converter, const char* size) {
 
 void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
-    int inside_table_cell = converter->state.in_table_cell;
-    int is_block = is_block_element(tag_name);
 
-    /* apply text alignment first, for block elements */
-    const char* text_align = css_properties_get(props, "text-align");
+    /* cache the critical state variables */
+    const int inside_table_cell = converter->state.in_table_cell;
+    const int is_block = is_block_element(tag_name);
+    CSSPropertyMask* applied = &converter->state.applied_props;
 
-    if (text_align && is_block && !inside_table_cell)
-        apply_text_alignment(converter, text_align);
-
-    /* apply colors */
-    const char* color = css_properties_get(props, "color");
-
-    if (color && !(converter->state.applied_props & CSS_COLOR)) {
-        char* hex_color = css_color_to_hex(color);
-
-        if (hex_color && strcmp(hex_color, "000000") != 0) {
-            append_string(converter, "\\textcolor[HTML]{");
-            append_string(converter, hex_color);
-            append_string(converter, "}{");
-
-            converter->state.css_braces++;
-            converter->state.applied_props |= CSS_COLOR;
-        }
-
-        free(hex_color);
+    /* process text alignment first (block elements only) */
+    if (is_block && !inside_table_cell && (props->mask & CSS_TEXT_ALIGN)) {
+        const char* align = css_properties_get(props, "text-align");
+        if (align) apply_text_alignment(converter, align);
     }
 
-    /* apply background color */
-    const char* bg_color = css_properties_get(props, "background-color");
+    /* process colors efficiently */
+    if (!(*applied & CSS_COLOR) && (props->mask & CSS_COLOR)) {
+        const char* color = css_properties_get(props, "color");
 
-    if (bg_color && !(converter->state.applied_props & CSS_BACKGROUND)) {
-        char* hex_color = css_color_to_hex(bg_color);
+        if (color) {
+            if (!(color[0] == 'b' && strcmp(color, "black") == 0) &&
+                !(color[0] == '#' && (strcmp(color, "#000") == 0 ||
+                    strcmp(color, "#000000") == 0))) {
+                char* hex = css_color_to_hex(color);
 
-        if (hex_color && strcmp(hex_color, "FFFFFF") != 0) {
-            if (converter->state.in_table_cell)
-                append_string(converter, "\\cellcolor[HTML]{");
-            else
-                append_string(converter, "\\colorbox[HTML]{");
+                if (hex) {
+                    if (strcmp(hex, "000000") != 0) {
+                        append_string(converter, "\\textcolor[HTML]{");
+                        append_string(converter, hex);
+                        append_string(converter, "}{");
+                        converter->state.css_braces++;
+                        *applied |= CSS_COLOR;
+                    }
 
-            append_string(converter, hex_color);
-            append_string(converter, "}{");
-
-            converter->state.css_braces++;
-            converter->state.applied_props |= CSS_BACKGROUND;
+                    free(hex);
+                }
+            }
         }
-
-        free(hex_color);
     }
 
-    /* get top and left margins (block elements) */
-    const char* margin_left = css_properties_get(props, "margin-left");
-    const char* margin_top = css_properties_get(props, "margin-top");
+    /* process background color */
+    if (!(*applied & CSS_BACKGROUND) && (props->mask & CSS_BACKGROUND)) {
+        const char* bg_color = css_properties_get(props, "background-color");
+        if (bg_color) {
+            if (!(bg_color[0] == 'w' && strcmp(bg_color, "white") == 0) &&
+                !(bg_color[0] == 't' && strcmp(bg_color, "transparent") == 0) &&
+                !(bg_color[0] == '#' && (strcmp(bg_color, "#fff") == 0 ||
+                    strcmp(bg_color, "#ffffff") == 0))) {
 
+                char* hex = css_color_to_hex(bg_color);
+
+                if (hex) {
+                    if (strcmp(hex, "FFFFFF") != 0) {
+                        if (inside_table_cell)
+                            append_string(converter, "\\cellcolor[HTML]{");
+                        else
+                            append_string(converter, "\\colorbox[HTML]{");
+
+                        append_string(converter, hex);
+                        append_string(converter, "}{");
+                        converter->state.css_braces++;
+                        *applied |= CSS_BACKGROUND;
+                    }
+
+                    free(hex);
+                }
+            }
+        }
+    }
+
+    /* process margins for block elements */
     if (is_block && !inside_table_cell) {
-        /* top margin */
-        if (margin_top && !(converter->state.applied_props & CSS_MARGIN_TOP)) {
-            int pt = css_length_to_pt(margin_top);
+        if (!(*applied & CSS_MARGIN_TOP) && (props->mask & CSS_MARGIN_TOP)) {
+            const char* margin_top = css_properties_get(props, "margin-top");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_TOP;
+            if (margin_top) {
+                int pt = css_length_to_pt(margin_top);
+
+                if (pt != 0) {
+                    char cmd[32];
+                    int len = snprintf(cmd, sizeof(cmd), "\\vspace*{%dpt}\n", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(cmd)) {
+                        append_string(converter, cmd);
+                        *applied |= CSS_MARGIN_TOP;
+                    }
+                }
             }
         }
 
-        /* left margin */
-        if (margin_left && !(converter->state.applied_props & CSS_MARGIN_LEFT)) {
-            int pt = css_length_to_pt(margin_left);
+        if (!(*applied & CSS_MARGIN_LEFT) && (props->mask & CSS_MARGIN_LEFT)) {
+            const char* margin_left = css_properties_get(props, "margin-left");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_LEFT;
+            if (margin_left) {
+                int pt = css_length_to_pt(margin_left);
+
+                if (pt != 0) {
+                    char cmd[32];
+                    int len = snprintf(cmd, sizeof(cmd), "\\hspace*{%dpt}", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(cmd)) {
+                        append_string(converter, cmd);
+                        *applied |= CSS_MARGIN_LEFT;
+                    }
+                }
             }
         }
     }
 
-    /* apply font properties */
-    const char* font_weight = css_properties_get(props, "font-weight");
-    if (font_weight) apply_font_weight(converter, font_weight);
+    /* Process font properties with optimized checks */
+    if (props->mask & CSS_BOLD) {
+        const char* weight = css_properties_get(props, "font-weight");
+        if (weight) apply_font_weight(converter, weight);
+    }
 
-    const char* font_style = css_properties_get(props, "font-style");
-    if (font_style) apply_font_style(converter, font_style);
+    if (props->mask & CSS_ITALIC) {
+        const char* style = css_properties_get(props, "font-style");
+        if (style) apply_font_style(converter, style);
+    }
 
-    const char* font_family = css_properties_get(props, "font-family");
-    if (font_family) apply_font_family(converter, font_family);
+    if (props->mask & CSS_FONT_FAMILY) {
+        const char* family = css_properties_get(props, "font-family");
+        if (family) apply_font_family(converter, family);
+    }
 
-    const char* font_size = css_properties_get(props, "font-size");
-    if (font_size) apply_font_size(converter, font_size);
+    if (props->mask & CSS_FONT_SIZE) {
+        const char* size = css_properties_get(props, "font-size");
+        if (size) apply_font_size(converter, size);
+    }
 
-    /* apply text decoration */
-    const char* text_decoration = css_properties_get(props, "text-decoration");
-    if (text_decoration) apply_text_decoration(converter, text_decoration);
+    if (props->mask & CSS_UNDERLINE) {
+        const char* decoration = css_properties_get(props, "text-decoration");
+        if (decoration) apply_text_decoration(converter, decoration);
+    }
 
-    /* apply border */
-    const char* border = css_properties_get(props, "border");
+    /* process border (limited support) */
+    if (!(*applied & CSS_BORDER) && (props->mask & CSS_BORDER)) {
+        const char* border = css_properties_get(props, "border");
 
-    if (border && strstr(border, "solid")) {
-        if (!(converter->state.applied_props & CSS_BORDER)) {
+        if (border && strstr(border, "solid")) {
             append_string(converter, "\\framebox{");
             converter->state.css_braces++;
-            converter->state.applied_props |= CSS_BORDER;
+            *applied |= CSS_BORDER;
         }
     }
 }
