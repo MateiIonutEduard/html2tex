@@ -11,11 +11,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 	typedef struct ConverterState ConverterState;
 	typedef struct LaTeXConverter LaTeXConverter;
 	typedef struct HTMLElement HTMLElement;
-
 
 	struct HTMLElement {
 		HTMLNode* node;
@@ -130,12 +128,15 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
+#include <string.h>
+#include <direct.h>
 #define mkdir(path) _mkdir(path)
 #define strcasecmp _stricmp
 #define strncasecmp _strnicmp
 #else
-#define mkdir(path) mkdir(path, 0755)
 #include <strings.h>
+#include <sys/stat.h>
+#define mkdir(path) mkdir(path, 0755)
 #endif
 
 #ifdef __cplusplus
