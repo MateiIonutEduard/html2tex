@@ -1109,94 +1109,158 @@ int css_length_to_pt(const char* length_str) {
 }
 
 char* css_color_to_hex(const char* color_value) {
-    if (!color_value) return NULL;
-    char* cleaned = (char*)malloc(strlen(color_value) + 1);
+    if (!color_value || color_value[0] == '\0') return NULL;
+    const char* p = color_value;
 
-    if (!cleaned) return NULL;
-    char* dest = cleaned;
-    const char* src = color_value;
+    /* skip leading whitespace */
+    while (*p && (*p == ' ' || *p == '\t')) p++;
+    if (*p == '\0') return NULL;
 
-    while (*src) {
-        if (*src == '!' && strncasecmp(src, "!important", 9) == 0) {
-            src += 9;
-            continue;
-        }
+    /* handle #hex formats first, most common case */
+    if (*p == '#') {
+        const char* hex_start = p + 1;
+        size_t hex_len = 0;
 
-        *dest++ = *src++;
-    }
+        /* count hex characters */
+        while (hex_start[hex_len]) {
+            char c = hex_start[hex_len];
 
-    *dest = '\0';
-    char* result = NULL;
-
-    if (cleaned[0] == '#') {
-        if (strlen(cleaned) == 4) {
-            result = (char*)malloc(7);
-
-            if (result) {
-                snprintf(result, 7, "%c%c%c%c%c%c",
-                    cleaned[1], cleaned[1],
-                    cleaned[2], cleaned[2],
-                    cleaned[3], cleaned[3]);
-            }
-        }
-        else
-            result = strdup(cleaned + 1);
-    }
-    else if (strncmp(cleaned, "rgb(", 4) == 0) {
-        int r, g, b;
-
-        if (sscanf(cleaned, "rgb(%d, %d, %d)", &r, &g, &b) == 3) {
-            result = (char*)malloc(7);
-            if (result) snprintf(result, 7, "%02X%02X%02X", r, g, b);
-        }
-    }
-    else if (strncmp(cleaned, "rgba(", 5) == 0) {
-        int r, g, b;
-        float a;
-
-        if (sscanf(cleaned, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a) == 4) {
-            result = (char*)malloc(7);
-            if (result) snprintf(result, 7, "%02X%02X%02X", r, g, b);
-        }
-    }
-    else {
-        static const struct {
-            const char* name;
-            const char* hex;
-        } color_map[] = {
-            {"black", "000000"}, {"white", "FFFFFF"},
-            {"red", "FF0000"}, {"green", "008000"},
-            {"blue", "0000FF"}, {"yellow", "FFFF00"},
-            {"cyan", "00FFFF"}, {"magenta", "FF00FF"},
-            {"gray", "808080"}, {"grey", "808080"},
-            {"silver", "C0C0C0"}, {"maroon", "800000"},
-            {"olive", "808000"}, {"lime", "00FF00"},
-            {"aqua", "00FFFF"}, {"teal", "008080"},
-            {"navy", "000080"}, {"fuchsia", "FF00FF"},
-            {"purple", "800080"}, {"orange", "FFA500"},
-            {"transparent", "FFFFFF"},
-            {NULL, NULL}
-        };
-
-        for (int i = 0; color_map[i].name; i++) {
-            if (strcasecmp(cleaned, color_map[i].name) == 0) {
-                result = strdup(color_map[i].hex);
+            if (!((c >= '0' && c <= '9') || 
+                (c >= 'a' && c <= 'f') || 
+                (c >= 'A' && c <= 'F')))
                 break;
-            }
+            
+            hex_len++;
         }
 
-        if (!result)
-            result = strdup("000000");
+        if (hex_len == 3) {
+            char* result = (char*)malloc(7);
+            if (!result) return NULL;
+
+            result[0] = hex_start[0];
+            result[1] = hex_start[0];
+            result[2] = hex_start[1];
+            result[3] = hex_start[1];
+            result[4] = hex_start[2];
+            result[5] = hex_start[2];
+            result[6] = '\0';
+
+            /* convert to uppercase in place */
+            for (int i = 0; i < 6; i++) {
+                if (result[i] >= 'a' && result[i] <= 'f')
+                    result[i] = result[i] - 'a' + 'A';
+            }
+
+            return result;
+
+        }
+        else if (hex_len == 6) {
+            char* result = (char*)malloc(7);
+            if (!result) return NULL;
+
+            memcpy(result, hex_start, 6);
+            result[6] = '\0';
+
+            /* convert to uppercase in place */
+            for (int i = 0; i < 6; i++) {
+                if (result[i] >= 'a' && result[i] <= 'f')
+                    result[i] = result[i] - 'a' + 'A';
+            }
+
+            return result;
+        }
     }
 
-    free(cleaned);
+    /* check for the rgb()/rgba() formats */
+    if ((p[0] == 'r' || p[0] == 'R') &&
+        (p[1] == 'g' || p[1] == 'G') &&
+        (p[2] == 'b' || p[2] == 'B')) {
 
-    if (result) {
-        for (char* p = result; *p; p++)
-            *p = toupper(*p);
+        if ((p[3] == '(' || (p[3] == 'a' && p[4] == '('))) {
+            int r = 0, g = 0, b = 0;
+            float a = 1.0f;
+            int parsed = 0;
+
+            if (p[3] == '(') parsed = sscanf(p, "rgb(%d, %d, %d)", &r, &g, &b);
+            else parsed = sscanf(p, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a);
+
+            if (parsed >= 3) {
+                /* clamp values to valid range */
+                if (r < 0) r = 0; else if (r > 255) r = 255;
+                if (g < 0) g = 0; else if (g > 255) g = 255;
+                if (b < 0) b = 0; else if (b > 255) b = 255;
+
+                char* result = (char*)malloc(7);
+                if (!result) return NULL;
+
+                snprintf(result, 7, "%02X%02X%02X", r, g, b);
+                return result;
+            }
+        }
     }
 
-    return result;
+    /* named colors lookup with optimized searching */
+    static const struct {
+        const char name[12];
+        const char hex[7];
+    } color_map[] = {
+        {"black", "000000"},
+        {"white", "FFFFFF"},
+        {"red", "FF0000"},
+        {"green", "008000"},
+        {"blue", "0000FF"},
+        {"yellow", "FFFF00"},
+        {"cyan", "00FFFF"},
+        {"magenta", "FF00FF"},
+        {"gray", "808080"},
+        {"grey", "808080"},
+        {"silver", "C0C0C0"},
+        {"maroon", "800000"},
+        {"olive", "808000"},
+        {"lime", "00FF00"},
+        {"aqua", "00FFFF"},
+        {"teal", "008080"},
+        {"navy", "000080"},
+        {"fuchsia", "FF00FF"},
+        {"purple", "800080"},
+        {"orange", "FFA500"},
+        {"transparent", "FFFFFF"},
+        {"", ""} 
+    };
+
+    /* skip !important suffix for named colors */
+    size_t name_len = 0;
+
+    while (p[name_len] && p[name_len] != '!' &&
+        !isspace((unsigned char)p[name_len]))
+        name_len++;
+
+    /* quick length-based filtering */
+    if (name_len >= 3 && name_len <= 11) {
+        for (int i = 0; color_map[i].name[0] != '\0'; i++) {
+            /* fast length check first */
+            if (strlen(color_map[i].name) != name_len) continue;
+
+            /* first character check */
+            if ((color_map[i].name[0] | 0x20) != (p[0] | 0x20)) continue;
+
+            /* full case-insensitive comparison */
+            int match = 1;
+
+            for (size_t j = 0; j < name_len; j++) {
+                if ((color_map[i].name[j] | 0x20) != (p[j] | 0x20)) {
+                    match = 0;
+                    break;
+                }
+            }
+
+            if (match)
+                return strdup(color_map[i].hex);
+        }
+    }
+
+    /* default fallback */
+    return strdup("000000");
 }
 
 int is_css_property_inheritable(const char* property_name) {
