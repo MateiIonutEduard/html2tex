@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "html2tex.h"
+#include "data_structures.h"
 
 int queue_enqueue(Queue** front, Queue** rear, void* data) {
     Queue* node = (Queue*)malloc(sizeof(Queue));

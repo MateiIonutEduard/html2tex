@@ -157,15 +157,18 @@ endif()
 
 # Create C static library
 add_library(html2tex_c STATIC
-    source/html_parser.c
     source/html2tex.c
     source/tex_gen.c
+    source/html_parser.c
     source/html_minify.c
     source/html_prettify.c
+    source/html2tex_dom_utils.c
     source/html2tex_css.c
-    source/tex_image_utils.c
-	source/html2tex_queue_utils.c
-	source/html2tex_stack_utils.c
+    source/html2tex_string_buffer.c
+    source/html2tex_utils.c
+    source/html2tex_queue_utils.c
+    source/html2tex_stack_utils.c
+    source/html2tex_image_utils.c
 )
 
 # Set C library properties
@@ -246,9 +249,19 @@ install(TARGETS html2tex_cpp
     INCLUDES DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 
-# Install headers
+# Install all C headers
 install(FILES
     include/html2tex.h
+    include/dom_tree.h
+    include/string_buffer.h
+    include/data_structures.h
+    include/css_properties.h
+    include/image_utils.h
+    DESTINATION ${INCLUDE_INSTALL_DIR}
+)
+
+# Install C++ wrapper header
+install(FILES
     include/htmltex.h
     DESTINATION ${INCLUDE_INSTALL_DIR}
 )
@@ -256,7 +269,7 @@ install(FILES
 # Install C++ wrapper source for external applications
 install(FILES
     source/html_parser.cpp
-    sources/html_converter.cpp
+    source/html_converter.cpp
     DESTINATION ${SOURCE_INSTALL_DIR}
 )
 
@@ -308,11 +321,6 @@ install(
 # Include CPack for package generation
 include(CPack)
 
-# Add custom targets for different architectures (if needed)
-if(CMAKE_CROSSCOMPILING)
-    message(STATUS "Cross-compiling for: ${CMAKE_SYSTEM_PROCESSOR}")
-endif()
-
 # Print final output information
 message(STATUS "")
 message(STATUS "Build configuration complete:")
@@ -320,8 +328,16 @@ message(STATUS "  C static library: ${LIBRARY_PREFIX}html2tex_c${LIBRARY_SUFFIX}
 message(STATUS "  C++ static library: ${LIBRARY_PREFIX}html2tex_cpp${LIBRARY_SUFFIX}")
 message(STATUS "  Architecture: ${ARCH_NAME}")
 message(STATUS "  Output directory: ${OUTPUT_BASE_DIR}/<Config>/<Arch>")
-message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/html2tex.h")
-message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/html_parser.cpp + ${SOURCE_INSTALL_DIR}/html_converter.cpp")
+message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
+message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/ (2 .cpp files)")
+message(STATUS "")
+message(STATUS "Source files included:")
+message(STATUS "  Core: html2tex.c, tex_gen.c")
+message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_utils.c")
+message(STATUS "  CSS: html2tex_css.c")
+message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c")
+message(STATUS "  Data structures: html2tex_queue_utils.c, html2tex_stack_utils.c")
+message(STATUS "  Image: html2tex_image_utils.c")
 message(STATUS "")
 message(STATUS "Installation paths:")
 message(STATUS "  Headers: ${CMAKE_INSTALL_PREFIX}/${INCLUDE_INSTALL_DIR}")
@@ -330,7 +346,7 @@ message(STATUS "  Sources: ${CMAKE_INSTALL_PREFIX}/${SOURCE_INSTALL_DIR}")
 message(STATUS "  CMake config: ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake/html2tex")
 message(STATUS "")
 message(STATUS "For external applications:")
-message(STATUS "  1. Link against: ${LIBRARY_PREFIX}html2tex${LIBRARY_SUFFIX}")
+message(STATUS "  1. Link against: ${LIBRARY_PREFIX}html2tex_c${LIBRARY_SUFFIX}")
 message(STATUS "  2. Include: html2tex.h (C) or htmltex.h (C++)")
 message(STATUS "  3. Add html_parser.cpp and html_converter.cpp to your C++ project")
 message(STATUS "")

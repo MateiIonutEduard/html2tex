@@ -1,4 +1,4 @@
-#include "html2tex.h"
+#include "data_structures.h"
 #include <stdlib.h>
 
 int stack_push(Stack** top, void* data) {

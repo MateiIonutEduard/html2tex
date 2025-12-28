@@ -7,139 +7,177 @@
 
 /* Parses CSS margin shorthand property and sets individual margin properties. */
 static int css_properties_set_margin_shorthand(CSSProperties* props, const char* value) {
-    if (!props || !value || value[0] == '\0')
-        return 0;
+    if (!props || !value) return 0;
+    if (value[0] == '\0') return 1;
 
-    /* prevent excessive processing */
-    size_t len = strlen(value);
-    if (len > 512) return 0;
-
-    /* parse the input string efficiently */
     const char* p = value;
-    const char* end = value + len;
+    const char* value_end = value;
+    size_t length = 0;
     int important = 0;
 
-    /* scan backwards from end to find !important, case-insensitive comparison */
-    if (len >= 10) {
-        const char* search = end - 1;
+    /* find end of value (before !important) and check length */
+    while (*p) {
+        if (!important &&
+            (*p == '!' || (*p == 'i' && p == value))) {
 
-        /* skip trailing whitespace */
-        while (search > p && isspace((unsigned char)*search))
-            search--;
+            /* potential !important marker */
+            const char* test = p;
 
-        if (search - p + 1 >= 10) {
-            const char* important_start = search - 9;
+            /* skip whitespace before potential !important */
+            if (*test == ' ') {
+                const char* important_start = test;
+                while (important_start > value && isspace((unsigned char)important_start[-1]))
+                    important_start--;
 
-            if (important_start >= p) {
-                int match = 1;
-                if (*important_start != '!') match = 0;
+                if (important_start > value && important_start[-1] == '!')
+                    test = important_start - 1;
+            }
 
-                else {
-                    const char* test = important_start + 1;
-                    char expected[] = "important";
+            /* check for "!important" (case-insensitive) */
+            if (strncasecmp(test, "!important", 10) == 0) {
+                const char* after = test + 10;
 
-                    for (int i = 0; i < 9; i++) {
-                        char c1 = test[i];
-                        char c2 = expected[i];
+                if (*after == '\0' || isspace((unsigned char)*after)) {
+                    important = 1;
+                    value_end = test;
 
-                        if (c1 != c2 && tolower((unsigned char)c1) != tolower((unsigned char)c2)) {
-                            match = 0;
-                            break;
-                        }
-                    }
-                }
+                    /* skip back over whitespace before !important */
+                    while (value_end > value && isspace((unsigned char)value_end[-1])) value_end--;
 
-                if (match) {
-                    if (important_start == p || isspace((unsigned char)important_start[-1])) {
-                        important = 1;
-                        end = important_start;
-
-                        while (end > p && isspace((unsigned char)end[-1]))
-                            end--;
-                    }
+                    break;
                 }
             }
         }
+
+        /* track length with reasonable limit */
+        if (++length > MAX_REASONABLE_MARGIN_LENGTH) return 0;
+        p++;
     }
 
-    /* parse margin values */
-    char tokens[4][32];
+    /* if !important not found, value_end is at null terminator */
+    if (!important) value_end = p;
+
+    /* empty value after stripping !important */
+    if (value_end == value)
+        return important ? 1 : 0;
+
+    char tokens[4][MAX_MARGIN_TOKEN_LENGTH];
     int token_count = 0;
     int current_token_len = 0;
 
-    while (p < end && token_count < 4) {
-        while (p < end && isspace((unsigned char)*p)) p++;
-        if (p >= end) break;
+    p = value;
 
-        /* parse a single value token */
+    /* parse tokens with bounds checking */
+    while (p < value_end && token_count < 4) {
+        while (p < value_end && isspace((unsigned char)*p)) p++;
+        if (p >= value_end) break;
+
         const char* token_start = p;
         current_token_len = 0;
 
         /* parse until whitespace or end */
-        while (p < end && !isspace((unsigned char)*p) && current_token_len < 31)
+        while (p < value_end && !isspace((unsigned char)*p)) {
+            if (current_token_len >= MAX_MARGIN_TOKEN_LENGTH - 1)
+                return 0;
+
+            /* validate CSS value characters */
+            unsigned char c = (unsigned char)*p;
+
+            if (!(isdigit(c) || c == '.' || c == '-' || c == '+' || c == '%' ||
+                (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
+                return 0;
+
             tokens[token_count][current_token_len++] = *p++;
+        }
 
-        if (current_token_len == 0) continue;
-        tokens[token_count][current_token_len] = '\0';
-        token_count++;
+        /* check if we actually parsed a token */
+        if (current_token_len > 0) {
+            unsigned char first_char = (unsigned char)tokens[token_count][0];
 
-        /* skip whitespace for next token */
-        while (p < end && isspace((unsigned char)*p))
+            /* CSS length must start with digit, minus, plus, or dot */
+            if (!(isdigit(first_char) || first_char == '-' ||
+                first_char == '+' || first_char == '.')) {
+                return 0;
+            }
+
+            tokens[token_count][current_token_len] = '\0';
+            token_count++;
+        }
+
+        /* skip trailing whitespace for next token */
+        while (p < value_end && isspace((unsigned char)*p))
             p++;
     }
 
-    /* validate if parsed at least one value */
-    if (token_count == 0) 
-        return 0;
+    /* validate we consumed all input */
+    while (p < value_end && isspace((unsigned char)*p)) p++;
+    if (p != value_end) return 0;
 
-    /* ensure it consumed all input, except the whitespace */
-    while (p < end && isspace((unsigned char)*p))
-        p++;
+    /* must have at least one token for valid margin */
+    if (token_count == 0) return 0;
 
-    if (p != end)
-        return 0;
+    /* tokens should be reasonable CSS lengths */
+    for (int i = 0; i < token_count; i++) {
+        const char* token = tokens[i];
+        int has_digit = 0;
 
-    /* expand tokens according to CSS shorthand rules */
-    char expanded[4][32] = { 0 };
+        for (int j = 0; token[j]; j++) {
+            if (isdigit((unsigned char)token[j])) {
+                has_digit = 1;
+                break;
+            }
+        }
+        if (!has_digit) {
+            /* could be 'auto' or 'inherit', check those */
+            if (strcmp(token, "auto") != 0 && strcmp(token, "inherit") != 0)
+                return 0;
+        }
+    }
+
+    char expanded[4][MAX_MARGIN_TOKEN_LENGTH] = { {0}, {0}, {0}, {0} };
 
     switch (token_count) {
     case 1:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[0]);
-        strcpy(expanded[2], tokens[0]);
-        strcpy(expanded[3], tokens[0]);
+        /* all four margins get the same value */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[0], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[0], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[0], sizeof(expanded[3]) - 1);
         break;
 
     case 2:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[0]);
-        strcpy(expanded[3], tokens[1]);
+        /* top/bottom = first, left/right = second */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[0], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[1], sizeof(expanded[3]) - 1);
         break;
 
     case 3:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[2]);
-        strcpy(expanded[3], tokens[1]);
+        /* top = first, left/right = second, bottom = third */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[2], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[1], sizeof(expanded[3]) - 1);
         break;
 
     case 4:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[2]);
-        strcpy(expanded[3], tokens[3]);
+        /* top, right, bottom, left */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[2], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[3], sizeof(expanded[3]) - 1);
         break;
 
     default:
         return 0;
     }
 
+    /* set individual margin properties */
     int success = 1;
 
-    /* set individual margin properties */
     if (!css_properties_set(props, "margin-top", expanded[0], important)) success = 0;
-    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0; 
+    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0;
     if (!css_properties_set(props, "margin-bottom", expanded[2], important)) success = 0;
     if (!css_properties_set(props, "margin-left", expanded[3], important)) success = 0;
 
@@ -246,9 +284,29 @@ static CSSPropertyMask property_to_mask(const char* key) {
 }
 
 int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
-    if (!props || !key || !value) return 0;
+    /* efficient input validation */
+    if (!props || !key || !value)
+        return 0;
 
-    /* handle margin shorthand property */
+    /* prevent empty keys and obviously bad input */
+    if (key[0] == '\0') return 0;
+
+    /* sanity check for injection attempts in CSS property names */
+    const char* dangerous_chars = "<>;\"'";
+
+    for (const char* c = dangerous_chars; *c; c++) {
+        if (strchr(key, *c))
+            return 0;
+    }
+
+    /* length limits to prevent DoS */
+    size_t key_len = strlen(key);
+    size_t value_len = strlen(value);
+
+    if (key_len > CSS_KEY_PROPERTY_LENGTH || value_len > CSS_MAX_PROPERTY_LENGTH)
+        return 0;
+
+    /* handle special case for margin shorthand */
     if (strcasecmp(key, "margin") == 0)
         return css_properties_set_margin_shorthand(props, value);
 
@@ -258,12 +316,14 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
 
     while (current) {
         if (strcasecmp(current->key, key) == 0) {
-            /* update existing value */
-            free(current->value);
-            current->value = strdup(value);
-            current->important = important;
+            char* new_value = strdup(value);
+            if (!new_value) return 0;
 
-            /* update the mask */
+            free(current->value);
+            current->value = new_value;
+            current->important = important ? 1 : 0;
+
+            /* update bitmask */
             CSSPropertyMask mask = property_to_mask(key);
             if (mask) props->mask |= mask;
             return 1;
@@ -273,29 +333,28 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
         current = current->next;
     }
 
-    /* create new CSS property */
-    CSSProperty* new_prop = (CSSProperty*)malloc(sizeof(CSSProperty));
+    /* create new property */
+    CSSProperty* new_prop = NULL;
+    char* key_copy = NULL;
+    char* value_copy = NULL;
 
-    if (!new_prop) return 0;
-    new_prop->key = strdup(key);
+    /* allocate and initialize */
+    new_prop = (CSSProperty*)calloc(1, sizeof(CSSProperty));
+    if (!new_prop) goto cleanup_failure;
 
-    if (!new_prop->key) {
-        free(new_prop);
-        return 0;
-    }
+    key_copy = strdup(key);
+    if (!key_copy) goto cleanup_failure;
 
-    new_prop->value = strdup(value);
+    value_copy = strdup(value);
+    if (!value_copy) goto cleanup_failure;
 
-    if (!new_prop->value) {
-        free((void*)new_prop->key);
-        free(new_prop);
-        return 0;
-    }
-
-    new_prop->important = important;
+    /* initialize after all allocations succeeded */
+    new_prop->key = key_copy;
+    new_prop->value = value_copy;
+    new_prop->important = important ? 1 : 0;
     new_prop->next = NULL;
 
-    /* add to list */
+    /* insert into list */
     if (!props->head) {
         props->head = new_prop;
         props->tail = new_prop;
@@ -307,10 +366,17 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
 
     props->count++;
 
-    /* update mask */
+    /* update metadata */
     CSSPropertyMask mask = property_to_mask(key);
     if (mask) props->mask |= mask;
     return 1;
+
+cleanup_failure:
+    /* cleanup path for any allocation failure */
+    if (key_copy) free(key_copy);
+    if (value_copy) free(value_copy);
+    if (new_prop) free(new_prop);
+    return 0;
 }
 
 const char* css_properties_get(const CSSProperties* props, const char* key) {
@@ -358,131 +424,209 @@ CSSProperties* css_properties_copy(const CSSProperties* src) {
     return copy;
 }
 
-CSSProperties* css_properties_merge(const CSSProperties* parent,
-    const CSSProperties* child) {
-
-    /* early returns for edge cases */
-    if (!child) return NULL;
+CSSProperties* css_properties_merge(const CSSProperties* parent, const CSSProperties* child) {
+    /* validate input for edge cases */
+    if (!child) return parent ? css_properties_copy(parent) : NULL;
     if (!parent) return css_properties_copy(child);
 
-    /* create result with estimated capacity */
+    /* if child has no inheritable properties, just copy child */
+    if ((child->mask & CSS_INHERITABLE_MASK) == 0)
+        return css_properties_copy(child);
+
+    /* ownership transferred to caller on success */
     CSSProperties* result = css_properties_create();
     if (!result) return NULL;
 
-    /* if child has no inheritable properties, just copy child */
-    if (child->mask == 0) {
-        CSSProperty* current = child->head;
-
-        while (current) {
-            css_properties_set(result, current->key, current->value, current->important);
-            current = current->next;
-        }
-
-        return result;
-    }
-
-    /* copy inheritable properties from parent */
+    /* copy all parent properties first, will be overridden by child */
     CSSProperty* parent_prop = parent->head;
-
     while (parent_prop) {
-        if (is_css_property_inheritable(parent_prop->key))
-            css_properties_set(result, parent_prop->key, parent_prop->value, parent_prop->important);
+        if (is_css_property_inheritable(parent_prop->key)) {
+            if (!css_properties_set(result, parent_prop->key,
+                parent_prop->value, parent_prop->important)) {
+                goto cleanup_failure;
+            }
+        }
 
         parent_prop = parent_prop->next;
     }
 
-    /* override with child properties using CSS cascade rules */
+    /* apply child properties with correct cascade */
     CSSProperty* child_prop = child->head;
 
     while (child_prop) {
-        int should_override = 1;
         CSSProperty* existing = result->head;
+        int should_override = 1;
 
         while (existing) {
             if (strcasecmp(existing->key, child_prop->key) == 0) {
-                if (child_prop->important)
-                    should_override = 1;
-                else if (existing->important)
-                    should_override = 0;
-                else
-                    should_override = 1;
+                if (child_prop->important && !existing->important) should_override = 1;
+                else if (!child_prop->important && existing->important) should_override = 0;
+                else should_override = 1;
                 break;
             }
+
             existing = existing->next;
         }
 
-        if (should_override)
-            css_properties_set(result, child_prop->key, child_prop->value, child_prop->important);
+        if (should_override) {
+            if (!css_properties_set(result, child_prop->key,
+                child_prop->value, child_prop->important))
+                goto cleanup_failure;
+        }
 
         child_prop = child_prop->next;
     }
 
     return result;
+
+cleanup_failure:
+    css_properties_destroy(result);
+    return NULL;
 }
 
 CSSProperties* parse_css_style(const char* style_str) {
+    /* validate  the input first */
     if (!style_str) return NULL;
-    CSSProperties* props = css_properties_create();
 
-    if (!props) return NULL;
-    char* copy = strdup(style_str);
+    /* quick empty check for common case optimization */
+    if (style_str[0] == '\0')
+        return css_properties_create();
 
-    if (!copy) {
-        css_properties_destroy(props);
+    /* prevent DoS via extremely long style strings */
+    size_t total_len = strlen(style_str);
+
+    if (total_len > CSS_MAX_PROPERTY_LENGTH * 4)
         return NULL;
-    }
 
-    char* token = strtok(copy, ";");
+    /* create properties container with error handling */
+    CSSProperties* props = css_properties_create();
+    if (!props) return NULL;
 
-    while (token) {
-        /* find colon separating property and value */
-        char* colon = strchr(token, ':');
-        if (colon) {
-            *colon = '\0';
+    /* single-pass fast parsing */
+    const char* p = style_str;
 
-            /* trim property name */
-            char* prop_start = token;
-            while (*prop_start && isspace(*prop_start)) prop_start++;
-            char* prop_end = prop_start + strlen(prop_start) - 1;
-            while (prop_end > prop_start && isspace(*prop_end)) {
-                *prop_end = '\0';
-                prop_end--;
-            }
+    while (*p) {
+        /* skip whitespace between declarations */
+        while (*p && isspace((unsigned char)*p))
+            p++;
+        
+        if (!*p) break;
 
-            /* trim value */
-            char* value_start = colon + 1;
-            while (*value_start && isspace(*value_start)) value_start++;
+        /* parse property name up to colon or semicolon */
+        const char* prop_start = p;
 
-            /* check for !important */
-            int important = 0;
-            char* important_pos = strstr(value_start, "!important");
-            if (important_pos) {
-                important = 1;
+        while (*p && *p != ':' && *p != ';')
+            p++;
 
-                /* remove the !important part */
-                char* p = important_pos;
-
-                while (*p) {
-                    *p = '\0';
-                    p++;
-                }
-
-                /* trim trailing whitespace after removing !important */
-                char* value_end = value_start + strlen(value_start) - 1;
-                while (value_end > value_start && isspace(*value_end)) {
-                    *value_end = '\0';
-                    value_end--;
-                }
-            }
-
-            if (*prop_start && *value_start)
-                css_properties_set(props, prop_start, value_start, important);
+        /* validate if need colon before semicolon */
+        if (!*p || *p == ';') {
+            if (*p == ';') p++;
+            continue;
         }
 
-        token = strtok(NULL, ";");
+        /* trim trailing whitespace from property name */
+        const char* prop_end = p;
+        while (prop_end > prop_start && isspace((unsigned char)prop_end[-1]))
+            prop_end--;
+
+        /* skip the colon */
+        p++;
+
+        /* skip whitespace before value */
+        while (*p && isspace((unsigned char)*p))
+            p++;
+        
+        if (!*p) break;
+
+        /* parse value with !important detection */
+        const char* value_start = p;
+        const char* last_non_ws = p;
+        int important = 0;
+
+        while (*p && *p != ';') {
+            if (!important && (unsigned char)*p == '!') {
+                if (strncasecmp(p, "!important", 10) == 0) {
+                    char after = p[10];
+
+                    if (!after || after == ';' || isspace((unsigned char)after)) {
+                        important = 1;
+                        last_non_ws = p;
+                        p += 10;
+                        continue;
+                    }
+                }
+            }
+
+            /* track last non-whitespace for trimming */
+            if (!isspace((unsigned char)*p))
+                last_non_ws = p + 1;
+
+            p++;
+        }
+
+        const char* value_end = last_non_ws;
+
+        /* skip semicolon for next iteration */
+        if (*p == ';') p++;
+
+        /* calculate lengths for validation */
+        size_t prop_len = prop_end - prop_start;
+        size_t value_len = value_end - value_start;
+
+        /* validate property name length and content */
+        if (prop_len == 0 || prop_len > CSS_KEY_PROPERTY_LENGTH)
+            continue;
+
+        /* validate the value length */
+        if (value_len == 0 || value_len > CSS_MAX_PROPERTY_LENGTH)
+            continue;
+
+        /* validate property name doesn't contain dangerous chars */
+        int valid_property = 1;
+
+        for (const char* c = prop_start; c < prop_end; c++) {
+            unsigned char ch = (unsigned char)*c;
+            
+            if (ch == '<' || ch == '>' || ch == ';' || ch == '"' || ch == '\'') {
+                valid_property = 0;
+                break;
+            }
+        }
+
+        /* skip potentially malicious property */
+        if (!valid_property) continue;
+        char* prop_name = (char*)malloc(prop_len + 1);
+        char* prop_value = (char*)malloc(value_len + 1);
+
+        /* cleanup on allocation failure */
+        if (!prop_name || !prop_value) {
+            if (prop_name) free(prop_name);
+            if (prop_value) free(prop_value);
+            css_properties_destroy(props);
+            return NULL;
+        }
+
+        /* copy with bounds guaranteed by previous validation */
+        memcpy(prop_name, prop_start, prop_len);
+        prop_name[prop_len] = '\0';
+
+        memcpy(prop_value, value_start, value_len);
+        prop_value[value_len] = '\0';
+
+        /* add failures handling */
+        int success = css_properties_set(props, prop_name, prop_value, important);
+
+        /* clean up temporary strings */
+        free(prop_name);
+        free(prop_value);
+
+        /* abort entire parsing */
+        if (!success) {
+            css_properties_destroy(props);
+            return NULL;
+        }
     }
 
-    free(copy);
     return props;
 }
 
@@ -615,307 +759,508 @@ static void apply_font_size(LaTeXConverter* converter, const char* size) {
 
 void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
     if (!converter || !props) return;
-    int inside_table_cell = converter->state.in_table_cell;
-    int is_block = is_block_element(tag_name);
 
-    /* apply text alignment first, for block elements */
-    const char* text_align = css_properties_get(props, "text-align");
+    /* cache the critical state variables */
+    const int inside_table_cell = converter->state.in_table_cell;
+    const int is_block = is_block_element(tag_name);
+    CSSPropertyMask* applied = &converter->state.applied_props;
 
-    if (text_align && is_block && !inside_table_cell)
-        apply_text_alignment(converter, text_align);
-
-    /* apply colors */
-    const char* color = css_properties_get(props, "color");
-
-    if (color && !(converter->state.applied_props & CSS_COLOR)) {
-        char* hex_color = css_color_to_hex(color);
-
-        if (hex_color && strcmp(hex_color, "000000") != 0) {
-            append_string(converter, "\\textcolor[HTML]{");
-            append_string(converter, hex_color);
-            append_string(converter, "}{");
-
-            converter->state.css_braces++;
-            converter->state.applied_props |= CSS_COLOR;
-        }
-
-        free(hex_color);
+    /* process text alignment first (block elements only) */
+    if (is_block && !inside_table_cell && (props->mask & CSS_TEXT_ALIGN)) {
+        const char* align = css_properties_get(props, "text-align");
+        if (align) apply_text_alignment(converter, align);
     }
 
-    /* apply background color */
-    const char* bg_color = css_properties_get(props, "background-color");
+    /* process colors efficiently */
+    if (!(*applied & CSS_COLOR) && (props->mask & CSS_COLOR)) {
+        const char* color = css_properties_get(props, "color");
 
-    if (bg_color && !(converter->state.applied_props & CSS_BACKGROUND)) {
-        char* hex_color = css_color_to_hex(bg_color);
+        if (color) {
+            if (!(color[0] == 'b' && strcmp(color, "black") == 0) &&
+                !(color[0] == '#' && (strcmp(color, "#000") == 0 ||
+                    strcmp(color, "#000000") == 0))) {
+                char* hex = css_color_to_hex(color);
 
-        if (hex_color && strcmp(hex_color, "FFFFFF") != 0) {
-            if (converter->state.in_table_cell)
-                append_string(converter, "\\cellcolor[HTML]{");
-            else
-                append_string(converter, "\\colorbox[HTML]{");
+                if (hex) {
+                    if (strcmp(hex, "000000") != 0) {
+                        append_string(converter, "\\textcolor[HTML]{");
+                        append_string(converter, hex);
+                        append_string(converter, "}{");
+                        converter->state.css_braces++;
+                        *applied |= CSS_COLOR;
+                    }
 
-            append_string(converter, hex_color);
-            append_string(converter, "}{");
-
-            converter->state.css_braces++;
-            converter->state.applied_props |= CSS_BACKGROUND;
+                    free(hex);
+                }
+            }
         }
-
-        free(hex_color);
     }
 
-    /* get top and left margins (block elements) */
-    const char* margin_left = css_properties_get(props, "margin-left");
-    const char* margin_top = css_properties_get(props, "margin-top");
+    /* process background color */
+    if (!(*applied & CSS_BACKGROUND) && (props->mask & CSS_BACKGROUND)) {
+        const char* bg_color = css_properties_get(props, "background-color");
+        if (bg_color) {
+            if (!(bg_color[0] == 'w' && strcmp(bg_color, "white") == 0) &&
+                !(bg_color[0] == 't' && strcmp(bg_color, "transparent") == 0) &&
+                !(bg_color[0] == '#' && (strcmp(bg_color, "#fff") == 0 ||
+                    strcmp(bg_color, "#ffffff") == 0))) {
 
+                char* hex = css_color_to_hex(bg_color);
+
+                if (hex) {
+                    if (strcmp(hex, "FFFFFF") != 0) {
+                        if (inside_table_cell)
+                            append_string(converter, "\\cellcolor[HTML]{");
+                        else
+                            append_string(converter, "\\colorbox[HTML]{");
+
+                        append_string(converter, hex);
+                        append_string(converter, "}{");
+                        converter->state.css_braces++;
+                        *applied |= CSS_BACKGROUND;
+                    }
+
+                    free(hex);
+                }
+            }
+        }
+    }
+
+    /* process margins for block elements */
     if (is_block && !inside_table_cell) {
-        /* top margin */
-        if (margin_top && !(converter->state.applied_props & CSS_MARGIN_TOP)) {
-            int pt = css_length_to_pt(margin_top);
+        if (!(*applied & CSS_MARGIN_TOP) && (props->mask & CSS_MARGIN_TOP)) {
+            const char* margin_top = css_properties_get(props, "margin-top");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}\n", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_TOP;
+            if (margin_top) {
+                int pt = css_length_to_pt(margin_top);
+
+                if (pt != 0) {
+                    char cmd[32];
+                    int len = snprintf(cmd, sizeof(cmd), "\\vspace*{%dpt}\n", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(cmd)) {
+                        append_string(converter, cmd);
+                        *applied |= CSS_MARGIN_TOP;
+                    }
+                }
             }
         }
 
-        /* left margin */
-        if (margin_left && !(converter->state.applied_props & CSS_MARGIN_LEFT)) {
-            int pt = css_length_to_pt(margin_left);
+        if (!(*applied & CSS_MARGIN_LEFT) && (props->mask & CSS_MARGIN_LEFT)) {
+            const char* margin_left = css_properties_get(props, "margin-left");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_LEFT;
+            if (margin_left) {
+                int pt = css_length_to_pt(margin_left);
+
+                if (pt != 0) {
+                    char cmd[32];
+                    int len = snprintf(cmd, sizeof(cmd), "\\hspace*{%dpt}", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(cmd)) {
+                        append_string(converter, cmd);
+                        *applied |= CSS_MARGIN_LEFT;
+                    }
+                }
             }
         }
     }
 
-    /* apply font properties */
-    const char* font_weight = css_properties_get(props, "font-weight");
-    if (font_weight) apply_font_weight(converter, font_weight);
+    /* Process font properties with optimized checks */
+    if (props->mask & CSS_BOLD) {
+        const char* weight = css_properties_get(props, "font-weight");
+        if (weight) apply_font_weight(converter, weight);
+    }
 
-    const char* font_style = css_properties_get(props, "font-style");
-    if (font_style) apply_font_style(converter, font_style);
+    if (props->mask & CSS_ITALIC) {
+        const char* style = css_properties_get(props, "font-style");
+        if (style) apply_font_style(converter, style);
+    }
 
-    const char* font_family = css_properties_get(props, "font-family");
-    if (font_family) apply_font_family(converter, font_family);
+    if (props->mask & CSS_FONT_FAMILY) {
+        const char* family = css_properties_get(props, "font-family");
+        if (family) apply_font_family(converter, family);
+    }
 
-    const char* font_size = css_properties_get(props, "font-size");
-    if (font_size) apply_font_size(converter, font_size);
+    if (props->mask & CSS_FONT_SIZE) {
+        const char* size = css_properties_get(props, "font-size");
+        if (size) apply_font_size(converter, size);
+    }
 
-    /* apply text decoration */
-    const char* text_decoration = css_properties_get(props, "text-decoration");
-    if (text_decoration) apply_text_decoration(converter, text_decoration);
+    if (props->mask & CSS_UNDERLINE) {
+        const char* decoration = css_properties_get(props, "text-decoration");
+        if (decoration) apply_text_decoration(converter, decoration);
+    }
 
-    /* apply border */
-    const char* border = css_properties_get(props, "border");
+    /* process border (limited support) */
+    if (!(*applied & CSS_BORDER) && (props->mask & CSS_BORDER)) {
+        const char* border = css_properties_get(props, "border");
 
-    if (border && strstr(border, "solid")) {
-        if (!(converter->state.applied_props & CSS_BORDER)) {
+        if (border && strstr(border, "solid")) {
             append_string(converter, "\\framebox{");
             converter->state.css_braces++;
-            converter->state.applied_props |= CSS_BORDER;
+            *applied |= CSS_BORDER;
         }
     }
 }
 
 void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
-    if (!converter) return;
-    int inside_table_cell = converter->state.in_table_cell;
-    int is_block = is_block_element(tag_name);
+    if (!converter || !props) return;
+    const int inside_table_cell = converter->state.in_table_cell;
+    const int is_block = is_block_element(tag_name);
+    CSSPropertyMask* applied = &converter->state.applied_props;
 
-    /* output the right and bottom margins for block elements */
+    /* output right and bottom margins for block elements with bitmask optimization */
     if (is_block && !inside_table_cell) {
-        const char* margin_right = css_properties_get(props, "margin-right");
-        const char* margin_bottom = css_properties_get(props, "margin-bottom");
+        if (!(*applied & CSS_MARGIN_RIGHT) && (props->mask & CSS_MARGIN_RIGHT)) {
+            const char* margin_right = css_properties_get(props, "margin-right");
 
-        if (margin_right && !(converter->state.applied_props & CSS_MARGIN_RIGHT)) {
-            int pt = css_length_to_pt(margin_right);
+            if (margin_right) {
+                int pt = css_length_to_pt(margin_right);
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_RIGHT;
+                /* validate pt value and check for non-zero */
+                if (pt != 0 && pt > -10000 && pt < 10000) {
+                    char margin_cmd[32];
+                    int len = snprintf(margin_cmd, sizeof(margin_cmd),
+                        "\\hspace*{%dpt}", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(margin_cmd)) {
+                        append_string(converter, margin_cmd);
+                        *applied |= CSS_MARGIN_RIGHT;
+                    }
+                }
             }
         }
 
-        if (margin_bottom && !(converter->state.applied_props & CSS_MARGIN_BOTTOM)) {
-            int pt = css_length_to_pt(margin_bottom);
+        /* check margin-bottom with bitmask filtering */
+        if (!(*applied & CSS_MARGIN_BOTTOM) && (props->mask & CSS_MARGIN_BOTTOM)) {
+            const char* margin_bottom = css_properties_get(props, "margin-bottom");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                if (pt < 0) snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}", pt);
-                else snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_BOTTOM;
+            if (margin_bottom) {
+                int pt = css_length_to_pt(margin_bottom);
+
+                if (pt != 0 && pt > -10000 && pt < 10000) {
+                    char margin_cmd[32];
+                    const char* format = (pt < 0) ? "\\vspace*{%dpt}" : "\\vspace{%dpt}";
+                    int len = snprintf(margin_cmd, sizeof(margin_cmd), format, pt);
+
+                    if (len > 0 && (size_t)len < sizeof(margin_cmd)) {
+                        append_string(converter, margin_cmd);
+                        *applied |= CSS_MARGIN_BOTTOM;
+                    }
+                }
             }
         }
     }
 
+    /* efficiently close all opened braces with single allocation when possible */
+    const unsigned int brace_count = converter->state.css_braces;
+    if (brace_count > 0) {
+        if (brace_count <= 8) {
+            for (unsigned int i = 0; i < brace_count; i++)
+                append_string(converter, "}");
+        }
+        else {
+            /* pre-allocate a string to reduce function calls */
+            char* braces = (char*)malloc(brace_count + 1);
 
-    /* close all opened braces */
-    for (int i = 0; i < (int)converter->state.css_braces; i++)
-        append_string(converter, "}");
+            if (braces) {
+                memset(braces, '}', brace_count);
+                braces[brace_count] = '\0';
+                append_string(converter, braces);
+                free(braces);
+            }
+            else {
+                /* fallback to loop if allocation fails */
+                for (unsigned int i = 0; i < brace_count; i++)
+                    append_string(converter, "}");
+            }
+        }
+        converter->state.css_braces = 0;
+    }
 
-    converter->state.css_braces = 0;
-
-    /* close alignment environments */
-    if (converter->state.css_environments & 1)
-        append_string(converter, "\\end{center}\n");
-    else if (converter->state.css_environments & 2)
-        append_string(converter, "\\end{flushright}\n");
-    else if (converter->state.css_environments & 4)
-        append_string(converter, "\\end{flushleft}\n");
-
-    converter->state.css_environments = 0;
+    /* close alignment environments with bitmask checks */
+    const unsigned char env_mask = converter->state.css_environments;
+    if (env_mask != 0) {
+        switch (env_mask) {
+        case 1:
+            append_string(converter, "\\end{center}\n");
+            break;
+        case 2:
+            append_string(converter, "\\end{flushright}\n");
+            break;
+        case 4:
+            append_string(converter, "\\end{flushleft}\n");
+            break;
+        default:
+            if (env_mask & 1) append_string(converter, "\\end{center}\n");
+            if (env_mask & 2) append_string(converter, "\\end{flushright}\n");
+            if (env_mask & 4) append_string(converter, "\\end{flushleft}\n");
+            break;
+        }
+        converter->state.css_environments = 0;
+    }
 
     /* reset applied properties mask */
-    converter->state.applied_props = 0;
+    *applied = 0;
 }
 
 int css_length_to_pt(const char* length_str) {
-    if (!length_str) return 0;
+    if (!length_str || length_str[0] == '\0') return 0;
 
-    char* cleaned = (char*)malloc(strlen(length_str) + 1);
-    if (!cleaned) return 0;
+    /* skip leading whitespace */
+    const char* p = length_str;
+    while (*p && (*p == ' ' || *p == '\t')) p++;
+    if (*p == '\0') return 0;
 
-    char* dest = cleaned;
-    const char* src = length_str;
+    /* parse value and unit */
+    double value = 0.0;
+    char unit[8] = "";
 
-    while (*src) {
-        if (*src == '!' && strncasecmp(src, "!important", 9) == 0) {
-            src += 9;
-            continue;
-        }
+    /* parse with sscanf for safe with buffer limit */
+    int chars_parsed = sscanf(p, "%lf%7s", &value, unit);
 
-        *dest++ = *src++;
+    /* check for !important in the parsed unit */
+    if (chars_parsed >= 2 && strncasecmp(unit, "!important", 10) == 0) {
+        chars_parsed = sscanf(p, "%lf", &value);
+        unit[0] = '\0';
     }
 
-    *dest = '\0';
-    double value;
-    char unit[10] = "";
+    if (chars_parsed < 1) {
+        if (sscanf(p, "%lf", &value) != 1) return 0;
+        unit[0] = '\0';
+    }
 
-    if (sscanf(cleaned, "%lf%s", &value, unit) < 1) {
-        free(cleaned);
+    /* validate the value range */
+    if (value < -1000000.0 || value > 1000000.0) 
         return 0;
-    }
 
     int result = 0;
+    char first_char = unit[0];
 
-    if (strcmp(unit, "px") == 0)
-        result = (int)(value * 72.0 / 96.0);
-    else if (strcmp(unit, "pt") == 0)
-        result = (int)value;
-    else if (strcmp(unit, "em") == 0 || strcmp(unit, "rem") == 0)
-        result = (int)(value * 10.0);
-    else if (strcmp(unit, "%") == 0)
-        result = (int)(value * 0.01 * 400);
-    else if (strcmp(unit, "cm") == 0)
-        result = (int)(value * 28.346);
-    else if (strcmp(unit, "mm") == 0)
-        result = (int)(value * 2.8346);
-    else if (strcmp(unit, "in") == 0)
-        result = (int)(value * 72.0);
-    else
-        result = (int)value;
-    free(cleaned);
+    switch (first_char) {
+    case '\0':
+        result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'p': case 'P':
+        if ((unit[1] == 'x' || unit[1] == 'X') && unit[2] == '\0')
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        else if ((unit[1] == 't' || unit[1] == 'T') && unit[2] == '\0')
+            result = (int)(value + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'e': case 'E':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 10.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'r': case 'R':
+        if ((unit[1] == 'e' || unit[1] == 'E') &&
+            (unit[2] == 'm' || unit[2] == 'M') && unit[3] == '\0')
+            result = (int)(value * 10.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case '%':
+        if (unit[1] == '\0')
+            result = (int)(value * 0.01 * 400.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'c': case 'C':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 28.346 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'm': case 'M':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 2.8346 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'i': case 'I':
+        if ((unit[1] == 'n' || unit[1] == 'N') && unit[2] == '\0')
+            result = (int)(value * 72.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    default:
+        result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+    }
+
+    /* clamp result to reasonable bounds */
+    const int MIN_PT = -10000;
+    const int MAX_PT = 10000;
+
+    if (result < MIN_PT) result = MIN_PT;
+    else if (result > MAX_PT) result = MAX_PT;
     return result;
 }
 
 char* css_color_to_hex(const char* color_value) {
-    if (!color_value) return NULL;
-    char* cleaned = (char*)malloc(strlen(color_value) + 1);
+    if (!color_value || color_value[0] == '\0') return NULL;
+    const char* p = color_value;
 
-    if (!cleaned) return NULL;
-    char* dest = cleaned;
-    const char* src = color_value;
+    /* skip leading whitespace */
+    while (*p && (*p == ' ' || *p == '\t')) p++;
+    if (*p == '\0') return NULL;
 
-    while (*src) {
-        if (*src == '!' && strncasecmp(src, "!important", 9) == 0) {
-            src += 9;
-            continue;
-        }
+    /* handle #hex formats first, most common case */
+    if (*p == '#') {
+        const char* hex_start = p + 1;
+        size_t hex_len = 0;
 
-        *dest++ = *src++;
-    }
+        /* count hex characters */
+        while (hex_start[hex_len]) {
+            char c = hex_start[hex_len];
 
-    *dest = '\0';
-    char* result = NULL;
-
-    if (cleaned[0] == '#') {
-        if (strlen(cleaned) == 4) {
-            result = (char*)malloc(7);
-
-            if (result) {
-                snprintf(result, 7, "%c%c%c%c%c%c",
-                    cleaned[1], cleaned[1],
-                    cleaned[2], cleaned[2],
-                    cleaned[3], cleaned[3]);
-            }
-        }
-        else
-            result = strdup(cleaned + 1);
-    }
-    else if (strncmp(cleaned, "rgb(", 4) == 0) {
-        int r, g, b;
-
-        if (sscanf(cleaned, "rgb(%d, %d, %d)", &r, &g, &b) == 3) {
-            result = (char*)malloc(7);
-            if (result) snprintf(result, 7, "%02X%02X%02X", r, g, b);
-        }
-    }
-    else if (strncmp(cleaned, "rgba(", 5) == 0) {
-        int r, g, b;
-        float a;
-
-        if (sscanf(cleaned, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a) == 4) {
-            result = (char*)malloc(7);
-            if (result) snprintf(result, 7, "%02X%02X%02X", r, g, b);
-        }
-    }
-    else {
-        static const struct {
-            const char* name;
-            const char* hex;
-        } color_map[] = {
-            {"black", "000000"}, {"white", "FFFFFF"},
-            {"red", "FF0000"}, {"green", "008000"},
-            {"blue", "0000FF"}, {"yellow", "FFFF00"},
-            {"cyan", "00FFFF"}, {"magenta", "FF00FF"},
-            {"gray", "808080"}, {"grey", "808080"},
-            {"silver", "C0C0C0"}, {"maroon", "800000"},
-            {"olive", "808000"}, {"lime", "00FF00"},
-            {"aqua", "00FFFF"}, {"teal", "008080"},
-            {"navy", "000080"}, {"fuchsia", "FF00FF"},
-            {"purple", "800080"}, {"orange", "FFA500"},
-            {"transparent", "FFFFFF"},
-            {NULL, NULL}
-        };
-
-        for (int i = 0; color_map[i].name; i++) {
-            if (strcasecmp(cleaned, color_map[i].name) == 0) {
-                result = strdup(color_map[i].hex);
+            if (!((c >= '0' && c <= '9') || 
+                (c >= 'a' && c <= 'f') || 
+                (c >= 'A' && c <= 'F')))
                 break;
-            }
+            
+            hex_len++;
         }
 
-        if (!result)
-            result = strdup("000000");
+        if (hex_len == 3) {
+            char* result = (char*)malloc(7);
+            if (!result) return NULL;
+
+            result[0] = hex_start[0];
+            result[1] = hex_start[0];
+            result[2] = hex_start[1];
+            result[3] = hex_start[1];
+            result[4] = hex_start[2];
+            result[5] = hex_start[2];
+            result[6] = '\0';
+
+            /* convert to uppercase in place */
+            for (int i = 0; i < 6; i++) {
+                if (result[i] >= 'a' && result[i] <= 'f')
+                    result[i] = result[i] - 'a' + 'A';
+            }
+
+            return result;
+
+        }
+        else if (hex_len == 6) {
+            char* result = (char*)malloc(7);
+            if (!result) return NULL;
+
+            memcpy(result, hex_start, 6);
+            result[6] = '\0';
+
+            /* convert to uppercase in place */
+            for (int i = 0; i < 6; i++) {
+                if (result[i] >= 'a' && result[i] <= 'f')
+                    result[i] = result[i] - 'a' + 'A';
+            }
+
+            return result;
+        }
     }
 
-    free(cleaned);
+    /* check for the rgb()/rgba() formats */
+    if ((p[0] == 'r' || p[0] == 'R') &&
+        (p[1] == 'g' || p[1] == 'G') &&
+        (p[2] == 'b' || p[2] == 'B')) {
 
-    if (result) {
-        for (char* p = result; *p; p++)
-            *p = toupper(*p);
+        if ((p[3] == '(' || (p[3] == 'a' && p[4] == '('))) {
+            int r = 0, g = 0, b = 0;
+            float a = 1.0f;
+            int parsed = 0;
+
+            if (p[3] == '(') parsed = sscanf(p, "rgb(%d, %d, %d)", &r, &g, &b);
+            else parsed = sscanf(p, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a);
+
+            if (parsed >= 3) {
+                /* clamp values to valid range */
+                if (r < 0) r = 0; else if (r > 255) r = 255;
+                if (g < 0) g = 0; else if (g > 255) g = 255;
+                if (b < 0) b = 0; else if (b > 255) b = 255;
+
+                char* result = (char*)malloc(7);
+                if (!result) return NULL;
+
+                snprintf(result, 7, "%02X%02X%02X", r, g, b);
+                return result;
+            }
+        }
     }
 
-    return result;
+    /* named colors lookup with optimized searching */
+    static const struct {
+        const char name[12];
+        const char hex[7];
+    } color_map[] = {
+        {"black", "000000"},
+        {"white", "FFFFFF"},
+        {"red", "FF0000"},
+        {"green", "008000"},
+        {"blue", "0000FF"},
+        {"yellow", "FFFF00"},
+        {"cyan", "00FFFF"},
+        {"magenta", "FF00FF"},
+        {"gray", "808080"},
+        {"grey", "808080"},
+        {"silver", "C0C0C0"},
+        {"maroon", "800000"},
+        {"olive", "808000"},
+        {"lime", "00FF00"},
+        {"aqua", "00FFFF"},
+        {"teal", "008080"},
+        {"navy", "000080"},
+        {"fuchsia", "FF00FF"},
+        {"purple", "800080"},
+        {"orange", "FFA500"},
+        {"transparent", "FFFFFF"},
+        {"", ""} 
+    };
+
+    /* skip !important suffix for named colors */
+    size_t name_len = 0;
+
+    while (p[name_len] && p[name_len] != '!' &&
+        !isspace((unsigned char)p[name_len]))
+        name_len++;
+
+    /* quick length-based filtering */
+    if (name_len >= 3 && name_len <= 11) {
+        for (int i = 0; color_map[i].name[0] != '\0'; i++) {
+            /* fast length check first */
+            if (strlen(color_map[i].name) != name_len) continue;
+
+            /* first character check */
+            if ((color_map[i].name[0] | 0x20) != (p[0] | 0x20)) continue;
+
+            /* full case-insensitive comparison */
+            int match = 1;
+
+            for (size_t j = 0; j < name_len; j++) {
+                if ((color_map[i].name[j] | 0x20) != (p[j] | 0x20)) {
+                    match = 0;
+                    break;
+                }
+            }
+
+            if (match)
+                return strdup(color_map[i].hex);
+        }
+    }
+
+    /* default fallback */
+    return strdup("000000");
 }
 
 int is_css_property_inheritable(const char* property_name) {
