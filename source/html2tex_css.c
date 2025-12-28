@@ -904,58 +904,104 @@ void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props,
 }
 
 void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name) {
-    if (!converter) return;
-    int inside_table_cell = converter->state.in_table_cell;
-    int is_block = is_block_element(tag_name);
+    if (!converter || !props) return;
+    const int inside_table_cell = converter->state.in_table_cell;
+    const int is_block = is_block_element(tag_name);
+    CSSPropertyMask* applied = &converter->state.applied_props;
 
-    /* output the right and bottom margins for block elements */
+    /* output right and bottom margins for block elements with bitmask optimization */
     if (is_block && !inside_table_cell) {
-        const char* margin_right = css_properties_get(props, "margin-right");
-        const char* margin_bottom = css_properties_get(props, "margin-bottom");
+        if (!(*applied & CSS_MARGIN_RIGHT) && (props->mask & CSS_MARGIN_RIGHT)) {
+            const char* margin_right = css_properties_get(props, "margin-right");
 
-        if (margin_right && !(converter->state.applied_props & CSS_MARGIN_RIGHT)) {
-            int pt = css_length_to_pt(margin_right);
+            if (margin_right) {
+                int pt = css_length_to_pt(margin_right);
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                snprintf(margin_cmd, sizeof(margin_cmd), "\\hspace*{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_RIGHT;
+                /* validate pt value and check for non-zero */
+                if (pt != 0 && pt > -10000 && pt < 10000) {
+                    char margin_cmd[32];
+                    int len = snprintf(margin_cmd, sizeof(margin_cmd),
+                        "\\hspace*{%dpt}", pt);
+
+                    if (len > 0 && (size_t)len < sizeof(margin_cmd)) {
+                        append_string(converter, margin_cmd);
+                        *applied |= CSS_MARGIN_RIGHT;
+                    }
+                }
             }
         }
 
-        if (margin_bottom && !(converter->state.applied_props & CSS_MARGIN_BOTTOM)) {
-            int pt = css_length_to_pt(margin_bottom);
+        /* check margin-bottom with bitmask filtering */
+        if (!(*applied & CSS_MARGIN_BOTTOM) && (props->mask & CSS_MARGIN_BOTTOM)) {
+            const char* margin_bottom = css_properties_get(props, "margin-bottom");
 
-            if (pt != 0) {
-                char margin_cmd[32];
-                if (pt < 0) snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace*{%dpt}", pt);
-                else snprintf(margin_cmd, sizeof(margin_cmd), "\\vspace{%dpt}", pt);
-                append_string(converter, margin_cmd);
-                converter->state.applied_props |= CSS_MARGIN_BOTTOM;
+            if (margin_bottom) {
+                int pt = css_length_to_pt(margin_bottom);
+
+                if (pt != 0 && pt > -10000 && pt < 10000) {
+                    char margin_cmd[32];
+                    const char* format = (pt < 0) ? "\\vspace*{%dpt}" : "\\vspace{%dpt}";
+                    int len = snprintf(margin_cmd, sizeof(margin_cmd), format, pt);
+
+                    if (len > 0 && (size_t)len < sizeof(margin_cmd)) {
+                        append_string(converter, margin_cmd);
+                        *applied |= CSS_MARGIN_BOTTOM;
+                    }
+                }
             }
         }
     }
 
+    /* efficiently close all opened braces with single allocation when possible */
+    const unsigned int brace_count = converter->state.css_braces;
+    if (brace_count > 0) {
+        if (brace_count <= 8) {
+            for (unsigned int i = 0; i < brace_count; i++)
+                append_string(converter, "}");
+        }
+        else {
+            /* pre-allocate a string to reduce function calls */
+            char* braces = (char*)malloc(brace_count + 1);
 
-    /* close all opened braces */
-    for (int i = 0; i < (int)converter->state.css_braces; i++)
-        append_string(converter, "}");
+            if (braces) {
+                memset(braces, '}', brace_count);
+                braces[brace_count] = '\0';
+                append_string(converter, braces);
+                free(braces);
+            }
+            else {
+                /* fallback to loop if allocation fails */
+                for (unsigned int i = 0; i < brace_count; i++)
+                    append_string(converter, "}");
+            }
+        }
+        converter->state.css_braces = 0;
+    }
 
-    converter->state.css_braces = 0;
-
-    /* close alignment environments */
-    if (converter->state.css_environments & 1)
-        append_string(converter, "\\end{center}\n");
-    else if (converter->state.css_environments & 2)
-        append_string(converter, "\\end{flushright}\n");
-    else if (converter->state.css_environments & 4)
-        append_string(converter, "\\end{flushleft}\n");
-
-    converter->state.css_environments = 0;
+    /* close alignment environments with bitmask checks */
+    const unsigned char env_mask = converter->state.css_environments;
+    if (env_mask != 0) {
+        switch (env_mask) {
+        case 1:
+            append_string(converter, "\\end{center}\n");
+            break;
+        case 2:
+            append_string(converter, "\\end{flushright}\n");
+            break;
+        case 4:
+            append_string(converter, "\\end{flushleft}\n");
+            break;
+        default:
+            if (env_mask & 1) append_string(converter, "\\end{center}\n");
+            if (env_mask & 2) append_string(converter, "\\end{flushright}\n");
+            if (env_mask & 4) append_string(converter, "\\end{flushleft}\n");
+            break;
+        }
+        converter->state.css_environments = 0;
+    }
 
     /* reset applied properties mask */
-    converter->state.applied_props = 0;
+    *applied = 0;
 }
 
 int css_length_to_pt(const char* length_str) {
