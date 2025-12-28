@@ -8,6 +8,7 @@ extern "C" {
 #endif
 	typedef struct HTMLNode HTMLNode;
 	typedef struct HTMLAttribute HTMLAttribute;
+	typedef struct LaTeXConverter LaTeXConverter;
 
 	/* HTML node structure */
 	struct HTMLNode {
@@ -82,6 +83,12 @@ extern "C" {
 
 	/* Retrieve attribute value from linked list with case-insensitive matching. */
 	const char* get_attribute(HTMLAttribute* attrs, const char* key);
+
+	/* Detect if we're inside a table cell by checking parent hierarchy. */
+	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
+
+	/* Convert a table containing only img nodes by parsing the DOM tree. */
+	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
 
 #ifdef __cplusplus
 }

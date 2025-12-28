@@ -121,12 +121,6 @@ extern "C" {
 	/* Process an image node within table context for LaTeX generation. */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
 
-	/* Detect if we're inside a table cell by checking parent hierarchy. */
-	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
-
-	/* Convert a table containing only img nodes by parsing the DOM tree. */
-	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
-
 	/* Generate LaTeX figure caption for a table containing images. */
 	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
 
