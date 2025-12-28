@@ -485,68 +485,148 @@ cleanup_failure:
 }
 
 CSSProperties* parse_css_style(const char* style_str) {
+    /* validate  the input first */
     if (!style_str) return NULL;
-    CSSProperties* props = css_properties_create();
 
-    if (!props) return NULL;
-    char* copy = strdup(style_str);
+    /* quick empty check for common case optimization */
+    if (style_str[0] == '\0')
+        return css_properties_create();
 
-    if (!copy) {
-        css_properties_destroy(props);
+    /* prevent DoS via extremely long style strings */
+    size_t total_len = strlen(style_str);
+
+    if (total_len > CSS_MAX_PROPERTY_LENGTH * 4)
         return NULL;
-    }
 
-    char* token = strtok(copy, ";");
+    /* create properties container with error handling */
+    CSSProperties* props = css_properties_create();
+    if (!props) return NULL;
 
-    while (token) {
-        /* find colon separating property and value */
-        char* colon = strchr(token, ':');
-        if (colon) {
-            *colon = '\0';
+    /* single-pass fast parsing */
+    const char* p = style_str;
 
-            /* trim property name */
-            char* prop_start = token;
-            while (*prop_start && isspace(*prop_start)) prop_start++;
-            char* prop_end = prop_start + strlen(prop_start) - 1;
-            while (prop_end > prop_start && isspace(*prop_end)) {
-                *prop_end = '\0';
-                prop_end--;
-            }
+    while (*p) {
+        /* skip whitespace between declarations */
+        while (*p && isspace((unsigned char)*p))
+            p++;
+        
+        if (!*p) break;
 
-            /* trim value */
-            char* value_start = colon + 1;
-            while (*value_start && isspace(*value_start)) value_start++;
+        /* parse property name up to colon or semicolon */
+        const char* prop_start = p;
 
-            /* check for !important */
-            int important = 0;
-            char* important_pos = strstr(value_start, "!important");
-            if (important_pos) {
-                important = 1;
+        while (*p && *p != ':' && *p != ';')
+            p++;
 
-                /* remove the !important part */
-                char* p = important_pos;
-
-                while (*p) {
-                    *p = '\0';
-                    p++;
-                }
-
-                /* trim trailing whitespace after removing !important */
-                char* value_end = value_start + strlen(value_start) - 1;
-                while (value_end > value_start && isspace(*value_end)) {
-                    *value_end = '\0';
-                    value_end--;
-                }
-            }
-
-            if (*prop_start && *value_start)
-                css_properties_set(props, prop_start, value_start, important);
+        /* validate if need colon before semicolon */
+        if (!*p || *p == ';') {
+            if (*p == ';') p++;
+            continue;
         }
 
-        token = strtok(NULL, ";");
+        /* trim trailing whitespace from property name */
+        const char* prop_end = p;
+        while (prop_end > prop_start && isspace((unsigned char)prop_end[-1]))
+            prop_end--;
+
+        /* skip the colon */
+        p++;
+
+        /* skip whitespace before value */
+        while (*p && isspace((unsigned char)*p))
+            p++;
+        
+        if (!*p) break;
+
+        /* parse value with !important detection */
+        const char* value_start = p;
+        const char* last_non_ws = p;
+        int important = 0;
+
+        while (*p && *p != ';') {
+            if (!important && (unsigned char)*p == '!') {
+                if (strncasecmp(p, "!important", 10) == 0) {
+                    char after = p[10];
+
+                    if (!after || after == ';' || isspace((unsigned char)after)) {
+                        important = 1;
+                        last_non_ws = p;
+                        p += 10;
+                        continue;
+                    }
+                }
+            }
+
+            /* track last non-whitespace for trimming */
+            if (!isspace((unsigned char)*p))
+                last_non_ws = p + 1;
+
+            p++;
+        }
+
+        const char* value_end = last_non_ws;
+
+        /* skip semicolon for next iteration */
+        if (*p == ';') p++;
+
+        /* calculate lengths for validation */
+        size_t prop_len = prop_end - prop_start;
+        size_t value_len = value_end - value_start;
+
+        /* validate property name length and content */
+        if (prop_len == 0 || prop_len > CSS_KEY_PROPERTY_LENGTH)
+            continue;
+
+        /* validate the value length */
+        if (value_len == 0 || value_len > CSS_MAX_PROPERTY_LENGTH)
+            continue;
+
+        /* validate property name doesn't contain dangerous chars */
+        int valid_property = 1;
+
+        for (const char* c = prop_start; c < prop_end; c++) {
+            unsigned char ch = (unsigned char)*c;
+            
+            if (ch == '<' || ch == '>' || ch == ';' || ch == '"' || ch == '\'') {
+                valid_property = 0;
+                break;
+            }
+        }
+
+        /* skip potentially malicious property */
+        if (!valid_property) continue;
+        char* prop_name = (char*)malloc(prop_len + 1);
+        char* prop_value = (char*)malloc(value_len + 1);
+
+        /* cleanup on allocation failure */
+        if (!prop_name || !prop_value) {
+            if (prop_name) free(prop_name);
+            if (prop_value) free(prop_value);
+            css_properties_destroy(props);
+            return NULL;
+        }
+
+        /* copy with bounds guaranteed by previous validation */
+        memcpy(prop_name, prop_start, prop_len);
+        prop_name[prop_len] = '\0';
+
+        memcpy(prop_value, value_start, value_len);
+        prop_value[value_len] = '\0';
+
+        /* add failures handling */
+        int success = css_properties_set(props, prop_name, prop_value, important);
+
+        /* clean up temporary strings */
+        free(prop_name);
+        free(prop_value);
+
+        /* abort entire parsing */
+        if (!success) {
+            css_properties_destroy(props);
+            return NULL;
+        }
     }
 
-    free(copy);
     return props;
 }
 
