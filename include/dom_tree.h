@@ -71,12 +71,6 @@ extern "C" {
 	/* Check whether the given table element contains nested tables. */
 	int should_skip_nested_table(HTMLNode* node);
 
-	/* Detect if we're inside a table cell by checking parent hierarchy. */
-	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
-
-	/* Convert a table containing only img nodes by parsing the DOM tree. */
-	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
-
 	/* Check if an HTML node is inside a table element. */
 	int is_inside_table(HTMLNode* node);
 
