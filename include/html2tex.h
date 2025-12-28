@@ -337,6 +337,9 @@ extern "C" {
 
 	/* Safely deallocates an HTMLElement structure. */
 	void html_element_destroy(HTMLElement* elem);
+
+#define CSS_MAX_PROPERTY_LENGTH 1024
+
 #ifdef _MSC_VER
 #define strdup html2tex_strdup
 #define html2tex_itoa(value, buffer, radix) _itoa((value), (buffer), (radix))

@@ -7,139 +7,156 @@
 
 /* Parses CSS margin shorthand property and sets individual margin properties. */
 static int css_properties_set_margin_shorthand(CSSProperties* props, const char* value) {
-    if (!props || !value || value[0] == '\0')
-        return 0;
+    if (!props || !value) return 0;
+    if (value[0] == '\0') return 1;
 
-    /* prevent excessive processing */
-    size_t len = strlen(value);
-    if (len > 512) return 0;
-
-    /* parse the input string efficiently */
     const char* p = value;
-    const char* end = value + len;
+    const char* value_end = value;
+    size_t length = 0;
     int important = 0;
 
-    /* scan backwards from end to find !important, case-insensitive comparison */
-    if (len >= 10) {
-        const char* search = end - 1;
+    /* find end of value (before !important) and check length */
+    while (*p) {
+        if (!important &&
+            (*p == '!' || (*p == 'i' && p == value))) {
 
-        /* skip trailing whitespace */
-        while (search > p && isspace((unsigned char)*search))
-            search--;
+            /* potential !important marker */
+            const char* test = p;
 
-        if (search - p + 1 >= 10) {
-            const char* important_start = search - 9;
+            /* skip whitespace before potential !important */
+            if (*test == ' ') {
+                const char* important_start = test;
+                while (important_start > value && isspace((unsigned char)important_start[-1]))
+                    important_start--;
 
-            if (important_start >= p) {
-                int match = 1;
-                if (*important_start != '!') match = 0;
+                if (important_start > value && important_start[-1] == '!')
+                    test = important_start - 1;
+            }
 
-                else {
-                    const char* test = important_start + 1;
-                    char expected[] = "important";
+            /* check for "!important" (case-insensitive) */
+            if (strncasecmp(test, "!important", 10) == 0) {
+                const char* after = test + 10;
 
-                    for (int i = 0; i < 9; i++) {
-                        char c1 = test[i];
-                        char c2 = expected[i];
+                if (*after == '\0' || isspace((unsigned char)*after)) {
+                    important = 1;
+                    value_end = test;
 
-                        if (c1 != c2 && tolower((unsigned char)c1) != tolower((unsigned char)c2)) {
-                            match = 0;
-                            break;
-                        }
-                    }
-                }
+                    /* skip back over whitespace before !important */
+                    while (value_end > value && isspace((unsigned char)value_end[-1])) value_end--;
 
-                if (match) {
-                    if (important_start == p || isspace((unsigned char)important_start[-1])) {
-                        important = 1;
-                        end = important_start;
-
-                        while (end > p && isspace((unsigned char)end[-1]))
-                            end--;
-                    }
+                    break;
                 }
             }
         }
+
+        /* track length with reasonable limit */
+        if (++length > CSS_MAX_PROPERTY_LENGTH) return 0;
+        p++;
     }
 
-    /* parse margin values */
-    char tokens[4][32];
+    /* if !important not found, value_end is at null terminator */
+    if (!important) value_end = p;
+
+    /* empty value after stripping !important */
+    if (value_end == value)
+        return important ? 1 : 0;
+
+    char tokens[4][64];
     int token_count = 0;
     int current_token_len = 0;
 
-    while (p < end && token_count < 4) {
-        while (p < end && isspace((unsigned char)*p)) p++;
-        if (p >= end) break;
+    p = value;
 
-        /* parse a single value token */
+    /* parse tokens with bounds checking */
+    while (p < value_end && token_count < 4) {
+        while (p < value_end && isspace((unsigned char)*p)) p++;
+        if (p >= value_end) break;
+
         const char* token_start = p;
         current_token_len = 0;
 
         /* parse until whitespace or end */
-        while (p < end && !isspace((unsigned char)*p) && current_token_len < 31)
+        while (p < value_end && !isspace((unsigned char)*p)) {
+            if (current_token_len >= 63) 
+                return 0;
+
+            /* CSS values are mostly alphanumeric with some symbols */
+            unsigned char c = (unsigned char)*p;
+
+            if (!(isalnum(c) || c == '.' || c == '-' || c == '+' || c == '%' ||
+                c == '*' || c == '/' || c == '(' || c == ')' || c == ',')) 
+                return 0;
+
             tokens[token_count][current_token_len++] = *p++;
+        }
 
-        if (current_token_len == 0) continue;
-        tokens[token_count][current_token_len] = '\0';
-        token_count++;
+        /* check if we actually parsed a token */
+        if (current_token_len > 0) {
+            tokens[token_count][current_token_len] = '\0';
+            token_count++;
+        }
 
-        /* skip whitespace for next token */
-        while (p < end && isspace((unsigned char)*p))
+        /* skip trailing whitespace for next token */
+        while (p < value_end && isspace((unsigned char)*p))
             p++;
     }
 
-    /* validate if parsed at least one value */
-    if (token_count == 0) 
-        return 0;
+    /* validate we consumed all input */
+    while (p < value_end && isspace((unsigned char)*p)) p++;
+    if (p != value_end) return 0;
 
-    /* ensure it consumed all input, except the whitespace */
-    while (p < end && isspace((unsigned char)*p))
-        p++;
-
-    if (p != end)
-        return 0;
-
-    /* expand tokens according to CSS shorthand rules */
-    char expanded[4][32] = { 0 };
+    /* must have at least one token for valid margin */
+    if (token_count == 0) return 0;
+    char expanded[4][64] = { {0}, {0}, {0}, {0} };
 
     switch (token_count) {
     case 1:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[0]);
-        strcpy(expanded[2], tokens[0]);
-        strcpy(expanded[3], tokens[0]);
+        /* all four margins get the same value */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[0], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[0], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[0], sizeof(expanded[3]) - 1);
         break;
 
     case 2:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[0]);
-        strcpy(expanded[3], tokens[1]);
+        /* top/bottom = first, left/right = second */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[0], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[1], sizeof(expanded[3]) - 1);
         break;
 
     case 3:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[2]);
-        strcpy(expanded[3], tokens[1]);
+        /* top = first, left/right = second, bottom = third */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[2], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[1], sizeof(expanded[3]) - 1);
         break;
 
     case 4:
-        strcpy(expanded[0], tokens[0]);
-        strcpy(expanded[1], tokens[1]);
-        strcpy(expanded[2], tokens[2]);
-        strcpy(expanded[3], tokens[3]);
+        /* top, right, bottom, left */
+        strncpy(expanded[0], tokens[0], sizeof(expanded[0]) - 1);
+        strncpy(expanded[1], tokens[1], sizeof(expanded[1]) - 1);
+        strncpy(expanded[2], tokens[2], sizeof(expanded[2]) - 1);
+        strncpy(expanded[3], tokens[3], sizeof(expanded[3]) - 1);
         break;
 
     default:
         return 0;
     }
 
-    int success = 1;
+    /* validate expanded values aren't empty */
+    for (int i = 0; i < 4; i++) {
+        if (expanded[i][0] == '\0')
+            return 0;
+    }
 
     /* set individual margin properties */
+    int success = 1;
+
     if (!css_properties_set(props, "margin-top", expanded[0], important)) success = 0;
-    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0; 
+    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0;   
     if (!css_properties_set(props, "margin-bottom", expanded[2], important)) success = 0;
     if (!css_properties_set(props, "margin-left", expanded[3], important)) success = 0;
 
