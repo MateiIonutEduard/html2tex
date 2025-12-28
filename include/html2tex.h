@@ -3,12 +3,10 @@
 
 #include <stddef.h>
 #include "string_buffer.h"
+#include "dom_tree.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-	typedef struct HTMLNode HTMLNode;
-	typedef struct HTMLAttribute HTMLAttribute;
 
 	typedef struct ConverterState ConverterState;
 	typedef struct LaTeXConverter LaTeXConverter;
@@ -23,16 +21,6 @@ extern "C" {
 	typedef struct Stack Stack;
 	typedef struct Queue Queue;
 
-	/* HTML node structure */
-	struct HTMLNode {
-		char* tag;
-		char* content;
-		HTMLAttribute* attributes;
-		HTMLNode* children;
-		HTMLNode* next;
-		HTMLNode* parent;
-	};
-
 	struct Queue {
 		void* data;
 		struct Queue* next;
@@ -41,13 +29,6 @@ extern "C" {
 	struct Stack {
 		void* data;
 		struct Stack* next;
-	};
-
-	/* HTML attribute structure */
-	struct HTMLAttribute {
-		char* key;
-		char* value;
-		HTMLAttribute* next;
 	};
 
 	/* CSS property bitmask for fast presence checking.
@@ -172,21 +153,6 @@ extern "C" {
 	/* Recursively converts a DOM child node to LaTeX. */
 	void convert_children(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inherited_props);
 
-	/* Parse the virtual DOM tree without optimizations. */
-	HTMLNode* html2tex_parse(const char* html);
-
-	/* Extracts the HTML document title using Breadth-First Search (BFS). */
-	char* html2tex_extract_title(HTMLNode* root);
-
-	/* Parse HTML and return a minified DOM tree. */
-	HTMLNode* html2tex_parse_minified(const char* html);
-
-	/* Creates a new instance from the input DOM tree. */
-	HTMLNode* dom_tree_copy(HTMLNode* node);
-
-	/* Frees the memory for the HTMLNode* instance. */
-	void html2tex_free_node(HTMLNode* node);
-
 	/* Sets the download output directory. */
 	void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir);
 
@@ -205,32 +171,11 @@ extern "C" {
 	/* Frees image-download resources. */
 	void image_utils_cleanup(void);
 
-	/* Return the DOM tree after minification. */
-	HTMLNode* html2tex_minify_html(HTMLNode* root);
-
-	/* Writes formatted HTML to the output file. */
-	int write_pretty_html(HTMLNode* root, const char* filename);
-
-	/* Returns the HTML as a formatted string. */
-	char* get_pretty_html(HTMLNode* root);
-
 	/* Converts a CSS length to LaTeX points. */
 	int css_length_to_pt(const char* length_str);
 
 	/* Converts a CSS color to hexadecimal format. */
 	char* css_color_to_hex(const char* color_value);
-
-	/* Checks if an element is block-level. */
-	int is_block_element(const char* tag_name);
-
-	/* Checks if an element is inline. */
-	int is_inline_element(const char* tag_name);
-
-	/* Determines if an HTML element is a self-closing element per HTML5 spec. */
-	int is_void_element(const char* tag_name);
-
-	/* Determines if an HTML element is an essential self-closing element per HTML5 spec. */
-	int is_essential_element(const char* tag_name);
 
 	/* Returns a null-terminated duplicate of the string referenced by str. */
 	char* html2tex_strdup(const char* str);
@@ -262,35 +207,11 @@ extern "C" {
 	/* Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
 	void queue_cleanup(Queue** front, Queue** rear);
 
-	/* Determine if an HTML tag should be excluded from LaTeX conversion. */
-	int should_exclude_tag(const char* tag_name);
-
-	/* Check if string contains only whitespace. */
-	int is_whitespace_only(const char* text);
-
-	/* Check whether the given table element contains nested tables. */
-	int should_skip_nested_table(HTMLNode* node);
-
-	/* Detect if we're inside a table cell by checking parent hierarchy. */
-	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
-
-	/* Convert a table containing only img nodes by parsing the DOM tree. */
-	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
-
-	/* Check if an HTML node is inside a table element. */
-	int is_inside_table(HTMLNode* node);
-
-	/* Check whether the HTML element is a table containing only images. */
-	int table_contains_only_images(HTMLNode* node);
-
 	/* Process an image node within table context for LaTeX generation. */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
 
 	/* Generate LaTeX figure caption for a table containing images. */
 	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
-
-	/* Retrieve attribute value from linked list with case-insensitive matching. */
-	const char* get_attribute(HTMLAttribute* attrs, const char* key);
 
 	/* Calculate maximum number of columns in an HTML table. */
 	int count_table_columns(HTMLNode* node);
@@ -328,9 +249,6 @@ extern "C" {
 
 	/* Parses inline CSS from style. */
 	CSSProperties* parse_css_style(const char* style_str);
-
-	/* Removes whitespace between HTML tags while preserving text content. */
-	char* html2tex_compress_html(const char* html);
 
 	/* Find first DOM node matching criteria with computed CSS. */
 	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
