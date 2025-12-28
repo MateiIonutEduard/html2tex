@@ -1,4 +1,4 @@
-#include "html2tex.h"
+#include "string_buffer.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
