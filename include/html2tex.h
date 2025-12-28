@@ -338,7 +338,17 @@ extern "C" {
 	/* Safely deallocates an HTMLElement structure. */
 	void html_element_destroy(HTMLElement* elem);
 
-#define CSS_MAX_PROPERTY_LENGTH 1024
+#ifndef CSS_MAX_PROPERTY_LENGTH
+#define CSS_MAX_PROPERTY_LENGTH 65535
+#endif
+
+#ifndef MAX_REASONABLE_MARGIN_LENGTH
+#define MAX_REASONABLE_MARGIN_LENGTH 256
+#endif
+
+#ifndef MAX_MARGIN_TOKEN_LENGTH
+#define MAX_MARGIN_TOKEN_LENGTH 32
+#endif
 
 #ifdef _MSC_VER
 #define strdup html2tex_strdup

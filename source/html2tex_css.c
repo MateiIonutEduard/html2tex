@@ -50,7 +50,7 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
         }
 
         /* track length with reasonable limit */
-        if (++length > CSS_MAX_PROPERTY_LENGTH) return 0;
+        if (++length > MAX_REASONABLE_MARGIN_LENGTH) return 0;
         p++;
     }
 
@@ -61,7 +61,7 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
     if (value_end == value)
         return important ? 1 : 0;
 
-    char tokens[4][64];
+    char tokens[4][MAX_MARGIN_TOKEN_LENGTH];
     int token_count = 0;
     int current_token_len = 0;
 
@@ -77,14 +77,14 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
 
         /* parse until whitespace or end */
         while (p < value_end && !isspace((unsigned char)*p)) {
-            if (current_token_len >= 63) 
+            if (current_token_len >= MAX_MARGIN_TOKEN_LENGTH - 1)
                 return 0;
 
-            /* CSS values are mostly alphanumeric with some symbols */
+            /* validate CSS value characters */
             unsigned char c = (unsigned char)*p;
 
-            if (!(isalnum(c) || c == '.' || c == '-' || c == '+' || c == '%' ||
-                c == '*' || c == '/' || c == '(' || c == ')' || c == ',')) 
+            if (!(isdigit(c) || c == '.' || c == '-' || c == '+' || c == '%' ||
+                (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
                 return 0;
 
             tokens[token_count][current_token_len++] = *p++;
@@ -92,6 +92,14 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
 
         /* check if we actually parsed a token */
         if (current_token_len > 0) {
+            unsigned char first_char = (unsigned char)tokens[token_count][0];
+
+            /* CSS length must start with digit, minus, plus, or dot */
+            if (!(isdigit(first_char) || first_char == '-' ||
+                first_char == '+' || first_char == '.')) {
+                return 0;
+            }
+
             tokens[token_count][current_token_len] = '\0';
             token_count++;
         }
@@ -107,7 +115,26 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
 
     /* must have at least one token for valid margin */
     if (token_count == 0) return 0;
-    char expanded[4][64] = { {0}, {0}, {0}, {0} };
+
+    /* tokens should be reasonable CSS lengths */
+    for (int i = 0; i < token_count; i++) {
+        const char* token = tokens[i];
+        int has_digit = 0;
+
+        for (int j = 0; token[j]; j++) {
+            if (isdigit((unsigned char)token[j])) {
+                has_digit = 1;
+                break;
+            }
+        }
+        if (!has_digit) {
+            /* could be 'auto' or 'inherit', check those */
+            if (strcmp(token, "auto") != 0 && strcmp(token, "inherit") != 0)
+                return 0;
+        }
+    }
+
+    char expanded[4][MAX_MARGIN_TOKEN_LENGTH] = { {0}, {0}, {0}, {0} };
 
     switch (token_count) {
     case 1:
@@ -146,17 +173,11 @@ static int css_properties_set_margin_shorthand(CSSProperties* props, const char*
         return 0;
     }
 
-    /* validate expanded values aren't empty */
-    for (int i = 0; i < 4; i++) {
-        if (expanded[i][0] == '\0')
-            return 0;
-    }
-
     /* set individual margin properties */
     int success = 1;
 
     if (!css_properties_set(props, "margin-top", expanded[0], important)) success = 0;
-    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0;   
+    if (!css_properties_set(props, "margin-right", expanded[1], important)) success = 0;
     if (!css_properties_set(props, "margin-bottom", expanded[2], important)) success = 0;
     if (!css_properties_set(props, "margin-left", expanded[3], important)) success = 0;
 
