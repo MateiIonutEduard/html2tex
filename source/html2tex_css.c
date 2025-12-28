@@ -1005,51 +1005,106 @@ void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, c
 }
 
 int css_length_to_pt(const char* length_str) {
-    if (!length_str) return 0;
+    if (!length_str || length_str[0] == '\0') return 0;
 
-    char* cleaned = (char*)malloc(strlen(length_str) + 1);
-    if (!cleaned) return 0;
+    /* skip leading whitespace */
+    const char* p = length_str;
+    while (*p && (*p == ' ' || *p == '\t')) p++;
+    if (*p == '\0') return 0;
 
-    char* dest = cleaned;
-    const char* src = length_str;
+    /* parse value and unit */
+    double value = 0.0;
+    char unit[8] = "";
 
-    while (*src) {
-        if (*src == '!' && strncasecmp(src, "!important", 9) == 0) {
-            src += 9;
-            continue;
-        }
+    /* parse with sscanf for safe with buffer limit */
+    int chars_parsed = sscanf(p, "%lf%7s", &value, unit);
 
-        *dest++ = *src++;
+    /* check for !important in the parsed unit */
+    if (chars_parsed >= 2 && strncasecmp(unit, "!important", 10) == 0) {
+        chars_parsed = sscanf(p, "%lf", &value);
+        unit[0] = '\0';
     }
 
-    *dest = '\0';
-    double value;
-    char unit[10] = "";
+    if (chars_parsed < 1) {
+        if (sscanf(p, "%lf", &value) != 1) return 0;
+        unit[0] = '\0';
+    }
 
-    if (sscanf(cleaned, "%lf%s", &value, unit) < 1) {
-        free(cleaned);
+    /* validate the value range */
+    if (value < -1000000.0 || value > 1000000.0) 
         return 0;
-    }
 
     int result = 0;
+    char first_char = unit[0];
 
-    if (strcmp(unit, "px") == 0)
-        result = (int)(value * 72.0 / 96.0);
-    else if (strcmp(unit, "pt") == 0)
-        result = (int)value;
-    else if (strcmp(unit, "em") == 0 || strcmp(unit, "rem") == 0)
-        result = (int)(value * 10.0);
-    else if (strcmp(unit, "%") == 0)
-        result = (int)(value * 0.01 * 400);
-    else if (strcmp(unit, "cm") == 0)
-        result = (int)(value * 28.346);
-    else if (strcmp(unit, "mm") == 0)
-        result = (int)(value * 2.8346);
-    else if (strcmp(unit, "in") == 0)
-        result = (int)(value * 72.0);
-    else
-        result = (int)value;
-    free(cleaned);
+    switch (first_char) {
+    case '\0':
+        result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'p': case 'P':
+        if ((unit[1] == 'x' || unit[1] == 'X') && unit[2] == '\0')
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        else if ((unit[1] == 't' || unit[1] == 'T') && unit[2] == '\0')
+            result = (int)(value + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'e': case 'E':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 10.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'r': case 'R':
+        if ((unit[1] == 'e' || unit[1] == 'E') &&
+            (unit[2] == 'm' || unit[2] == 'M') && unit[3] == '\0')
+            result = (int)(value * 10.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case '%':
+        if (unit[1] == '\0')
+            result = (int)(value * 0.01 * 400.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'c': case 'C':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 28.346 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'm': case 'M':
+        if ((unit[1] == 'm' || unit[1] == 'M') && unit[2] == '\0')
+            result = (int)(value * 2.8346 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    case 'i': case 'I':
+        if ((unit[1] == 'n' || unit[1] == 'N') && unit[2] == '\0')
+            result = (int)(value * 72.0 + 0.5);
+        else
+            result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+
+    default:
+        result = (int)(value * 72.0 / 96.0 + 0.5);
+        break;
+    }
+
+    /* clamp result to reasonable bounds */
+    const int MIN_PT = -10000;
+    const int MAX_PT = 10000;
+
+    if (result < MIN_PT) result = MIN_PT;
+    else if (result > MAX_PT) result = MAX_PT;
     return result;
 }
 
