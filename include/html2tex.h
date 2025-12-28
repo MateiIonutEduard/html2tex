@@ -2,10 +2,11 @@
 #define HTML2TEX_H
 
 #include <stddef.h>
-#include "string_buffer.h"
 #include "dom_tree.h"
+#include "string_buffer.h"
 #include "data_structures.h"
 #include "css_properties.h"
+#include "image_utils.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,18 +100,6 @@ extern "C" {
 
 	/* Toggles image downloading according to the enable flag. */
 	void html2tex_set_download_images(LaTeXConverter* converter, int enable);
-
-	/* Downloads an image from the specified URL. */
-	char* download_image_src(const char* src, const char* output_dir, int image_counter);
-
-	/* Returns whether src contains a base64-encoded image. */
-	int is_base64_image(const char* src);
-
-	/* Initializes download processing. */
-	int image_utils_init(void);
-
-	/* Frees image-download resources. */
-	void image_utils_cleanup(void);
 
 	/* Returns a null-terminated duplicate of the string referenced by str. */
 	char* html2tex_strdup(const char* str);
