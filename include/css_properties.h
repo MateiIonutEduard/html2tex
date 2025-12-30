@@ -56,43 +56,43 @@ extern "C" {
 		unsigned char has_color;
 	};
 
-	/* Converts a CSS length to LaTeX points. */
+	/* @brief Converts a CSS length to LaTeX points. */
 	int css_length_to_pt(const char* length_str);
 
-	/* Converts a CSS color to hexadecimal format. */
+	/* @brief Converts a CSS color to hexadecimal format. */
 	char* css_color_to_hex(const char* color_value);
 
-	/* Determines if a CSS property is inheritable per W3C CSS 2.1 specification. */
+	/* @brief Determines if a CSS property is inheritable per W3C CSS 2.1 specification. */
 	int is_css_property_inheritable(const char* property_name);
 
-	/* Allocates and initializes a new CSSProperties container. */
+	/* @brief Allocates and initializes a new CSSProperties container. */
 	CSSProperties* css_properties_create(void);
 
-	/* Releases memory used by CSSProperties for managing styles. */
+	/* @brief Releases memory used by CSSProperties for managing styles. */
 	void css_properties_destroy(CSSProperties* props);
 
-	/* Set or update a CSS property in the properties collection. */
+	/* @brief Set or update a CSS property in the properties collection. */
 	int css_properties_set(CSSProperties* props, const char* key, const char* value, int important);
 
-	/* Retrieve the value of a CSS property. */
+	/* @brief Retrieve the value of a CSS property. */
 	const char* css_properties_get(const CSSProperties* props, const char* key);
 
-	/* Check if a CSS property exists in the collection. */
+	/* @brief Check if a CSS property exists in the collection. */
 	int css_properties_has(const CSSProperties* props, const char* key);
 
-	/* Merge two CSS property collections with inheritance rules. */
+	/* @brief Merge two CSS property collections with inheritance rules. */
 	CSSProperties* css_properties_merge(const CSSProperties* parent, const CSSProperties* child);
 
-	/* Apply CSS properties to the current LaTeX conversion context.*/
+	/* @brief Apply CSS properties to the current LaTeX conversion context.*/
 	void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name);
 
-	/* Finalize CSS application and reset the converter state. */
+	/* @brief Finalize CSS application and reset the converter state. */
 	void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name);
 
-	/* Create a deep copy of the CSSProperties structure. */
+	/* @brief Create a deep copy of the CSSProperties structure. */
 	CSSProperties* css_properties_copy(const CSSProperties* src);
 
-	/* Parses inline CSS from style. */
+	/* @brief Parses inline CSS from style. */
 	CSSProperties* parse_css_style(const char* style_str);
 
 #ifndef CSS_MAX_PROPERTY_LENGTH

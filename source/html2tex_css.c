@@ -6,7 +6,7 @@
 #include <math.h>
 
 /* Parses CSS margin shorthand property and sets individual margin properties. */
-static int css_properties_set_margin_shorthand(CSSProperties * props, const char* value) {
+static int css_properties_set_margin_shorthand(CSSProperties* props, const char* value) {
     if (!props || !value) return 0;
     if (value[0] == '\0') return 1;
 
