@@ -54,10 +54,7 @@ extern "C" {
 
 	/* main converter structure */
 	struct LaTeXConverter {
-		char* output;
-		size_t output_size;
-
-		size_t output_capacity;
+		StringBuffer* buffer;
 		ConverterState state;
 		CSSProperties* current_css;
 

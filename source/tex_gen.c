@@ -4,120 +4,35 @@
 #include <string.h>
 #include <ctype.h>
 
-#define INITIAL_CAPACITY 1024
-#define GROWTH_FACTOR 2
-
-static void ensure_capacity(LaTeXConverter* converter, size_t needed) {
-    /* already enough capacity */
-    if (converter->output_capacity - converter->output_size > needed)
-        return;
-
-    /* initialize if this is the first allocation */
-    if (converter->output_capacity == 0) {
-        converter->output_capacity = INITIAL_CAPACITY;
-        converter->output = (char*)malloc(converter->output_capacity);
-
-        if (!converter->output) {
-            converter->error_code = 1;
-            strncpy(converter->error_message,
-                "Memory allocation failed.",
-                sizeof(converter->error_message) - 1);
-            return;
-        }
-
-        converter->output[0] = '\0';
-        converter->output_size = 0;
-
-        /* re-check capacity after initialization */
-        if (converter->output_capacity - converter->output_size > needed)
-            return;
-    }
-
-    /* compute new capacity with overflow protection */
-    size_t required = converter->output_size + needed + 1;
-    size_t new_capacity = converter->output_capacity;
-
-    /* exponential growth with overflow protection */
-    while (new_capacity < required) {
-        if (new_capacity > SIZE_MAX / GROWTH_FACTOR) {
-            /* overflow would occur, fall back to linear growth */
-            if (required > SIZE_MAX - new_capacity) {
-                converter->error_code = 2;
-                strncpy(converter->error_message,
-                    "Buffer capacity overflow.",
-                    sizeof(converter->error_message) - 1);
-                return;
-            }
-
-            new_capacity = required;
-        }
-        else
-            new_capacity *= GROWTH_FACTOR;
-    }
-
-    /* ensure new capacity is sufficient */
-    if (new_capacity < required)
-        new_capacity = required;
-
-    /* reallocate the memory */
-    void* new_output = realloc(converter->output, new_capacity);
-
-    if (!new_output) {
-        /* keep old buffer intact for possible recovery */
-        converter->error_code = 3;
-
-        strncpy(converter->error_message,
-            "Memory reallocation failed.",
-            sizeof(converter->error_message) - 1);
-        return;
-    }
-
-    converter->output = new_output;
-    converter->output_capacity = new_capacity;
-}
-
 void append_string(LaTeXConverter* converter, const char* str) {
-    if (!converter || !str) {
-        if (converter) {
-            converter->error_code = 4;
-            strncpy(converter->error_message,
-                "NULL parameter to append_string() function.",
-                sizeof(converter->error_message) - 1);
-        }
-
+    if (!converter || !str || !converter->buffer) 
         return;
+
+    if (string_buffer_append(converter->buffer, str, 0) != 0) {
+        converter->error_code = 1;
+        strncpy(converter->error_message,
+            "Failed to append string to buffer.",
+            sizeof(converter->error_message) - 1);
     }
-
-    size_t len = strlen(str);
-    if (len == 0) return;
-
-    ensure_capacity(converter, len + 1);
-    if (converter->error_code) return;
-
-    /* direct memory copy to the current position */
-    char* dest = converter->output + converter->output_size;
-    memcpy(dest, str, len);
-
-    dest[len] = '\0';
-    converter->output_size += len;
 }
 
 /* Append a single character to the LaTeX output buffer. */
 static void append_char(LaTeXConverter* converter, char c) {
-    if (!converter) return;
-    ensure_capacity(converter, 2);
+    if (!converter || !converter->buffer) 
+        return;
 
-    if (converter->error_code) return;
-    char* dest = converter->output + converter->output_size;
-
-    *dest++ = c; *dest = '\0';
-    converter->output_size++;
+    if (string_buffer_append_char(converter->buffer, c) != 0) {
+        converter->error_code = 2;
+        strncpy(converter->error_message,
+            "Failed to append character to buffer.",
+            sizeof(converter->error_message) - 1);
+    }
 }
 
 static void escape_latex_special(LaTeXConverter* converter, const char* text) {
-    if (!text || !converter) return;
+    if (!converter || !text || !converter->buffer) return;
 
-    /* lookup table for LaTeX special characters */
+    /* optimized lookup table for LaTeX special characters (subset) */
     static const unsigned char SPECIAL_SP[256] = {
         ['{'] = 1,['}'] = 2,['&'] = 3,['%'] = 4,
         ['$'] = 5,['#'] = 6,['^'] = 7,['~'] = 8,
@@ -142,102 +57,52 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
             continue;
         }
 
+        /* copy normal characters before special */
         if (p > start) {
-            /* copy normal characters before special */
             size_t normal_len = p - start;
-
-            ensure_capacity(converter, normal_len);
-            if (converter->error_code) return;
-
-            char* dest = converter->output + converter->output_size;
-            memcpy(dest, start, normal_len);
-
-            converter->output_size += normal_len;
-            converter->output[converter->output_size] = '\0';
+            if (string_buffer_append(converter->buffer, start, normal_len) != 0) {
+                converter->error_code = 3;
+                strncpy(converter->error_message,
+                    "Failed to append text during escape.",
+                    sizeof(converter->error_message) - 1);
+                return;
+            }
         }
 
-        /* append the escaped sequence */
-        append_string(converter, ESCAPED_SP[type]);
-        if (converter->error_code) return;
-        p++; start = p;
+        /* append escaped sequence using existing StringBuffer */
+        if (string_buffer_append(converter->buffer, ESCAPED_SP[type], 0) != 0) {
+            converter->error_code = 4;
+            strncpy(converter->error_message,
+                "Failed to append escaped sequence.",
+                sizeof(converter->error_message) - 1);
+            return;
+        }
+
+        p++;
+        start = p;
     }
 
+    /* copy remaining normal characters */
     if (p > start) {
-        /* copy remaining normal characters */
         size_t remaining_len = p - start;
-
-        ensure_capacity(converter, remaining_len);
-        if (converter->error_code) return;
-
-        char* dest = converter->output + converter->output_size;
-        memcpy(dest, start, remaining_len);
-
-        converter->output_size += remaining_len;
-        converter->output[converter->output_size] = '\0';
+        if (string_buffer_append(converter->buffer, start, remaining_len) != 0) {
+            converter->error_code = 5;
+            strncpy(converter->error_message,
+                "Failed to append remaining text.",
+                sizeof(converter->error_message) - 1);
+        }
     }
 }
 
 static void escape_latex(LaTeXConverter* converter, const char* text) {
-    if (!text || !converter) return;
+    if (!converter || !text || !converter->buffer) return;
 
-    /* lookup tables for LaTeX special characters */
-    static const unsigned char key[256] = {
-        ['\\'] = 1,['{'] = 2,['}'] = 3,['&'] = 4,
-        ['%'] = 5,['$'] = 6,['#'] = 7,['_'] = 8,
-        ['^'] = 9,['~'] = 10,['<'] = 11,['>'] = 12,
-        ['\n'] = 13
-    };
-
-    static const char* const value[] = {
-        NULL, "\\textbackslash{}", "\\{", "\\}", "\\&",
-        "\\%", "\\$", "\\#", "\\_", "\\^{}", "\\~{}",
-        "\\textless{}", "\\textgreater{}", "\\\\"
-    };
-
-    const char* p = text;
-    const char* start = p;
-
-    while (*p) {
-        unsigned char c = (unsigned char)*p;
-        unsigned char type = key[c];
-
-        if (type == 0) {
-            p++;
-            continue;
-        }
-
-        if (p > start) {
-            /* copy normal characters before special */
-            size_t normal_len = p - start;
-
-            ensure_capacity(converter, normal_len);
-            if (converter->error_code) return;
-
-            char* dest = converter->output + converter->output_size;
-            memcpy(dest, start, normal_len);
-
-            converter->output_size += normal_len;
-            converter->output[converter->output_size] = '\0';
-        }
-
-        /* append escaped sequence */
-        append_string(converter, value[type]);
-        if (converter->error_code) return;
-        p++; start = p;
-    }
-
-    if (p > start) {
-        /* copy remaining normal characters */
-        size_t remaining_len = p - start;
-
-        ensure_capacity(converter, remaining_len);
-        if (converter->error_code) return;
-
-        char* dest = converter->output + converter->output_size;
-        memcpy(dest, start, remaining_len);
-
-        converter->output_size += remaining_len;
-        converter->output[converter->output_size] = '\0';
+    /* use the existing StringBuffer utility for full LaTeX escaping */
+    if (string_buffer_append_latex(converter->buffer, text) != 0) {
+        converter->error_code = 6;
+        strncpy(converter->error_message,
+            "Failed to escape LaTeX text.",
+            sizeof(converter->error_message) - 1);
     }
 }
 
@@ -286,8 +151,8 @@ static void end_environment(LaTeXConverter* converter, const char* env) {
 
     append_string(converter, "\\end{");
     if (converter->error_code) return;
-
     append_string(converter, env);
+
     if (converter->error_code) return;
     append_string(converter, "}\n");
 }
@@ -473,64 +338,37 @@ static char* color_to_hex(const char* color_value) {
 
 /* Handle color application with proper nesting. */
 static void apply_color(LaTeXConverter* converter, const char* color_value, int is_background) {
-    if (!converter || !color_value) {
-        if (converter) {
-            converter->error_code = 7;
-            strncpy(converter->error_message,
-                "NULL parameter to apply_color() function.",
-                sizeof(converter->error_message) - 1);
-        }
-
-        return;
-    }
-
+    if (!converter || !color_value || !converter->buffer) return;
     char* hex_color = color_to_hex(color_value);
 
     if (!hex_color) {
-        converter->error_code = 8;
+        converter->error_code = 9;
         strncpy(converter->error_message,
-            "Failed to convert color to hex",
+            "Failed to convert color to hex.",
             sizeof(converter->error_message) - 1);
-
         return;
     }
 
-    /* pre-allocate buffer for the entire command to reduce function calls */
-    size_t prefix_len = is_background ? 17 : 16;
-    size_t hex_len = strlen(hex_color);
+    char buffer[128];
+    int len;
 
-    size_t suffix_len = 2;
-    size_t total_len = prefix_len + hex_len + suffix_len;
-    ensure_capacity(converter, total_len);
+    if (is_background) len = snprintf(buffer, sizeof(buffer), "\\colorbox[HTML]{%s}{", hex_color);
+    else len = snprintf(buffer, sizeof(buffer), "\\textcolor[HTML]{%s}{", hex_color);
 
-    if (converter->error_code) {
-        free(hex_color);
-        return;
+    if (len > 0 && (size_t)len < sizeof(buffer)) {
+        if (string_buffer_append(converter->buffer, buffer, (size_t)len) != 0) {
+            converter->error_code = 10;
+            strncpy(converter->error_message,
+                "Failed to apply color.",
+                sizeof(converter->error_message) - 1);
+        }
     }
 
-    char* dest = converter->output + converter->output_size;
-
-    if (is_background) {
-        memcpy(dest, "\\colorbox[HTML]{", 16);
-        dest += 16;
-    }
-    else {
-        memcpy(dest, "\\textcolor[HTML]{", 17);
-        dest += 17;
-    }
-
-    memcpy(dest, hex_color, hex_len);
-    dest += hex_len;
-
-    memcpy(dest, "}{", 2);
-    dest += 2;
-
-    converter->output_size += total_len;
-    *dest = '\0'; free(hex_color);
+    free(hex_color);
 }
 
 static void begin_table(LaTeXConverter* converter, int columns) {
-    if (!converter)
+    if (!converter || !converter->buffer)
         return;
 
     if (columns <= 0) {
@@ -538,13 +376,11 @@ static void begin_table(LaTeXConverter* converter, int columns) {
         strncpy(converter->error_message,
             "Invalid column count for table.",
             sizeof(converter->error_message) - 1);
-
         return;
     }
 
     converter->state.table_internal_counter++;
     converter->state.in_table = 1;
-
     converter->state.table_columns = columns;
     converter->state.current_column = 0;
 
@@ -554,136 +390,80 @@ static void begin_table(LaTeXConverter* converter, int columns) {
         converter->state.table_caption = NULL;
     }
 
-    /* compute the required buffer size */
-    size_t header_len = strlen("\\begin{table}[h]\n\\centering\n\\begin{tabular}{|");
-    size_t column_part = (size_t)columns * 2;
+    /* use append_string for building table header efficiently */
+    append_string(converter, "\\begin{table}[h]\n\\centering\n\\begin{tabular}{|");
 
-    size_t footer_len = strlen("}\n\\hline\n");
-    size_t total_len = header_len + column_part + footer_len;
-
-    ensure_capacity(converter, total_len);
     if (converter->error_code) return;
 
-    /* build the entire table header in one go */
-    char* dest = converter->output + converter->output_size;
-
-    /* copy the table header */
-    memcpy(dest, "\\begin{table}[h]\n\\centering\n\\begin{tabular}{|", header_len);
-    dest += header_len;
-
-    /* fill column specifications */
+    /* append column specifications using efficient character appending */
     for (int i = 0; i < columns; i++) {
-        *dest++ = 'c';
-        *dest++ = '|';
+        append_string(converter, "c|");
+        if (converter->error_code) return;
     }
 
-    /* copy the table footer */
-    memcpy(dest, "}\n\\hline\n", footer_len);
-    dest += footer_len;
-
-    /* update the buffer state */
-    converter->output_size += total_len;
-    *dest = '\0';
+    append_string(converter, "}\n\\hline\n");
 }
 
 static void end_table(LaTeXConverter* converter, const char* table_label) {
-    if (!converter) {
-        fputs("Error: NULL converter in end_table() function.\n", stderr);
+    if (!converter || !converter->buffer)
         return;
-    }
 
     /* quick exit if not in table */
     if (!converter->state.in_table) {
         converter->state.in_table = 0;
         converter->state.in_table_row = 0;
-
         converter->state.in_table_cell = 0;
         return;
     }
 
-    /* build table end string efficiently*/
-    const char* tabular_end = "\\end{tabular}\n";
-    const char* table_end = "\\end{table}\n\n";
+    /* end tabular */
+    append_string(converter, "\\end{tabular}\n");
+    if (converter->error_code) {
+        goto cleanup;
+    }
 
-    /* pre-compute lengths for optimal memcpy usage */
-    size_t total_len = 0;
-    total_len += 14;
-
-    char default_caption[32];
-    const char* caption_text = NULL;
-    size_t caption_len = 0;
+    /* add the text caption */
+    append_string(converter, "\\caption{");
+    if (converter->error_code)
+        goto cleanup;
 
     if (converter->state.table_caption) {
-        caption_text = converter->state.table_caption;
-        caption_len = strlen(caption_text);
-        total_len += 9 + caption_len + 2;
+        append_string(converter, converter->state.table_caption);
+        if (converter->error_code) goto cleanup;
     }
     else {
-        snprintf(default_caption, sizeof(default_caption), "Table %d",
-            converter->state.table_internal_counter);
-        caption_text = default_caption;
+        char default_caption[32];
+        snprintf(default_caption, sizeof(default_caption),
+            "Table %d", converter->state.table_internal_counter);
+        append_string(converter, default_caption);
 
-        caption_len = strlen(caption_text);
-        total_len += 9 + caption_len + 2;
+        if (converter->error_code)
+            goto cleanup;
     }
 
-    size_t label_len = 0;
-    const char* label_text = NULL;
+    append_string(converter, "}\n");
+    if (converter->error_code)
+        goto cleanup;
 
+    /* add label if provided */
     if (table_label && table_label[0] != '\0') {
-        label_text = table_label;
-        label_len = strlen(label_text);
-        total_len += 11 + label_len + 2;
+        append_string(converter, "\\label{tab:");
+        if (converter->error_code) goto cleanup;
+
+        append_string(converter, table_label);
+        if (converter->error_code)
+            goto cleanup;
+
+        append_string(converter, "}\n");
+        if (converter->error_code)
+            goto cleanup;
     }
 
-    total_len += 13;
+    /* end table environment */
+    append_string(converter, "\\end{table}\n\n");
+    if (converter->error_code) goto cleanup;
 
-    /* ensure capacity */
-    ensure_capacity(converter, total_len);
-
-    if (converter->error_code) {
-        /* clean up on error */
-        if (converter->state.table_caption) {
-            free(converter->state.table_caption);
-            converter->state.table_caption = NULL;
-        }
-
-        return;
-    }
-
-    /* build complete output in one pass with memcpy() call */
-    char* dest = converter->output + converter->output_size;
-    memcpy(dest, tabular_end, 14);
-    dest += 14;
-
-    memcpy(dest, "\\caption{", 9);
-    dest += 9;
-
-    if (caption_len > 0) {
-        memcpy(dest, caption_text, caption_len);
-        dest += caption_len;
-    }
-
-    memcpy(dest, "}\n", 2);
-    dest += 2;
-
-    if (label_text && label_len > 0) {
-        memcpy(dest, "\\label{tab:", 11);
-        dest += 11;
-
-        memcpy(dest, label_text, label_len);
-        dest += label_len;
-
-        memcpy(dest, "}\n", 2);
-        dest += 2;
-    }
-
-    memcpy(dest, table_end, 13);
-    dest += 13;
-
-    /* update output size */
-    converter->output_size += total_len;
-
+cleanup:
     /* clean up resources */
     if (converter->state.table_caption) {
         free(converter->state.table_caption);
@@ -1102,7 +882,8 @@ void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
 }
 
 void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
-    if (!converter || !table_node) return;
+    if (!converter || !table_node)
+        return;
 
     /* increment the counter */
     converter->state.figure_internal_counter++;
@@ -1118,7 +899,6 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
             caption = child;
             break;
         }
-
         child = child->next;
     }
 
@@ -1143,34 +923,39 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
             "figure_%d", figure_counter);
     }
 
-    /* build complete string in one buffer */
-    size_t max_len = 256;
-
-    if (caption_text) max_len += (strlen(caption_text) << 4);
-    ensure_capacity(converter, max_len);
+    /* use the existing wrapper functions for consistency */
+    append_string(converter, "\\caption{");
 
     if (converter->error_code) {
-        if (caption_text) free(caption_text);
+        if (caption_text) 
+            free(caption_text);
         return;
     }
-
-    /* minimize append_string function calls */
-    append_string(converter, "\\caption{");
 
     if (caption_text) {
         escape_latex(converter, caption_text);
         free(caption_text);
+
+        if (converter->error_code)
+            return;
     }
     else {
         append_string(converter, "Figure ");
-        char counter_str[32];
+        if (converter->error_code) return;
 
+        char counter_str[32];
         snprintf(counter_str, sizeof(counter_str), "%d", figure_counter);
         append_string(converter, counter_str);
+
+        if (converter->error_code)
+            return;
     }
 
     append_string(converter, "}\n\\label{fig:");
+    if (converter->error_code) return;
+
     escape_latex_special(converter, figure_label);
+    if (converter->error_code) return;
     append_string(converter, "}\n");
 }
 
