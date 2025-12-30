@@ -5,27 +5,23 @@
 #include <ctype.h>
 
 void append_string(LaTeXConverter* converter, const char* str) {
-    if (!converter || !str || !converter->buffer) 
+    if (!converter || !str || !converter->buffer)
         return;
 
     if (string_buffer_append(converter->buffer, str, 0) != 0) {
-        converter->error_code = 1;
-        strncpy(converter->error_message,
-            "Failed to append string to buffer.",
-            sizeof(converter->error_message) - 1);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Failed to append string to buffer.");
     }
 }
 
 /* Append a single character to the LaTeX output buffer. */
 static void append_char(LaTeXConverter* converter, char c) {
-    if (!converter || !converter->buffer) 
+    if (!converter || !converter->buffer)
         return;
 
     if (string_buffer_append_char(converter->buffer, c) != 0) {
-        converter->error_code = 2;
-        strncpy(converter->error_message,
-            "Failed to append character to buffer.",
-            sizeof(converter->error_message) - 1);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Failed to append character to buffer.");
     }
 }
 
@@ -61,20 +57,16 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
         if (p > start) {
             size_t normal_len = p - start;
             if (string_buffer_append(converter->buffer, start, normal_len) != 0) {
-                converter->error_code = 3;
-                strncpy(converter->error_message,
-                    "Failed to append text during escape.",
-                    sizeof(converter->error_message) - 1);
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Failed to append text during escape.");
                 return;
             }
         }
 
         /* append escaped sequence using existing StringBuffer */
         if (string_buffer_append(converter->buffer, ESCAPED_SP[type], 0) != 0) {
-            converter->error_code = 4;
-            strncpy(converter->error_message,
-                "Failed to append escaped sequence.",
-                sizeof(converter->error_message) - 1);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to append escaped sequence.");
             return;
         }
 
@@ -86,10 +78,8 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
     if (p > start) {
         size_t remaining_len = p - start;
         if (string_buffer_append(converter->buffer, start, remaining_len) != 0) {
-            converter->error_code = 5;
-            strncpy(converter->error_message,
-                "Failed to append remaining text.",
-                sizeof(converter->error_message) - 1);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to append remaining text.");
         }
     }
 }
@@ -99,10 +89,8 @@ static void escape_latex(LaTeXConverter* converter, const char* text) {
 
     /* use the existing StringBuffer utility for full LaTeX escaping */
     if (string_buffer_append_latex(converter->buffer, text) != 0) {
-        converter->error_code = 6;
-        strncpy(converter->error_message,
-            "Failed to escape LaTeX text.",
-            sizeof(converter->error_message) - 1);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Failed to escape LaTeX text.");
     }
 }
 
@@ -120,40 +108,34 @@ void convert_children(LaTeXConverter* converter, HTMLNode* node, CSSProperties* 
 static void begin_environment(LaTeXConverter* converter, const char* env) {
     if (!converter || !env) {
         if (converter) {
-            converter->error_code = 5;
-            strncpy(converter->error_message,
-                "NULL parameter to begin_environment() function.",
-                sizeof(converter->error_message) - 1);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+                "NULL parameter to begin_environment().");
         }
-
         return;
     }
 
     append_string(converter, "\\begin{");
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
 
     append_string(converter, env);
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
     append_string(converter, "}\n");
 }
 
 static void end_environment(LaTeXConverter* converter, const char* env) {
     if (!converter || !env) {
         if (converter) {
-            converter->error_code = 6;
-            strncpy(converter->error_message,
-                "NULL parameter to end_environment() function.",
-                sizeof(converter->error_message) - 1);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+                "NULL parameter to end_environment().");
         }
-
         return;
     }
 
     append_string(converter, "\\end{");
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
     append_string(converter, env);
 
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
     append_string(converter, "}\n");
 }
 
@@ -342,10 +324,8 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
     char* hex_color = color_to_hex(color_value);
 
     if (!hex_color) {
-        converter->error_code = 9;
-        strncpy(converter->error_message,
-            "Failed to convert color to hex.",
-            sizeof(converter->error_message) - 1);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_VALUE,
+            "Failed to convert color to hex.");
         return;
     }
 
@@ -357,10 +337,10 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
 
     if (len > 0 && (size_t)len < sizeof(buffer)) {
         if (string_buffer_append(converter->buffer, buffer, (size_t)len) != 0) {
-            converter->error_code = 10;
-            strncpy(converter->error_message,
-                "Failed to apply color.",
-                sizeof(converter->error_message) - 1);
+            free(hex_color);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to apply color.");
+            return;
         }
     }
 
@@ -372,10 +352,8 @@ static void begin_table(LaTeXConverter* converter, int columns) {
         return;
 
     if (columns <= 0) {
-        converter->error_code = 9;
-        strncpy(converter->error_message,
-            "Invalid column count for table.",
-            sizeof(converter->error_message) - 1);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE,
+            "Invalid column count for table.");
         return;
     }
 
@@ -392,13 +370,12 @@ static void begin_table(LaTeXConverter* converter, int columns) {
 
     /* use append_string for building table header efficiently */
     append_string(converter, "\\begin{table}[h]\n\\centering\n\\begin{tabular}{|");
-
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
 
     /* append column specifications using efficient character appending */
     for (int i = 0; i < columns; i++) {
         append_string(converter, "c|");
-        if (converter->error_code) return;
+        if (html2tex_has_error()) return;
     }
 
     append_string(converter, "}\n\\hline\n");
@@ -418,18 +395,18 @@ static void end_table(LaTeXConverter* converter, const char* table_label) {
 
     /* end tabular */
     append_string(converter, "\\end{tabular}\n");
-    if (converter->error_code) {
+    if (html2tex_has_error()) {
         goto cleanup;
     }
 
     /* add the text caption */
     append_string(converter, "\\caption{");
-    if (converter->error_code)
+    if (html2tex_has_error())
         goto cleanup;
 
     if (converter->state.table_caption) {
         append_string(converter, converter->state.table_caption);
-        if (converter->error_code) goto cleanup;
+        if (html2tex_has_error()) goto cleanup;
     }
     else {
         char default_caption[32];
@@ -437,31 +414,31 @@ static void end_table(LaTeXConverter* converter, const char* table_label) {
             "Table %d", converter->state.table_internal_counter);
         append_string(converter, default_caption);
 
-        if (converter->error_code)
+        if (html2tex_has_error())
             goto cleanup;
     }
 
     append_string(converter, "}\n");
-    if (converter->error_code)
+    if (html2tex_has_error())
         goto cleanup;
 
     /* add label if provided */
     if (table_label && table_label[0] != '\0') {
         append_string(converter, "\\label{tab:");
-        if (converter->error_code) goto cleanup;
+        if (html2tex_has_error()) goto cleanup;
 
         append_string(converter, table_label);
-        if (converter->error_code)
+        if (html2tex_has_error())
             goto cleanup;
 
         append_string(converter, "}\n");
-        if (converter->error_code)
+        if (html2tex_has_error())
             goto cleanup;
     }
 
     /* end table environment */
     append_string(converter, "\\end{table}\n\n");
-    if (converter->error_code) goto cleanup;
+    if (html2tex_has_error()) goto cleanup;
 
 cleanup:
     /* clean up resources */
@@ -478,7 +455,8 @@ cleanup:
 
 static void begin_table_row(LaTeXConverter* converter) {
     if (!converter) {
-        fputs("Error: NULL converter in begin_table_row() function.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in begin_table_row().");
         return;
     }
 
@@ -488,7 +466,8 @@ static void begin_table_row(LaTeXConverter* converter) {
 
 static void end_table_row(LaTeXConverter* converter) {
     if (!converter) {
-        fputs("Error: NULL converter in end_table_row() function.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in end_table_row().");
         return;
     }
 
@@ -500,7 +479,8 @@ static void end_table_row(LaTeXConverter* converter) {
 
 static void begin_table_cell(LaTeXConverter* converter, int is_header) {
     if (!converter) {
-        fputs("Error: NULL converter in begin_table_cell() function.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in begin_table_cell().");
         return;
     }
 
@@ -516,7 +496,8 @@ static void begin_table_cell(LaTeXConverter* converter, int is_header) {
 
 static void end_table_cell(LaTeXConverter* converter, int is_header) {
     if (!converter) {
-        fputs("Error: NULL converter in end_table_cell() function.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in end_table_cell().");
         return;
     }
 
@@ -926,8 +907,8 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
     /* use the existing wrapper functions for consistency */
     append_string(converter, "\\caption{");
 
-    if (converter->error_code) {
-        if (caption_text) 
+    if (html2tex_has_error()) {
+        if (caption_text)
             free(caption_text);
         return;
     }
@@ -936,26 +917,26 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
         escape_latex(converter, caption_text);
         free(caption_text);
 
-        if (converter->error_code)
+        if (html2tex_has_error())
             return;
     }
     else {
         append_string(converter, "Figure ");
-        if (converter->error_code) return;
+        if (html2tex_has_error()) return;
 
         char counter_str[32];
         snprintf(counter_str, sizeof(counter_str), "%d", figure_counter);
         append_string(converter, counter_str);
 
-        if (converter->error_code)
+        if (html2tex_has_error())
             return;
     }
 
     append_string(converter, "}\n\\label{fig:");
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
 
     escape_latex_special(converter, figure_label);
-    if (converter->error_code) return;
+    if (html2tex_has_error()) return;
     append_string(converter, "}\n");
 }
 
@@ -1060,13 +1041,13 @@ void convert_node(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inhe
         const char* color_attr = get_attribute(node->attributes, "color");
         char* text_color = NULL;
 
-        if (style_attr) 
+        if (style_attr)
             text_color = extract_color_from_style(style_attr, "color");
 
         if (merged_props && text_color)
             convert_children(converter, node, merged_props);
         else if (merged_props && !text_color) {
-            if (color_attr && !(merged_props->mask & CSS_COLOR)) 
+            if (color_attr && !(merged_props->mask & CSS_COLOR))
                 apply_color(converter, color_attr, 0);
 
             convert_children(converter, node, merged_props);

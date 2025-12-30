@@ -7,6 +7,7 @@
 #include "data_structures.h"
 #include "css_properties.h"
 #include "image_utils.h"
+#include "html2tex_errors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,63 +59,60 @@ extern "C" {
 		ConverterState state;
 		CSSProperties* current_css;
 
-		int error_code;
-		char error_message[256];
-
 		char* image_output_dir;
 		int download_images;
 		int image_counter;
 	};
 
-	/* Creates a new LaTeXConverter* and allocates memory. */
+	/* @brief Creates a new LaTeXConverter* and allocates memory. */
 	LaTeXConverter* html2tex_create(void);
 
-	/* Returns a copy of the LaTeXConverter* object. */
+	/* @brief Returns a copy of the LaTeXConverter* object. */
 	LaTeXConverter* html2tex_copy(LaTeXConverter*);
 
-	/* Frees a LaTeXConverter* structure. */
+	/* @brief Frees a LaTeXConverter* structure. */
 	void html2tex_destroy(LaTeXConverter* converter);
 
-	/* Parses input HTML and converts it to LaTeX. */
+	/* @brief Parses input HTML and converts it to LaTeX. */
 	char* html2tex_convert(LaTeXConverter* converter, const char* html);
 
-	/* Returns the error code from the HTML-to-LaTeX conversion. */
-	int html2tex_get_error(const LaTeXConverter* converter);
+	/* @brief Returns the error code from the HTML-to-LaTeX conversion. */
+	int html2tex_get_error();
 
-	/* Returns the error message from the HTML-to-LaTeX conversion. */
-	const char* html2tex_get_error_message(const LaTeXConverter* converter);
+	/* @brief Returns the error message from the HTML-to-LaTeX conversion. */
+	const char* html2tex_get_error_message();
 
-	/* Append a string to the LaTeX output buffer with optimized copying. */
+	/* @brief Append a string to the LaTeX output buffer with optimized copying. */
 	void append_string(LaTeXConverter* converter, const char* str);
 
-	/* Recursively converts a DOM child node to LaTeX. */
+	/* @brief Recursively converts a DOM child node to LaTeX. */
 	void convert_children(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inherited_props);
 
-	/* Sets the download output directory. */
+	/* @brief Sets the download output directory. */
 	void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir);
 
-	/* Toggles image downloading according to the enable flag. */
+	/* @brief Toggles image downloading according to the enable flag. */
 	void html2tex_set_download_images(LaTeXConverter* converter, int enable);
 
-	/* Returns a null-terminated duplicate of the string referenced by str. */
+	/* @brief Returns a null-terminated duplicate of the string referenced by str. */
 	char* html2tex_strdup(const char* str);
 
-	/* Convert an integer to a null-terminated string using the given radix and store it in buffer. */
+	/* @brief Convert an integer to a null-terminated string using the given radix and store it in buffer. */
 	void portable_itoa(int value, char* buffer, int radix);
 
-	/* Process an image node within table context for LaTeX generation. */
+	/* @brief Process an image node within table context for LaTeX generation. */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
 
-	/* Generate LaTeX figure caption for a table containing images. */
+	/* @brief Generate LaTeX figure caption for a table containing images. */
 	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
 
-	/* Calculate maximum number of columns in an HTML table. */
+	/* @brief Calculate maximum number of columns in an HTML table. */
 	int count_table_columns(HTMLNode* node);
 
-	/* Find first DOM node matching criteria with computed CSS. */
+	/* @brief Find first DOM node matching criteria with computed CSS. */
 	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
 
-	/* Safely deallocates an HTMLElement structure. */
+	/* @brief Safely deallocates an HTMLElement structure. */
 	void html_element_destroy(HTMLElement* elem);
 
 #ifdef _MSC_VER
