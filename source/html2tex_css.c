@@ -377,7 +377,8 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
     if (strcasecmp(key, "margin") == 0) {
         int result = css_properties_set_margin_shorthand(props, value);
         if (!result && !html2tex_has_error()) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_VALUE, "Failed to set margin shorthand.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_VALUE, 
+                "Failed to set margin shorthand.");
         }
         return result;
     }

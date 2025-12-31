@@ -326,164 +326,225 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
 }
 
 char* html2tex_extract_title(HTMLNode* root) {
-    if (!root) return NULL;
-    Queue* front = NULL;
+    html2tex_err_clear();
 
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Root node is NULL for title extraction.");
+        return NULL;
+    }
+
+    Queue* front = NULL;
     Queue* rear = NULL;
     char* title_text = NULL;
 
-    /* init BFS with root's direct children */
+    /* initialize BFS with root's direct children */
     HTMLNode* child = root->children;
 
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
-            queue_cleanup(&front, &rear);
-            return NULL;
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue child node for BFS title search.");
+            goto cleanup;
         }
-
         child = child->next;
     }
 
     /* BFS search for title element */
     while (front) {
         HTMLNode* current = (HTMLNode*)queue_dequeue(&front, &rear);
+        if (!current) continue;
 
-        /* fast check for title tag */
-        if (current->tag && current->tag[0] == 't' &&
-            strcmp(current->tag, "title") == 0) {
+        /* Fast check for title tag, optimized with length check first */
+        if (current->tag && current->tag[0] == 't') {
+            size_t tag_len = strlen(current->tag);
 
             /* extract all text content from title element */
-            size_t capacity = 256;
+            if (tag_len == 5 && strcmp(current->tag, "title") == 0) {
+                size_t capacity = 256;
+                char* buffer = (char*)malloc(capacity);
 
-            char* buffer = (char*)malloc(capacity);
-            if (!buffer) break;
+                if (!buffer) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to allocate %zu bytes for title buffer.", capacity);
+                    goto cleanup;
+                }
 
-            size_t length = 0;
-            buffer[0] = '\0';
+                size_t length = 0;
+                buffer[0] = '\0';
 
-            /* BFS within title node for text content */
-            Queue* title_front = NULL;
-            Queue* title_rear = NULL;
+                /* BFS within title node for text content */
+                Queue* title_front = NULL;
+                Queue* title_rear = NULL;
 
-            if (!queue_enqueue(&title_front, &title_rear, current)) {
-                free(buffer);
-                goto cleanup;
-            }
+                if (!queue_enqueue(&title_front, &title_rear, current)) {
+                    free(buffer);
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to initialize BFS for title content extraction.");
+                    goto cleanup;
+                }
 
-            while (title_front) {
-                HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
+                while (title_front) {
+                    HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
 
-                /* collect text content */
-                if (!title_node->tag && title_node->content && title_node->content[0]) {
-                    size_t text_len = strlen(title_node->content);
+                    if (!title_node)
+                        continue;
 
-                    /* ensure capacity */
-                    if (length + text_len + 1 > capacity) {
-                        /* double the capacity, ensuring minimum growth */
-                        size_t new_capacity = capacity * 2;
+                    /* collect text content */
+                    if (!title_node->tag && title_node->content && title_node->content[0]) {
+                        size_t text_len = strlen(title_node->content);
 
-                        if (new_capacity < length + text_len + 1)
-                            new_capacity = length + text_len + 1;
-
-                        /* guard against overflow */
-                        if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {
-                            free(buffer); queue_cleanup(&title_front, &title_rear);
+                        /* ensure capacity with safe overflow checking */
+                        if (length > SIZE_MAX - text_len - 1) {
+                            free(buffer);
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                                "Title text size exceeds maximum allowed.");
+                            queue_cleanup(&title_front, &title_rear);
                             goto cleanup;
                         }
 
-                        char* new_buffer = (char*)realloc(buffer, new_capacity);
+                        if (length + text_len + 1 > capacity) {
+                            /* calculate new capacity with overflow protection */
+                            size_t new_capacity;
 
-                        if (!new_buffer) {
-                            free(buffer); queue_cleanup(&title_front, &title_rear);
-                            goto cleanup;
+                            /* cannot double, try to add exactly what's needed */
+                            if (capacity > SIZE_MAX / 2) {
+                                if (SIZE_MAX - length - text_len - 1 < capacity) {
+                                    free(buffer);
+                                    HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                                        "Title text requires capacity exceeding SIZE_MAX.");
+                                    queue_cleanup(&title_front, &title_rear);
+                                    goto cleanup;
+                                }
+
+                                new_capacity = length + text_len + 1;
+                            }
+                            else {
+                                /* double capacity with overflow check */
+                                new_capacity = capacity * 2;
+
+                                if (new_capacity < length + text_len + 1)
+                                    new_capacity = length + text_len + 1;
+                            }
+
+                            char* new_buffer = (char*)realloc(buffer, new_capacity);
+                            if (!new_buffer) {
+                                free(buffer);
+                                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                    "Failed to reallocate title buffer from %zu to %zu bytes.",
+                                    capacity, new_capacity);
+                                queue_cleanup(&title_front, &title_rear);
+                                goto cleanup;
+                            }
+
+                            buffer = new_buffer;
+                            capacity = new_capacity;
                         }
 
-                        buffer = new_buffer;
-                        capacity = new_capacity;
-                    }
-
-                    /* safe copy with bounds check */
-                    if (length + text_len < capacity) {
+                        /* safe copy with bounds check */
                         memcpy(buffer + length, title_node->content, text_len);
                         length += text_len;
                         buffer[length] = '\0';
                     }
-                }
 
-                /* enqueue children */
-                HTMLNode* title_child = title_node->children;
+                    /* enqueue children */
+                    HTMLNode* title_child = title_node->children;
 
-                while (title_child) {
-                    if (!queue_enqueue(&title_front, &title_rear, title_child)) {
-                        free(buffer);
-                        queue_cleanup(&title_front, &title_rear);
-                        goto cleanup;
+                    while (title_child) {
+                        if (!queue_enqueue(&title_front, &title_rear, title_child)) {
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                "Failed to enqueue title child node.");
+                            free(buffer);
+                            queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        title_child = title_child->next;
                     }
-
-                    title_child = title_child->next;
-                }
-            }
-
-            queue_cleanup(&title_front, &title_rear);
-
-            /* trim whitespace if we collected text */
-            if (length > 0) {
-                /* trim leading whitespace */
-                char* start = buffer;
-
-                while (*start && isspace((unsigned char)*start)) {
-                    start++;
-                    length--;
                 }
 
-                /* trim trailing whitespace */
+                queue_cleanup(&title_front, &title_rear);
+
+                /* process the extracted title text */
                 if (length > 0) {
+                    /* trim whitespace efficiently */
+                    char* start = buffer;
                     char* end = buffer + length - 1;
-                    while (end >= buffer && isspace((unsigned char)*end)) {
-                        *end = '\0';
-                        end--;
-                        length--;
+
+                    /* trim leading whitespace */
+                    while (start <= end && isspace((unsigned char)*start)) {
+                        start++;
                     }
-                }
 
-                /* move trimmed content if needed */
-                if (start != buffer && length > 0)
-                    memmove(buffer, start, length + 1);
+                    /* trim trailing whitespace */
+                    while (end >= start && isspace((unsigned char)*end))
+                        end--;
 
-                /* resize to exact length */
-                if (length > 0) {
-                    char* trimmed = (char*)realloc(buffer, length + 1);
-                    title_text = trimmed ? trimmed : buffer;
+                    size_t trimmed_len = (end >= start) ? 
+                        (size_t)(end - start + 1) : 0;
+
+                    if (trimmed_len > 0) {
+                        /* allocate exact size for trimmed title */
+                        title_text = (char*)malloc(trimmed_len + 1);
+
+                        if (!title_text) {
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                "Failed to allocate %zu bytes for trimmed title.",
+                                trimmed_len + 1);
+                            free(buffer);
+                            goto cleanup;
+                        }
+
+                        memcpy(title_text, start, trimmed_len);
+                        title_text[trimmed_len] = '\0';
+                    }
+                    else {
+                        /* empty after trimming */
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
+                            "Title element contains only whitespace.");
+                    }
+
+                    free(buffer);
                 }
                 else {
+                    /* empty title */
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
+                        "Title element contains no text content.");
                     free(buffer);
-                    title_text = NULL;
                 }
-            }
-            else {
-                free(buffer);
-                title_text = NULL;
-            }
 
-            /* found title, exit BFS */
-            break;
+                /* found title, exit BFS */
+                break;
+            }
         }
+
+        /* check if an error occurred during processing */
+        if (html2tex_has_error())
+            goto cleanup;
 
         /* enqueue children for further search */
         HTMLNode* current_child = current->children;
 
         while (current_child) {
             if (!queue_enqueue(&front, &rear, current_child)) {
-                if(title_text) free(title_text);
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child node during BFS title search.");
                 goto cleanup;
             }
-
             current_child = current_child->next;
         }
     }
 
 cleanup:
+    /* clean up BFS queues */
     queue_cleanup(&front, &rear);
+
+    /* if error occurred but title_text was allocated, free it */
+    if (html2tex_has_error() && title_text) {
+        free(title_text);
+        title_text = NULL;
+    }
+
+    /* return result */
     return title_text;
 }
 
