@@ -549,53 +549,75 @@ cleanup:
 }
 
 int should_skip_nested_table(HTMLNode* node) {
-    if (!node) return -1;
-    Queue* front = NULL;
+    html2tex_err_clear();
 
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for nested table check.");
+        return -1;
+    }
+
+    Queue* front = NULL;
     Queue* rear = NULL;
     int result = 0;
 
     /* if current node is a table, check for nested tables in descendants */
     if (node->tag && strcmp(node->tag, "table") == 0) {
-        /* if no children, definitely no nested tables */
-        if (!node->children) return 0;
+        if (!node->children) 
+            return 0;
 
         /* enqueue direct children */
         HTMLNode* child = node->children;
 
         while (child) {
-            if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+            if (!queue_enqueue(&front, &rear, child)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child for nested table BFS.");
+                goto cleanup;
+            }
+
             child = child->next;
         }
 
         /* BFS for nested tables */
-        while ((child = (HTMLNode*)queue_dequeue(&front, &rear))) {
-            if (child->tag && strcmp(child->tag, "table") == 0) {
+        HTMLNode* current;
+        while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
+            if (current->tag && strcmp(current->tag, "table") == 0) {
                 result = 1;
                 goto cleanup;
             }
 
             /* enqueue children for further search */
-            HTMLNode* grandchild = child->children;
-
+            HTMLNode* grandchild = current->children;
             while (grandchild) {
-                if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
+                if (!queue_enqueue(&front, &rear, grandchild)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to enqueue grandchild for nested table BFS.");
+                    goto cleanup;
+                }
                 grandchild = grandchild->next;
             }
+
+            /* check if error occurred during processing */
+            if (html2tex_has_error())
+                goto cleanup;
         }
     }
 
     /* check parent hierarchy for table with nested tables */
     for (HTMLNode* parent = node->parent; parent; parent = parent->parent) {
         if (parent->tag && strcmp(parent->tag, "table") == 0) {
-            /* clean and reuse the queue */
             queue_cleanup(&front, &rear);
 
-            /* enqueue parent's children */
+            /* enqueue parent's children, excluding current node */
             HTMLNode* sibling = parent->children;
 
             while (sibling) {
-                if (sibling != node && !queue_enqueue(&front, &rear, sibling)) goto cleanup;
+                if (sibling != node && !queue_enqueue(&front, &rear, sibling)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to enqueue sibling for parent table BFS.");
+                    goto cleanup;
+                }
+
                 sibling = sibling->next;
             }
 
@@ -610,9 +632,17 @@ int should_skip_nested_table(HTMLNode* node) {
                 /* enqueue children for further search */
                 HTMLNode* grandchild = current->children;
                 while (grandchild) {
-                    if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
+                    if (!queue_enqueue(&front, &rear, grandchild)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue parent descendant for BFS.");
+                        goto cleanup;
+                    }
                     grandchild = grandchild->next;
                 }
+
+                /* check if error occurred during processing */
+                if (html2tex_has_error())
+                    goto cleanup;
             }
 
             /* found nested table in parent chain? */
@@ -622,6 +652,9 @@ int should_skip_nested_table(HTMLNode* node) {
 
 cleanup:
     queue_cleanup(&front, &rear);
+
+    /* return -1 on error, otherwise the actual result */
+    if (html2tex_has_error())  return -1;
     return result;
 }
 
