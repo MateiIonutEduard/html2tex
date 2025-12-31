@@ -1277,17 +1277,28 @@ int is_whitespace_only(const char* text) {
 }
 
 int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
-    if (!node) return converter->state.in_table_cell;
+    html2tex_err_clear();
 
-    /* first check converter state for table cell */
+    /* validate inputs with appropriate error messages */
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for table cell check.");
+        return 0;
+    }
+
+    /* check converter state first */
     if (converter->state.in_table_cell) return 1;
+    if (!node) return 0;
 
-    /* then check the node's parent hierarchy */
+    /* check node's parent hierarchy for table cells */
     HTMLNode* current = node->parent;
 
     while (current) {
-        if (current->tag && (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0))
-            return 1;
+        if (current->tag) {
+            if (current->tag[0] == 't') {
+                if (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0)
+                    return 1;
+            }
+        }
 
         current = current->parent;
     }
