@@ -659,41 +659,91 @@ cleanup:
 }
 
 int table_contains_only_images(HTMLNode* node) {
-    if (!node || !node->tag || strcmp(node->tag, "table") != 0)
+    html2tex_err_clear();
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table image check.");
         return 0;
+    }
+
+    if (!node->tag || strcmp(node->tag, "table") != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Node is not a table element for image-only check.");
+        return 0;
+    }
 
     Queue* front = NULL;
     Queue* rear = NULL;
     int has_images = 0;
 
     /* enqueue direct children */
-    for (HTMLNode* child = node->children; child; child = child->next)
-        if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+    HTMLNode* child = node->children;
+    while (child) {
+        if (!queue_enqueue(&front, &rear, child)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue table child for BFS traversal.");
+            goto cleanup;
+        }
+        child = child->next;
+    }
 
     /* BFS traversal */
     HTMLNode* current;
 
     while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
+        /* error occurred during processing */
+        if (html2tex_has_error()) {
+            has_images = 0;
+            goto cleanup;
+        }
+
         if (current->tag) {
-            /* check for image tag */
-            if (strcmp(current->tag, "img") == 0) {
+            /* fast path for image tag detection */
+            if (current->tag[0] == 'i' && strcmp(current->tag, "img") == 0) {
                 has_images = 1;
                 continue;
             }
 
-            /* check for structural table elements */
-            if (strcmp(current->tag, "tbody") == 0 ||
-                strcmp(current->tag, "thead") == 0 ||
-                strcmp(current->tag, "tfoot") == 0 ||
-                strcmp(current->tag, "tr") == 0 ||
-                strcmp(current->tag, "td") == 0 ||
-                strcmp(current->tag, "th") == 0 ||
-                strcmp(current->tag, "caption") == 0) {
+            /* optimized check for structural table elements */
+            char first_char = current->tag[0];
+            int is_table_element = 0;
 
-                /* enqueue children */
-                for (HTMLNode* child = current->children; child; child = child->next)
-                    if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+            switch (first_char) {
+            case 't':
+                /* check specific 't' tags */
+                if (strcmp(current->tag, "tbody") == 0 ||
+                    strcmp(current->tag, "thead") == 0 ||
+                    strcmp(current->tag, "tfoot") == 0 ||
+                    strcmp(current->tag, "tr") == 0 ||
+                    strcmp(current->tag, "td") == 0 ||
+                    strcmp(current->tag, "th") == 0)
+                    is_table_element = 1;
+                
+                break;
 
+            case 'c':
+                /* check caption */
+                if (strcmp(current->tag, "caption") == 0)
+                    is_table_element = 1;
+                
+                break;
+
+            default:
+                break;
+            }
+
+            /* enqueue children */
+            if (is_table_element) {
+                HTMLNode* inner_child = current->children;
+                while (inner_child) {
+                    if (!queue_enqueue(&front, &rear, inner_child)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue inner child during table BFS.");
+                        has_images = 0;
+                        goto cleanup;
+                    }
+                    inner_child = inner_child->next;
+                }
                 continue;
             }
 
@@ -706,10 +756,12 @@ int table_contains_only_images(HTMLNode* node) {
             const char* p = current->content;
 
             while (*p) {
-                if (!isspace(*p++)) {
+                if (!isspace((unsigned char)*p)) {
                     has_images = 0;
                     goto cleanup;
                 }
+
+                p++;
             }
         }
     }
