@@ -90,6 +90,9 @@ extern "C" {
 	/* @brief Convert a table containing only img nodes by parsing the DOM tree. */
 	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
 
+#ifndef HTML_TITLE_MAX_SIZE
+#define HTML_TITLE_MAX_SIZE 256
+#endif
 #ifdef __cplusplus
 }
 #endif
