@@ -3,12 +3,34 @@
 #include <ctype.h>
 
 char* html2tex_compress_html(const char* html) {
-    if (!html) return NULL;
+    html2tex_err_clear();
+
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML input is NULL for compression.");
+        return NULL;
+    }
+
     size_t len = strlen(html);
-    if (len == 0) return strdup("");
+
+    if (len == 0) {
+        char* empty = strdup("");
+
+        if (!empty) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate empty string for HTML compression.");
+        }
+
+        return empty;
+    }
 
     char* result = (char*)malloc(len + 1);
-    if (!result) return NULL;
+
+    if (!result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for HTML compression buffer.", len + 1);
+        return NULL;
+    }
+
     const char* src = html;
     char* dest = result;
 
@@ -25,9 +47,8 @@ char* html2tex_compress_html(const char* html) {
 
         /* handle comments */
         if (!in_quotes && !in_tag && !in_script_style) {
-            if (c == '<' && strncmp(src, "<!--", 4) == 0) {
+            if (c == '<' && strncmp(src, "<!--", 4) == 0)
                 in_comment = 1;
-            }
             else if (c == '-' && in_comment && strncmp(src, "-->", 3) == 0) {
                 in_comment = 0;
                 *dest++ = '-'; *dest++ = '-'; *dest++ = '>';
@@ -126,7 +147,16 @@ char* html2tex_compress_html(const char* html) {
     /* trim to actual size */
     size_t final_len = dest - result;
     char* final_result = (char*)realloc(result, final_len + 1);
-    return final_result ? final_result : result;
+
+    if (!final_result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to reallocate HTML compression buffer to %zu bytes.",
+            final_len + 1);
+        /* Return original buffer instead of failing completely */
+        return result;
+    }
+
+    return final_result;
 }
 
 HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
@@ -283,7 +313,23 @@ void html_element_destroy(HTMLElement* elem) {
 }
 
 const char* get_attribute(HTMLAttribute* attrs, const char* key) {
-    if (!key || key[0] == '\0') return NULL;
+    html2tex_err_clear();
+
+    if (!attrs) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute list is NULL.");
+        return NULL;
+    }
+
+    if (!key) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute key is NULL.");
+        return NULL;
+    }
+
+    if (key[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, "Attribute key is empty.");
+        return NULL;
+    }
+
     size_t key_len = 0;
 
     /* precompute key length once for fast rejection */
@@ -663,13 +709,13 @@ int table_contains_only_images(HTMLNode* node) {
 
     if (!node) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table image check.");
-        return 0;
+        return -1;
     }
 
     if (!node->tag || strcmp(node->tag, "table") != 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
             "Node is not a table element for image-only check.");
-        return 0;
+        return -1;
     }
 
     Queue* front = NULL;
@@ -1282,7 +1328,7 @@ int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
     /* validate inputs with appropriate error messages */
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for table cell check.");
-        return 0;
+        return -1;
     }
 
     /* check converter state first */
@@ -1307,7 +1353,11 @@ int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
 }
 
 int is_inside_table(HTMLNode* node) {
-    if (!node) return 0;
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table check.");
+        return -1;
+    }
+
     HTMLNode* current = node->parent;
 
     while (current) {
