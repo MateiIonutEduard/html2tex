@@ -772,16 +772,46 @@ cleanup:
 }
 
 void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for image table conversion.");
+        return;
+    }
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Table node is NULL for image table conversion.");
+        return;
+    }
+
     /* write figure header */
     append_string(converter, "\\begin{figure}[htbp]\n\\centering\n");
+    if (html2tex_has_error()) return;
+
     append_string(converter, "\\setlength{\\fboxsep}{0pt}\n\\setlength{\\tabcolsep}{1pt}\n");
+    if (html2tex_has_error()) return;
 
     /* start tabular */
     int columns = count_table_columns(node);
-    append_string(converter, "\\begin{tabular}{");
+    if (html2tex_has_error()) return;
 
-    for (int i = 0; i < columns; i++) append_string(converter, "c");
+    if (columns <= 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE_STRUCTURE,
+            "Invalid column count (%d) for image table.", columns);
+        return;
+    }
+
+    append_string(converter, "\\begin{tabular}{");
+    if (html2tex_has_error()) return;
+
+    for (int i = 0; i < columns; i++) {
+        append_string(converter, "c");
+        if (html2tex_has_error()) 
+            goto cleanup_queues;
+    }
+
     append_string(converter, "}\n");
+    if (html2tex_has_error()) goto cleanup_queues;
 
     /* BFS for table rows */
     Queue* queue = NULL, * rear = NULL;
@@ -789,72 +819,145 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     int first_row = 1;
 
     /* enqueue table children */
-    for (HTMLNode* child = node->children; child; child = child->next)
-        queue_enqueue(&queue, &rear, child);
+    HTMLNode* child = node->children;
+
+    while (child) {
+        if (!queue_enqueue(&queue, &rear, child)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue table child for BFS traversal.");
+            goto cleanup_queues;
+        }
+
+        child = child->next;
+    }
 
     /* process table */
     HTMLNode* current;
-
     while ((current = (HTMLNode*)queue_dequeue(&queue, &rear))) {
+        if (html2tex_has_error()) goto cleanup_queues;
         if (!current->tag) continue;
 
-        if (strcmp(current->tag, "tr") == 0) {
-            if (!first_row) append_string(converter, " \\\\\n");
-            first_row = 0;
+        /* optimized tag checking with first char */
+        char first_char = current->tag[0];
 
-            /* process cells in row */
-            HTMLNode* cell = current->children;
-            int col_count = 0;
-
-            while (cell) {
-                if (cell->tag && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0)) {
-                    if (col_count++ > 0) append_string(converter, " & ");
-
-                    /* BFS search for image in cell */
-                    cell_queue = cell_rear = NULL;
-
-                    for (HTMLNode* cell_child = cell->children; cell_child; cell_child = cell_child->next)
-                        queue_enqueue(&cell_queue, &cell_rear, cell_child);
-
-                    int img_found = 0;
-                    HTMLNode* cell_node;
-
-                    while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
-                        if (cell_node->tag && strcmp(cell_node->tag, "img") == 0) {
-                            process_table_image(converter, cell_node);
-                            img_found = 1;
-                        }
-                        else if (cell_node->tag) {
-                            /* enqueue children for deeper search */
-                            for (HTMLNode* grandchild = cell_node->children; grandchild; grandchild = grandchild->next)
-                                queue_enqueue(&cell_queue, &cell_rear, grandchild);
-                        }
-                    }
-
-                    if (!img_found) append_string(converter, " ");
-                    queue_cleanup(&cell_queue, &cell_rear);
+        /* check specific 't' tags */
+        if (first_char == 't') {
+            if (strcmp(current->tag, "tr") == 0) {
+                if (!first_row) {
+                    append_string(converter, " \\\\\n");
+                    if (html2tex_has_error()) goto cleanup_queues;
                 }
 
-                cell = cell->next;
+                first_row = 0;
+
+                /* process cells in row */
+                HTMLNode* cell = current->children;
+                int col_count = 0;
+
+                while (cell) {
+                    if (html2tex_has_error())
+                        goto cleanup_queues;
+
+                    if (cell->tag && (cell->tag[0] == 't' &&
+                        (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0))) {
+                        if (col_count++ > 0) {
+                            append_string(converter, " & ");
+                            if (html2tex_has_error()) goto cleanup_queues;
+                        }
+
+                        /* BFS search for image in cell */
+                        cell_queue = cell_rear = NULL;
+                        HTMLNode* cell_child = cell->children;
+
+                        while (cell_child) {
+                            if (!queue_enqueue(&cell_queue, &cell_rear, cell_child)) {
+                                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                    "Failed to enqueue cell child for image search.");
+                                goto cleanup_queues;
+                            }
+
+                            cell_child = cell_child->next;
+                        }
+
+                        int img_found = 0;
+                        HTMLNode* cell_node;
+
+                        while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
+                            if (html2tex_has_error()) {
+                                queue_cleanup(&cell_queue, &cell_rear);
+                                goto cleanup_queues;
+                            }
+
+                            if (cell_node->tag && cell_node->tag[0] == 'i' &&
+                                strcmp(cell_node->tag, "img") == 0) {
+                                process_table_image(converter, cell_node);
+
+                                if (html2tex_has_error()) {
+                                    queue_cleanup(&cell_queue, &cell_rear);
+                                    goto cleanup_queues;
+                                }
+
+                                img_found = 1;
+                            }
+                            /* enqueue children for deeper search */
+                            else if (cell_node->tag) {
+                                HTMLNode* grandchild = cell_node->children;
+                                while (grandchild) {
+                                    if (!queue_enqueue(&cell_queue, &cell_rear, grandchild)) {
+                                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                            "Failed to enqueue grandchild for image search.");
+                                        queue_cleanup(&cell_queue, &cell_rear);
+                                        goto cleanup_queues;
+                                    }
+                                    grandchild = grandchild->next;
+                                }
+                            }
+                        }
+
+                        if (!img_found) {
+                            append_string(converter, " ");
+                            if (html2tex_has_error()) {
+                                queue_cleanup(&cell_queue, &cell_rear);
+                                goto cleanup_queues;
+                            }
+                        }
+
+                        queue_cleanup(&cell_queue, &cell_rear);
+                    }
+
+                    cell = cell->next;
+                }
             }
-        }
-        else if (strcmp(current->tag, "tbody") == 0 || strcmp(current->tag, "thead") == 0 ||
-            strcmp(current->tag, "tfoot") == 0) {
             /* enqueue section children */
-            for (HTMLNode* section_child = current->children; section_child; section_child = section_child->next)
-                queue_enqueue(&queue, &rear, section_child);
+            else if (strcmp(current->tag, "tbody") == 0 ||
+                strcmp(current->tag, "thead") == 0 ||
+                strcmp(current->tag, "tfoot") == 0) {
+                HTMLNode* section_child = current->children;
+
+                while (section_child) {
+                    if (!queue_enqueue(&queue, &rear, section_child)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue table section child.");
+                        goto cleanup_queues;
+                    }
+
+                    section_child = section_child->next;
+                }
+            }
         }
     }
 
-    /* cleanup queues */
-    queue_cleanup(&queue, &rear);
-    queue_cleanup(&cell_queue, &cell_rear);
-
     /* finish tabular and figure */
     append_string(converter, "\n\\end{tabular}\n");
+    if (html2tex_has_error()) goto cleanup_queues;
 
     append_figure_caption(converter, node);
+    if (html2tex_has_error()) goto cleanup_queues;
     append_string(converter, "\\end{figure}\n\\FloatBarrier\n\n");
+
+cleanup_queues:
+    queue_cleanup(&queue, &rear);
+    queue_cleanup(&cell_queue, &cell_rear);
 }
 
 int is_block_element(const char* tag_name) {
