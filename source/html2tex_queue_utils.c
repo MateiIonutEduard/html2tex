@@ -89,6 +89,32 @@ void* queue_peek_front(const Queue* front) {
     return front->data;
 }
 
+void queue_destroy(Queue** front, Queue** rear, void (*cleanup)(void*)) {
+    /* clear the errors context */
+    html2tex_err_clear();
+
+    if (!front || !rear) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Queue pointers are NULL for destruction.");
+        return;
+    }
+
+    Queue* current = *front;
+    while (current) {
+        Queue* next = current->next;
+
+        /* release memory for data container, if the callback is provided */
+        if (cleanup && current->data)
+            cleanup(current->data);
+
+        free(current);
+        current = next;
+    }
+
+    *front = NULL;
+    *rear = NULL;
+}
+
 void queue_cleanup(Queue** front, Queue** rear) {
     Queue* current = *front;
 

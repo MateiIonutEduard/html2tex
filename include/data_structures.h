@@ -62,6 +62,9 @@ extern "C" {
 	/* @brief Returns front element without removal. */
 	void* queue_peek_front(const Queue* front);
 
+	/* @brief Destroys queue and optionally frees data. */
+	void queue_destroy(Queue** front, Queue** rear, void (*cleanup)(void*));
+
 	/* @brief Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
 	void queue_cleanup(Queue** front, Queue** rear);
 
