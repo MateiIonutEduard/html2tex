@@ -32,6 +32,9 @@ extern "C" {
 	/* @brief Recursively frees all stack nodes and resets the stack to empty. */
 	void stack_cleanup(Stack** top);
 
+	/* @brief Returns the size of the stack. */
+	size_t stack_size(const Stack* top);
+
 	/* @brief Tests whether the stack is empty. */
 	int stack_is_empty(const Stack* top);
 

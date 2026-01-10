@@ -62,6 +62,18 @@ void stack_cleanup(Stack** top) {
     *top = NULL;
 }
 
+size_t stack_size(const Stack* top) {
+    size_t count = 0;
+    Stack* current = top;
+
+    while (current) {
+        count++;
+        current = current->next;
+    }
+
+    return count;
+}
+
 int stack_is_empty(const Stack* top) {
     return top == NULL;
 }
