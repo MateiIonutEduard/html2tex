@@ -44,6 +44,9 @@ extern "C" {
 	/* @brief Iterates over stack elements from top to bottom. */
 	int stack_traverse(Stack* top, StackTraverseFunc predicate, void* user_data);
 
+	/* @brief Destroys stack and optionally frees contained data. */
+	void stack_destroy(Stack** top, void (*cleanup)(void*));
+
 	/* @brief Adds an HTML node to the rear of the queue for breadth-first traversal. */
 	int queue_enqueue(Queue** front, Queue** rear, void* data);
 

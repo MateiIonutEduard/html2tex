@@ -62,6 +62,31 @@ void stack_cleanup(Stack** top) {
     *top = NULL;
 }
 
+void stack_destroy(Stack** top, void (*cleanup)(void*)) {
+    html2tex_err_clear();
+
+    if (!top) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Stack double pointer is NULL for destruction.");
+        return;
+    }
+
+    Stack* current = *top;
+
+    while (current) {
+        Stack* next = current->next;
+
+        /* optionally free the data if the callback provided */
+        if (cleanup && current->data)
+            cleanup(current->data);
+
+        free(current);
+        current = next;
+    }
+
+    *top = NULL;
+}
+
 size_t stack_size(const Stack* top) {
     size_t count = 0;
     Stack* current = top;
