@@ -51,18 +51,22 @@ void* stack_pop(Stack** top) {
 }
 
 void stack_cleanup(Stack** top) {
-    Stack* current = *top;
+    /* clear the errors */
+    html2tex_err_clear();
 
-    while (current) {
-        Stack* next = current->next;
-        free(current);
-        current = next;
+    if (!top) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Stack double pointer is NULL "
+            "for clear operation.");
+        return;
     }
 
-    *top = NULL;
+    /* destroy stack containers without releasing data */
+    stack_destroy(top, NULL);
 }
 
 void stack_destroy(Stack** top, void (*cleanup)(void*)) {
+    /* clear errors and their context */
     html2tex_err_clear();
 
     if (!top) {
