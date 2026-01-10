@@ -73,6 +73,13 @@ void* stack_peek(const Stack* top) {
 int stack_traverse(Stack* top, StackTraverseFunc predicate, void* user_data) {
     html2tex_err_clear();
 
+    if (!top) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Stack double pointer is NULL "
+            "for node traversal.");
+        return 0;
+    }
+
     if (!predicate) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "Traversal function is NULL.");
