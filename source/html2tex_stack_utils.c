@@ -62,10 +62,30 @@ void stack_cleanup(Stack** top) {
     *top = NULL;
 }
 
-int stack_is_empty(Stack* top) {
+int stack_is_empty(const Stack* top) {
     return top == NULL;
 }
 
-void* stack_peek(Stack* top) {
+void* stack_peek(const Stack* top) {
     return top ? top->data : NULL;
+}
+
+int stack_traverse(Stack* top, StackTraverseFunc predicate, void* user_data) {
+    html2tex_err_clear();
+
+    if (!predicate) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Traversal function is NULL.");
+        return 0;
+    }
+
+    Stack* current = top;
+
+    while (current) {
+        int result = predicate(current->data, user_data);
+        if (result != 0) return result;
+        current = current->next;
+    }
+
+    return 1;
 }

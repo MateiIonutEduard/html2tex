@@ -20,6 +20,9 @@ extern "C" {
 		struct Stack* next;
 	};
 
+	/* @brief Safely traverses the stack for inspection. */
+	typedef int (*StackTraverseFunc)(void* data, void* user_data);
+
 	/* @brief Pushes a data element onto the stack. */
 	int stack_push(Stack** top, void* data);
 
@@ -30,10 +33,10 @@ extern "C" {
 	void stack_cleanup(Stack** top);
 
 	/* @brief Tests whether the stack is empty. */
-	int stack_is_empty(Stack* top);
+	int stack_is_empty(const Stack* top);
 
 	/* @brief Returns the top element without removing it from the stack. */
-	void* stack_peek(Stack* top);
+	void* stack_peek(const Stack* top);
 
 	/* @brief Adds an HTML node to the rear of the queue for breadth-first traversal. */
 	int queue_enqueue(Queue** front, Queue** rear, void* data);
