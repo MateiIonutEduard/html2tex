@@ -30,6 +30,16 @@ int stack_push(Stack** top, void* data) {
 }
 
 void* stack_pop(Stack** top) {
+    /* clear the error context */
+    html2tex_err_clear();
+
+    if (!top) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Stack double pointer is NULL "
+            "for pop operation.");
+        return NULL;
+    }
+
     Stack* node = *top;
     if (!node) return NULL;
 
