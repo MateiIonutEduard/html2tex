@@ -50,6 +50,15 @@ extern "C" {
 	/* @brief Removes and returns the HTML node from the front of the queue. */
 	void* queue_dequeue(Queue** front, Queue** rear);
 
+	/* @brief Checks if queue is empty. */
+	int queue_is_empty(const Queue* front);
+
+	/* @brief Returns the queue size. */
+	size_t queue_size(const Queue* front);
+
+	/* @brief Returns front element without removal. */
+	void* queue_peek_front(const Queue* front);
+
 	/* @brief Recursively frees all queue structures and all HTML DOM nodes contained within the queue. */
 	void queue_cleanup(Queue** front, Queue** rear);
 

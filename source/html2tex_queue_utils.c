@@ -60,6 +60,35 @@ void* queue_dequeue(Queue** front, Queue** rear) {
     return data;
 }
 
+int queue_is_empty(const Queue* front) {
+    return front == NULL;
+}
+
+size_t queue_size(const Queue* front) {
+    size_t count = 0;
+    Queue* current = front;
+
+    while (current) {
+        count++;
+        current = current->next;
+    }
+
+    return count;
+}
+
+void* queue_peek_front(const Queue* front) {
+    /* clear the errors */
+    html2tex_err_clear();
+
+    if (!front) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Cannot peek from empty queue.");
+        return NULL;
+    }
+
+    return front->data;
+}
+
 void queue_cleanup(Queue** front, Queue** rear) {
     Queue* current = *front;
 
