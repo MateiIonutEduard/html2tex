@@ -152,7 +152,7 @@ char* html2tex_compress_html(const char* html) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
             "Failed to reallocate HTML compression buffer to %zu bytes.",
             final_len + 1);
-        /* Return original buffer instead of failing completely */
+
         return result;
     }
 
