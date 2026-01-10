@@ -32,6 +32,21 @@ int queue_enqueue(Queue** front, Queue** rear, void* data) {
 }
 
 void* queue_dequeue(Queue** front, Queue** rear) {
+    /* clear the error context */
+    html2tex_err_clear();
+
+    if (!front || !rear) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Queue pointers are NULL for dequeue operation.");
+        return NULL;
+    }
+
+    if (!*front) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Cannot dequeue from empty queue.");
+        return NULL;
+    }
+
     Queue* node = *front;
     if (!node) return NULL;
 
