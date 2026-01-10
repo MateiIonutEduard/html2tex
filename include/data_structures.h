@@ -32,7 +32,7 @@ extern "C" {
 	/* @brief Recursively frees all stack nodes and resets the stack to empty. */
 	void stack_cleanup(Stack** top);
 
-	/* @brief Returns the size of the stack. */
+	/* @brief Returns number of elements in stack. */
 	size_t stack_size(const Stack* top);
 
 	/* @brief Tests whether the stack is empty. */
@@ -40,6 +40,9 @@ extern "C" {
 
 	/* @brief Returns the top element without removing it from the stack. */
 	void* stack_peek(const Stack* top);
+
+	/* @brief Iterates over stack elements from top to bottom. */
+	int stack_traverse(Stack* top, StackTraverseFunc predicate, void* user_data);
 
 	/* @brief Adds an HTML node to the rear of the queue for breadth-first traversal. */
 	int queue_enqueue(Queue** front, Queue** rear, void* data);

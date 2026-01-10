@@ -1,9 +1,25 @@
 #include <stdlib.h>
 #include "data_structures.h"
+#include "html2tex_errors.h"
 
 int queue_enqueue(Queue** front, Queue** rear, void* data) {
+    /* clear the error context */
+    html2tex_err_clear();
+
+    if (!front || !rear) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Queue pointers are NULL for enqueue operation.");
+        return 0;
+    }
+
     Queue* node = (Queue*)malloc(sizeof(Queue));
-    if (!node) return 0;
+    
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate queue node (size: %zu bytes).",
+            sizeof(Queue));
+        return 0;
+    }
 
     node->data = data;
     node->next = NULL;
