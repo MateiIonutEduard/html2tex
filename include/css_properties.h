@@ -56,43 +56,112 @@ extern "C" {
 		unsigned char has_color;
 	};
 
-	/* @brief Converts a CSS length to LaTeX points. */
+	/**
+	 * @brief Converts CSS length values to LaTeX points (1pt = 1/72 inch).
+	 * @param length_str CSS length value with optional unit
+	 * @return Success: Equivalent points (rounded to nearest integer)
+	 * @return Failure: 0 (invalid input or unsupported unit)
+	 */
 	int css_length_to_pt(const char* length_str);
 
-	/* @brief Converts a CSS color to hexadecimal format. */
+	/**
+	 * @brief Converts CSS color specification to 6-digit hexadecimal RGB.
+	 * @param color_value CSS color string
+	 * @return Success: 6-digit hex string (e.g., "FF8800", caller must free)
+	 * @return Failure: NULL with error set
+	 */
 	char* css_color_to_hex(const char* color_value);
 
-	/* @brief Determines if a CSS property is inheritable per W3C CSS 2.1 specification. */
+	/**
+	 * @brief Determines if CSS property inherits according to W3C CSS 2.1.
+	 * @param property_name CSS property name (case-insensitive)
+	 * @return 1: Property is inheritable
+	 * @return 0: Property is not inheritable
+	 */
 	int is_css_property_inheritable(const char* property_name);
 
-	/* @brief Allocates and initializes a new CSSProperties container. */
+	/**
+	 * @brief Creates empty CSS properties container.
+	 * @return Success: Empty CSSProperties* container
+	 * @return Failure: NULL with error set (HTML2TEX_ERR_NOMEM)
+	 */
 	CSSProperties* css_properties_create(void);
 
-	/* @brief Releases memory used by CSSProperties for managing styles. */
+	/**
+	 * @brief Releases CSS properties container and all contained properties.
+	 * @param props Container to destroy (NULL-safe)
+	 */
 	void css_properties_destroy(CSSProperties* props);
 
-	/* @brief Set or update a CSS property in the properties collection. */
+	/**
+	 * @brief Sets or updates CSS property with validation and bitmask tracking.
+	 * @param props Target properties container
+	 * @param key CSS property name (case-insensitive)
+	 * @param value CSS property value
+	 * @param important Non-zero for !important priority
+	 * @return Success: 1
+	 * @return Failure: 0 with error set
+	 */
 	int css_properties_set(CSSProperties* props, const char* key, const char* value, int important);
 
-	/* @brief Retrieve the value of a CSS property. */
+	/**
+	 * @brief Retrieves CSS property value.
+	 * @param props Properties container to query
+	 * @param key CSS property name (case-insensitive)
+	 * @return Found: Property value string (do not free)
+	 * @return Not found: NULL (not an error)
+	 * @return Error: NULL with error set
+	 */
 	const char* css_properties_get(const CSSProperties* props, const char* key);
 
-	/* @brief Check if a CSS property exists in the collection. */
+	/**
+	 * @brief Checks if CSS property exists in container.
+	 * @param props Properties container to check
+	 * @param key CSS property name (case-insensitive)
+	 * @return 1: Property exists
+	 * @return 0: Property does not exist
+	 */
 	int css_properties_has(const CSSProperties* props, const char* key);
 
-	/* @brief Merge two CSS property collections with inheritance rules. */
+	/**
+	 * @brief Merges parent and child properties with CSS cascade rules.
+	 * @param parent Inherited properties (NULL allowed)
+	 * @param child Element-specific properties (NULL treated as empty)
+	 * @return Success: Merged properties (caller owns)
+	 * @return Failure: NULL with error set
+	 */
 	CSSProperties* css_properties_merge(const CSSProperties* parent, const CSSProperties* child);
 
-	/* @brief Apply CSS properties to the current LaTeX conversion context.*/
+	/**
+	 * @brief Applies CSS properties to LaTeX conversion context.
+	 * @param converter Active LaTeX conversion context
+	 * @param props CSS properties to apply
+	 * @param tag_name HTML element name for context-aware application
+	 */
 	void css_properties_apply(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name);
 
-	/* @brief Finalize CSS application and reset the converter state. */
+	/**
+	 * @brief Finalizes CSS application and closes opened LaTeX constructs.
+	 * @param converter Conversion context with pending CSS
+	 * @param props Originally applied properties (for context)
+	 * @param tag_name HTML element name
+	 */
 	void css_properties_end(LaTeXConverter* converter, const CSSProperties* props, const char* tag_name);
 
-	/* @brief Create a deep copy of the CSSProperties structure. */
+	/**
+	 * @brief Creates deep copy of CSS properties container.
+	 * @param src Source properties to copy
+	 * @return Success: Independent copy of properties
+	 * @return Failure: NULL with error set
+	 */
 	CSSProperties* css_properties_copy(const CSSProperties* src);
 
-	/* @brief Parses inline CSS from style. */
+	/**
+	 * @brief Parses inline style attribute into CSS properties container.
+	 * @param style_str CSS declaration block (e.g., "color: red; font-weight: bold")
+	 * @return Success: Properties container (caller owns)
+	 * @return Failure: NULL with error set
+	 */
 	CSSProperties* parse_css_style(const char* style_str);
 
 #ifndef CSS_MAX_PROPERTY_LENGTH
