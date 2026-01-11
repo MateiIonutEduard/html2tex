@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "data_structures.h"
+#include "html2tex_queue.h"
 #include "html2tex_errors.h"
 
 int queue_enqueue(Queue** front, Queue** rear, void* data) {

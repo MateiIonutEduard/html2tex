@@ -1,4 +1,4 @@
-#include "data_structures.h"
+#include "html2tex_stack.h"
 #include "html2tex_errors.h"
 #include <stdlib.h>
 
