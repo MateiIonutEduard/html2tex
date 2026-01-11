@@ -1,4 +1,4 @@
-#ifndef HTML2TEX_H
+﻿#ifndef HTML2TEX_H
 #define HTML2TEX_H
 
 #include <stddef.h>
@@ -65,25 +65,56 @@ extern "C" {
 		int image_counter;
 	};
 
-	/* @brief Creates a new LaTeXConverter* and allocates memory. */
+	/**
+	 * @brief Initializes a new conversion context with default settings.
+	 * @return Success: Valid LaTeXConverter* ready for configuration
+	 * @return Failure: NULL with error set (check html2tex_has_error())
+	 */
 	LaTeXConverter* html2tex_create(void);
 
-	/* @brief Returns a copy of the LaTeXConverter* object. */
-	LaTeXConverter* html2tex_copy(LaTeXConverter*);
+	/**
+	 * @brief Creates a deep copy of converter state for branching or checkpointing.
+	 * @param converter Valid converter to duplicate (non-NULL)
+	 * @return Success: Independent converter copy
+	 * @return Failure: NULL with error set
+	 */
+	LaTeXConverter* html2tex_copy(LaTeXConverter* converter);
 
-	/* @brief Frees a LaTeXConverter* structure. */
+	/**
+	 * @brief Releases all converter resources and invalidates pointer.
+	 * @param converter Converter to destroy (NULL-safe)
+	 */
 	void html2tex_destroy(LaTeXConverter* converter);
 
-	/* @brief Parses input HTML and converts it to LaTeX. */
+	/**
+	 * @brief Converts HTML document to complete LaTeX document with preamble.
+	 * @param converter Configured conversion context
+	 * @param html HTML source string (UTF-8, NULL-terminated)
+	 * @return Success: Complete LaTeX document (caller owns, must free())
+	 * @return Failure: NULL with error set
+	 */
 	char* html2tex_convert(LaTeXConverter* converter, const char* html);
 
-	/* @brief Returns the error code from the HTML-to-LaTeX conversion. */
+	/**
+	 * @brief Retrieves the most recent error code from thread-local storage.
+	 * @return Current HTML2TeXError enum value
+	 * @return HTML2TEX_OK (0) if no error occurred
+	 */
 	int html2tex_get_error();
 
-	/* @brief Returns the error message from the HTML-to-LaTeX conversion. */
+	/**
+	 * @brief Returns formatted error description with context.
+	 * @return Human-readable error string
+	 * @return Static buffer (do not free)
+	 * @return Empty string if no error
+	 */
 	const char* html2tex_get_error_message();
 
-	/* @brief Append a string to the LaTeX output buffer with optimized copying. */
+	/**
+	 * @brief Appends raw text to converter's output buffer with LaTeX escaping.
+	 * @param converter Active conversion context
+	 * @param str String to append (NULL-safe, empty string allowed)
+	 */
 	void append_string(LaTeXConverter* converter, const char* str);
 
 	/**
@@ -93,31 +124,73 @@ extern "C" {
 	 */
 	void convert_document(LaTeXConverter* converter, HTMLNode* node);
 
-	/* @brief Sets the download output directory. */
+	/**
+	 * @brief Configures output directory for downloaded images.
+	 * @param converter Active conversion context
+	 * @param dir Directory path (NULL or empty disables download storage)
+	 */
 	void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir);
 
-	/* @brief Toggles image downloading according to the enable flag. */
+	/**
+	 * @brief Enables or disables automatic image download and local storage.
+	 * @param converter Active conversion context
+	 * @param enable Non-zero to enable, zero to disable
+	 */
 	void html2tex_set_download_images(LaTeXConverter* converter, int enable);
 
-	/* @brief Returns a null-terminated duplicate of the string referenced by str. */
+	/**
+	 * @brief Portable string duplication with unified error handling.
+	 * @param str Source string to duplicate (NULL-safe)
+	 * @return Success: New string (caller must free)
+	 * @return Failure: NULL with error set
+	 */
 	char* html2tex_strdup(const char* str);
 
-	/* @brief Convert an integer to a null-terminated string using the given radix and store it in buffer. */
+	/**
+	 * @brief Cross-platform integer-to-string conversion.
+	 * @param value Integer to convert
+	 * @param buffer Output buffer (minimum 33 bytes recommended)
+	 * @param radix Base (2-36, typically 10)
+	 */
 	void portable_itoa(int value, char* buffer, int radix);
 
-	/* @brief Process an image node within table context for LaTeX generation. */
+	/**
+	 * @brief Converts single image within table cell to LaTeX graphics.
+	 * @param converter Active conversion context
+	 * @param img_node <img> element node (must be inside table)
+	 */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
 
-	/* @brief Generate LaTeX figure caption for a table containing images. */
+	/**
+	 * @brief Generates LaTeX caption and label for image-only tables.
+	 * @param converter Active conversion context
+	 * @param table_node Table containing only images
+	 */
 	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
 
-	/* @brief Calculate maximum number of columns in an HTML table. */
+	/**
+	 * @brief Calculates maximum columns in HTML table structure.
+	 * @param node Table root node (<table> element)
+	 * @return Success: Column count (≥1)
+	 * @return Failure: -1 with error set
+	 */
 	int count_table_columns(HTMLNode* node);
 
-	/* @brief Find first DOM node matching criteria with computed CSS. */
+	/**
+	 * @brief Finds first DOM node matching predicate with computed CSS inheritance.
+	 * @param root Starting node for BFS search
+	 * @param predicate Matching function (returns non-zero for match)
+	 * @param data User context passed to predicate
+	 * @param inherited_props Base CSS properties for inheritance chain
+	 * @return Success: HTMLElement with node + computed CSS (caller owns)
+	 * @return Failure: NULL with error set
+	 */
 	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
 
-	/* @brief Safely deallocates an HTMLElement structure. */
+	/**
+	 * @brief Safely deallocates HTMLElement structure from search_tree().
+	 * @param elem Element to destroy (NULL-safe)
+	 */
 	void html_element_destroy(HTMLElement* elem);
 
 #ifdef _MSC_VER
