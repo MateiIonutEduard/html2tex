@@ -43,34 +43,77 @@ extern "C" {
     /* @brief Thread-local error opaque context. */
     typedef struct HTML2TeXErrorCtx HTML2TeXErrorCtx;
 
-    /* @brief Retrieve last error code from current thread. */
+    /**
+     * @brief Retrieves the current thread's error code.
+     * @return Current HTML2TeXError enum value
+     * @return HTML2TEX_OK (0) if no error present
+     */
     HTML2TeXError html2tex_err_get(void);
 
-    /* @brief Retrieve last error message from current thread. */
+    /**
+     * @brief Returns formatted error message with context.
+     * @return Human-readable error description
+     * @return Static buffer (do not free)
+     * @return Empty string if no error
+     */
     const char* html2tex_err_msg(void);
 
-    /* @brief Get static description for error code. */
+    /**
+     * @brief Maps error code to static description string.
+     * @param err Error code to describe
+     * @return Static error description string
+     * @return "Unknown error" for invalid codes
+     * @return Never NULL
+     */
     const char* html2tex_err_str(HTML2TeXError err);
 
-    /* @brief Clear error state for current thread. */
+    /**
+     * @brief Resets thread's error state to HTML2TEX_OK.
+     */
     void html2tex_err_clear(void);
 
-    /* @brief Save current error state for restoration. */
+    /**
+     * @brief Captures current error state for later restoration.
+     * @return Success: Opaque state handle (caller must free)
+     * @return Failure: NULL (only on memory allocation failure)
+     */
     void* html2tex_err_save(void);
 
-    /* @brief Restore previously saved error state. */
+    /**
+     * @brief Restores previously saved error state.
+     * @param saved Handle from html2tex_err_save() (NULL-safe)
+     */
     void html2tex_err_restore(void* saved);
 
-    /* @brief Get system errno from when error occurred. */
+    /**
+     * @brief Retrieves captured system errno from when error occurred.
+     * @return System errno value at error time
+     * @return 0 if no error or errno not captured
+     * @return Preserved across library calls
+     */
     int html2tex_err_syserr(void);
 
-    /* @brief Get source file where error occurred. */
+    /**
+     * @brief Returns source filename where error originated.
+     * @return Source file path (static string)
+     * @return NULL if no location captured
+     * @return Only set when HTML2TEX__SET_ERR macro used
+     */
     const char* html2tex_err_file(void);
 
-    /* @brief Get source line where error occurred. */
+    /**
+     * @brief Returns source line number where error occurred.
+     * @return Line number (1-based)
+     * @return 0 if no location captured
+     * @return Only set when HTML2TEX__SET_ERR macro used
+     */
     int html2tex_err_line(void);
 
-    /* @brief Check if error has occurred. */
+    /**
+     * @brief Quick check for error presence.
+     * @return Non-zero: Error exists
+     * @return Zero: No error (HTML2TEX_OK)
+     */
     int html2tex_has_error(void);
 
     void html2tex__err_set(HTML2TeXError err, const char* fmt, ...);
