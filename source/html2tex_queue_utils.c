@@ -116,13 +116,15 @@ void queue_destroy(Queue** front, Queue** rear, void (*cleanup)(void*)) {
 }
 
 void queue_cleanup(Queue** front, Queue** rear) {
-    Queue* current = *front;
+    /* clear the errors context first */
+    html2tex_err_clear();
 
-    while (current) {
-        Queue* next = current->next;
-        free(current);
-        current = next;
+    if (!front || !rear) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Queue pointers are NULL for cleanup operation.");
+        return;
     }
 
-    *front = *rear = NULL;
+    /* use existing queue destroy function, to keep backward compatibility */
+    queue_destroy(front, rear, NULL);
 }
