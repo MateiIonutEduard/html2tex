@@ -457,9 +457,8 @@ int string_buffer_append_latex(StringBuffer* buf, const char* str) {
     size_t original_len = strlen(str);
     size_t total_len = original_len + extra_chars;
 
-    if (string_buffer_ensure_capacity(buf, buf->length + total_len + 1) != 0) {
+    if (string_buffer_ensure_capacity(buf, buf->length + total_len + 1) != 0)
         return -1;
-    }
 
     /* process and escape */
     while (*p) {

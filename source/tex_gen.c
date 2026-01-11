@@ -929,5 +929,162 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
 }
 
 void convert_document(LaTeXConverter* converter, HTMLNode* node) {
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in convert_document().");
+        return;
+    }
 
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML root node is "
+            "NULL in convert_document().");
+        return;
+    }
+
+    /* track HTML nodes and their CSS inline styles */
+    Stack* node_stack = NULL;
+    Stack* css_stack = NULL;
+    CSSProperties* inherit_props = NULL;
+
+    /* push root node with initial CSS properties */
+    if (!stack_push(&node_stack, (void*)node) ||
+        !stack_push(&css_stack, (void*)inherit_props)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to push initial nodes onto stack.");
+        goto cleanup;
+    }
+
+    /* pop current context */
+    while (!stack_is_empty(node_stack)) {
+        CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
+        HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
+
+        if (!current_node) {
+            if (current_css && current_css != inherit_props)
+                css_properties_destroy(current_css);
+
+            continue;
+        }
+
+        /* skip excluded elements */
+        if (should_exclude_tag(current_node->tag))
+            continue;
+
+        /* skip nested tables */
+        if (should_skip_nested_table(current_node) > 0)
+            continue;
+
+        /* merge CSS properties */
+        CSSProperties* merged_css = current_css;
+        CSSProperties* inline_css = NULL;
+
+        if (current_node->tag) {
+            const char* style_attr = get_attribute(current_node->attributes, "style");
+
+            if (style_attr) {
+                inline_css = parse_css_style(style_attr);
+
+                if (inline_css) {
+                    merged_css = css_properties_merge(current_css, inline_css);
+                    css_properties_destroy(inline_css);
+
+                    if (html2tex_has_error()) {
+                        if (merged_css && merged_css != current_css)
+                            css_properties_destroy(merged_css);
+
+                        if (current_css && current_css != inherit_props)
+                            css_properties_destroy(current_css);
+
+                        goto cleanup;
+                    }
+                }
+            }
+        }
+
+        /* handle text nodes */
+        if (!current_node->tag && current_node->content)
+            escape_latex(converter, current_node->content);
+
+        /* push children in reverse order */
+        if (current_node->children) {
+            HTMLNode* last_child = current_node->children;
+
+            while (last_child->next) 
+                last_child = last_child->next;
+            HTMLNode* child = last_child;
+
+            while (child) {
+                CSSProperties* child_css = merged_css;
+
+                if (child_css && child_css != inherit_props) {
+                    child_css = css_properties_copy(merged_css);
+                    if (!child_css || html2tex_has_error()) {
+                        if (merged_css && merged_css != current_css && merged_css != inherit_props)
+                            css_properties_destroy(merged_css);
+
+                        if (current_css && current_css != inherit_props)
+                            css_properties_destroy(current_css);
+
+                        goto cleanup;
+                    }
+                }
+
+                /* push child onto stack */
+                if (!stack_push(&node_stack, (void*)child) || !stack_push(&css_stack, (void*)child_css)) {
+                    if (child_css && child_css != merged_css && child_css != inherit_props)
+                        css_properties_destroy(child_css);
+
+                    if (merged_css && merged_css != current_css && merged_css != inherit_props)
+                        css_properties_destroy(merged_css);
+
+                    if (current_css && current_css != inherit_props)
+                        css_properties_destroy(current_css);
+
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to push child node onto stack.");
+                    goto cleanup;
+                }
+
+                /* move to previous sibling */
+                if (child == current_node->children)
+                    child = NULL;
+                else {
+                    HTMLNode* prev = current_node->children;
+                    while (prev->next != child) prev = prev->next;
+                    child = prev;
+                }
+            }
+        }
+
+        /* clean up current node's CSS */
+        if (merged_css && merged_css != current_css 
+            && merged_css != inherit_props)
+            css_properties_destroy(merged_css);
+
+        if (current_css && current_css != inherit_props)
+            css_properties_destroy(current_css);
+
+        /* check for errors from other operations */
+        if (html2tex_has_error()) goto cleanup;
+    }
+
+cleanup:
+    /* destroy the remaining CSS properties */
+    while (!stack_is_empty(css_stack)) {
+        CSSProperties* css = (CSSProperties*)stack_pop(&css_stack);
+        if (css && css != inherit_props)
+            css_properties_destroy(css);
+    }
+
+    /* clean up the remaining HTML nodes */
+    size_t node_counter = stack_size(node_stack);
+
+    while (node_counter > 0) {
+        stack_pop(&node_stack);
+        node_counter--;
+    }
+
+    /* destroy the stacks */
+    stack_cleanup(&node_stack);
+    stack_cleanup(&css_stack);
 }

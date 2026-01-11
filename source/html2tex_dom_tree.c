@@ -344,9 +344,8 @@ cleanup:
     }
 
     /* clean up any remaining nodes on the stack */
-    while (!stack_is_empty(node_stack)) {
+    while (!stack_is_empty(node_stack))
         stack_pop(&node_stack);
-    }
 
     /* clean up stacks */
     stack_cleanup(&node_stack);
