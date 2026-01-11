@@ -86,8 +86,12 @@ extern "C" {
 	/* @brief Append a string to the LaTeX output buffer with optimized copying. */
 	void append_string(LaTeXConverter* converter, const char* str);
 
-	/* @brief Recursively converts a DOM child node to LaTeX. */
-	void convert_children(LaTeXConverter* converter, HTMLNode* node, CSSProperties* inherited_props);
+	/**
+	 * @brief Converts an HTML DOM subtree to LaTeX using iterative DFS with full CSS inheritance.
+	 * @param converter Active conversion context (stateful, non-NULL)
+	 * @param node Root DOM node to convert (inclusive traversal)
+	 */
+	void convert_document(LaTeXConverter* converter, HTMLNode* node);
 
 	/* @brief Sets the download output directory. */
 	void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir);

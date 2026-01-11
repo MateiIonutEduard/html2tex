@@ -93,7 +93,7 @@ void stack_destroy(Stack** top, void (*cleanup)(void*)) {
 
 size_t stack_size(const Stack* top) {
     size_t count = 0;
-    Stack* current = top;
+    const Stack* current = top;
 
     while (current) {
         count++;

@@ -66,7 +66,7 @@ int queue_is_empty(const Queue* front) {
 
 size_t queue_size(const Queue* front) {
     size_t count = 0;
-    Queue* current = front;
+    const Queue* current = front;
 
     while (current) {
         count++;
