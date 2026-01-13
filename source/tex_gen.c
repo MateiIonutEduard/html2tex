@@ -1121,6 +1121,37 @@ int convert_paragraph(LaTeXConverter* converter, HTMLNode* node) {
     return 1;
 }
 
+/* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
+int convert_essential_block(LaTeXConverter* converter, HTMLNode* node) {
+    if (!is_valid_element(node))
+        return -2;
+
+    /* max length of supported block elements */
+    if (strlen(node->tag) > 3)
+        return 0;
+
+    static const struct {
+        const char* key;
+        void (*process_block)(LaTeXConverter*, HTMLNode*);
+    } blocks[] = {
+        {"p", &convert_paragraph}, {"div", NULL}, {"h1", &convert_heading},
+        {"h2", &convert_heading}, {"h3", &convert_heading}, {"h4", &convert_heading},
+        {"h5", &convert_heading}, {NULL, NULL}
+    };
+
+    int i = 0;
+
+    for (const char* block_tag = blocks[i].key; blocks[i].key; i++) {
+        if (strcmp(node->tag, block_tag) == 0) {
+            blocks[i].process_block(converter, node);
+            return 1;
+        }
+    }
+
+    /* no supported block element found */
+    return 0;
+}
+
 int convert_heading(LaTeXConverter* converter, HTMLNode* node) {
     /* check if is valid element */
     if (!is_valid_element(node))
