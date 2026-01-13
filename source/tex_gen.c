@@ -941,28 +941,30 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
         return;
     }
 
-    /* track HTML nodes and their CSS inline styles */
+    /* track HTML nodes, their CSS inline styles, and element state */
     Stack* node_stack = NULL;
     Stack* css_stack = NULL;
+    Stack* processed_stack = NULL;
     CSSProperties* inherit_props = NULL;
 
     /* push root node with initial CSS properties */
     if (!stack_push(&node_stack, (void*)node) ||
-        !stack_push(&css_stack, (void*)inherit_props)) {
+        !stack_push(&css_stack, (void*)inherit_props) ||
+        !stack_push(&processed_stack, (void*)0)) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
             "Failed to push initial nodes onto stack.");
         goto cleanup;
     }
 
-    /* pop current context */
+    /* depth-first traversal */
     while (!stack_is_empty(node_stack)) {
+        intptr_t already_processed = (intptr_t)stack_pop(&processed_stack);
         CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
         HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
 
         if (!current_node) {
             if (current_css && current_css != inherit_props)
                 css_properties_destroy(current_css);
-
             continue;
         }
 
@@ -1001,28 +1003,70 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
             }
         }
 
-        /* handle text nodes */
-        if (!current_node->tag && current_node->content) {
-            escape_latex(converter, current_node->content);
-            continue;
+        if (!already_processed) {
+            /* apply CSS and open element */
+            if (merged_css && current_node->tag) {
+                css_properties_apply(converter, merged_css, current_node->tag);
+            }
+
+            /* handle text nodes */
+            if (!current_node->tag && current_node->content) {
+                escape_latex(converter, current_node->content);
+
+                /* CSS cleanup for text node context */
+                if (merged_css && current_node->parent && current_node->parent->tag) {
+                    css_properties_end(converter, merged_css, current_node->parent->tag);
+                }
+
+                /* cleanup CSS and continue */
+                if (merged_css && merged_css != current_css && merged_css != inherit_props)
+                    css_properties_destroy(merged_css);
+
+                if (current_css && current_css != inherit_props)
+                    css_properties_destroy(current_css);
+
+                continue;
+            }
+            else if (is_supported_element(current_node))
+                convert_element(converter, current_node, true);
+
+            /* push node again for second pass (closing) */
+            if (current_node->children || (current_node->tag && !is_void_element(current_node->tag))) {
+                if (!stack_push(&node_stack, (void*)current_node) ||
+                    !stack_push(&css_stack, (void*)merged_css) ||
+                    !stack_push(&processed_stack, (void*)1)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to push node for closing pass.");
+                    goto cleanup;
+                }
+
+                /* merged_css will be cleaned up in second pass */
+                merged_css = NULL;
+            }
         }
-        else if (is_supported_element(current_node)) {
-            convert_element(converter, current_node, true);
+        else {
+            /* close the element in second pass */
+            if (is_supported_element(current_node))
+                convert_element(converter, current_node, false);
+
+            /* close CSS properties for this element */
+            if (current_css && current_node->tag)
+                css_properties_end(converter, current_css, current_node->tag);
         }
 
-        /* push children in reverse order */
-        if (current_node->children) {
+        /* push children in reverse order (first pass only) */
+        if (!already_processed && current_node->children) {
             HTMLNode* last_child = current_node->children;
 
-            while (last_child->next) 
+            while (last_child->next)
                 last_child = last_child->next;
             HTMLNode* child = last_child;
 
             while (child) {
-                CSSProperties* child_css = merged_css;
+                CSSProperties* child_css = merged_css ? merged_css : current_css;
 
                 if (child_css && child_css != inherit_props) {
-                    child_css = css_properties_copy(merged_css);
+                    child_css = css_properties_copy(child_css);
                     if (!child_css || html2tex_has_error()) {
                         if (merged_css && merged_css != current_css && merged_css != inherit_props)
                             css_properties_destroy(merged_css);
@@ -1034,16 +1078,12 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
                     }
                 }
 
-                /* push child onto stack */
-                if (!stack_push(&node_stack, (void*)child) || !stack_push(&css_stack, (void*)child_css)) {
-                    if (child_css && child_css != merged_css && child_css != inherit_props)
+                /* push child onto stack (first pass) */
+                if (!stack_push(&node_stack, (void*)child) ||
+                    !stack_push(&css_stack, (void*)child_css) ||
+                    !stack_push(&processed_stack, (void*)0)) {
+                    if (child_css && child_css != inherit_props)
                         css_properties_destroy(child_css);
-
-                    if (merged_css && merged_css != current_css && merged_css != inherit_props)
-                        css_properties_destroy(merged_css);
-
-                    if (current_css && current_css != inherit_props)
-                        css_properties_destroy(current_css);
 
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
                         "Failed to push child node onto stack.");
@@ -1061,12 +1101,13 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
             }
         }
 
-        /* clean up current node's CSS */
-        if (merged_css && merged_css != current_css 
+        /* clean up current node's CSS (second pass or no children case) */
+        if (merged_css && merged_css != current_css
             && merged_css != inherit_props)
             css_properties_destroy(merged_css);
 
-        if (current_css && current_css != inherit_props)
+        if (current_css && current_css != inherit_props 
+            && (already_processed || !current_node->children))
             css_properties_destroy(current_css);
 
         /* check for errors from other operations */
@@ -1081,15 +1122,8 @@ cleanup:
             css_properties_destroy(css);
     }
 
-    /* clean up the remaining HTML nodes */
-    size_t node_counter = stack_size(node_stack);
-
-    while (node_counter > 0) {
-        stack_pop(&node_stack);
-        node_counter--;
-    }
-
-    /* destroy the stacks */
+    /* clean up the remaining stacks */
     stack_cleanup(&node_stack);
     stack_cleanup(&css_stack);
+    stack_cleanup(&processed_stack);
 }
