@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
+
+static int convert_paragraph(LaTeXConverter* converter, HTMLNode* node);
+static int convert_heading(LaTeXConverter* converter, HTMLNode* node);
+static int convert_inline(LaTeXConverter* converter, HTMLNode* node);
 
 void append_string(LaTeXConverter* converter, const char* str) {
     if (!converter || !str || !converter->buffer)
@@ -1087,4 +1092,136 @@ cleanup:
     /* destroy the stacks */
     stack_cleanup(&node_stack);
     stack_cleanup(&css_stack);
+}
+
+int convert_paragraph(LaTeXConverter* converter, HTMLNode* node) {
+    /* check only node, assuming that converter is not NULL */
+    if (!node || !node->tag || node->tag[0] == '\0')
+        return -1;
+
+    /* definitely, not a paragraph */
+    if (node->tag[0] != 'p')
+        return 0;
+
+    /* is a block element, so write only newline */
+    append_string(converter, "\n");
+    return 1;
+}
+
+int convert_heading(LaTeXConverter* converter, HTMLNode* node) {
+    /* don't check if converter is NULL, the 
+    convert_document function will check at beginning */
+    if (!node || !node->tag || node->tag[0] == '\0')
+        return -2;
+
+    if (node->tag[0] != 'h')
+        return -1;
+
+    int level = node->tag[1] - 48;
+    int result = 0;
+
+    switch (level) {
+    case 1:
+        append_string(converter, "\\chapter{");
+        result = 1;
+        break;
+    case 2:
+        append_string(converter, "\\section{");
+        result = 1;
+        break;
+    case 3:
+        append_string(converter, "\\subsection{");
+        result = 1;
+        break;
+    case 4:
+        append_string(converter, "\\subsubsection{");
+        result = 1;
+        break;
+    case 5:
+        append_string(converter, "\\paragraph{");
+        result = 1;
+        break;
+    default:
+        result = 0;
+        break;
+    }
+
+    /* return result code, without throwing error message */
+    /* only for internal usage; this will not appear in public API */
+    return result;
+}
+
+/* @brief Converts the special HTML inline elements into corresponding LaTeX code. */
+int convert_inline(LaTeXConverter* converter, HTMLNode* node) {
+    if (!node || !node->tag || node->tag[0] == '\0')
+        return -1;
+
+    /* max length of special inline element */
+    if (strlen(node->tag) > 6)
+        return 0;
+
+    static const struct {
+        const char* key;
+        const char* value;
+        const unsigned char type;
+    } entries[] = {
+        {"b", "\\textbf{", 1}, {"strong", "\\textbf{", 1}, {"i", "\\textit{", 1}, {"em", "\\textit{", 1},
+        {"u", "\\underline{", 1}, {"hr", "\\hrulefill\n\n", 2}, {"code", "\\texttt{", 1}, {"font", "", 1},
+        {"span", "", 1}, {"a", "\\href{", 1}, {"br", "\\\\\n", 2}, {NULL, NULL, 0}
+    };
+
+    int i = 0;
+    bool found = false;
+
+    /* find if the specified node is special inline element */
+    for (const char* tag_name = entries[i].key; entries[i].key; i++) {
+        if (strcmp(node->tag, tag_name) == 0) {
+            found = true;
+            break;
+        }
+    }
+
+    if (found) {
+        switch (i) {
+            case 0: case 1: {
+                if (!(converter->state.applied_props & CSS_BOLD)) {
+                    append_string(converter, entries[i].value);
+                    converter->state.applied_props |= CSS_BOLD;
+                    return entries[i].type;
+                }
+            }
+
+            case 2: case 3: {
+                if (!(converter->state.applied_props & CSS_ITALIC)) {
+                    append_string(converter, entries[i].value);
+                    converter->state.applied_props |= CSS_ITALIC;
+                    return entries[i].type;
+                }
+            }
+            case 4: {
+                if (!(converter->state.applied_props & CSS_UNDERLINE)) {
+                    append_string(converter, entries[i].value);
+                    converter->state.applied_props |= CSS_UNDERLINE;
+                    return entries[i].type;
+                }
+            }
+            case 5: case 6: case 10: {
+                append_string(converter, entries[i].value);
+                return entries[i].type;
+            }
+            case 7: case 8:
+                return entries[i].type;
+            case 9: {
+                const char* href = get_attribute(node->attributes, "href");
+
+                if (href) {
+                    append_string(converter, entries[i].value);
+                    escape_latex(converter, href);
+                    append_string(converter, "}{");
+                }
+
+                return entries[i].type;
+            }
+        }
+    }
 }
