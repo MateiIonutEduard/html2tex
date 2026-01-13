@@ -1130,37 +1130,18 @@ int convert_heading(LaTeXConverter* converter, HTMLNode* node) {
         return -1;
 
     int level = node->tag[1] - 48;
-    int result = 0;
+    static const char* const heading_type[] = {
+        "\\chapter{", "\\section{", "\\subsection{",
+        "\\subsubsection{", "\\paragraph{"
+    };
 
-    switch (level) {
-    case 1:
-        append_string(converter, "\\chapter{");
-        result = 1;
-        break;
-    case 2:
-        append_string(converter, "\\section{");
-        result = 1;
-        break;
-    case 3:
-        append_string(converter, "\\subsection{");
-        result = 1;
-        break;
-    case 4:
-        append_string(converter, "\\subsubsection{");
-        result = 1;
-        break;
-    case 5:
-        append_string(converter, "\\paragraph{");
-        result = 1;
-        break;
-    default:
-        result = 0;
-        break;
+    if (level >= 1 && level <= 5) {
+        append_string(converter, heading_type[level - 1]);
+        return 1;
     }
 
-    /* return result code, without throwing error message */
-    /* only for internal usage; this will not appear in public API */
-    return result;
+    /* no supported heading */
+    return 0;
 }
 
 /* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
