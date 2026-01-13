@@ -3,19 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#include <stdbool.h>
-
-static inline bool is_valid_element(HTMLNode* node);
-static int convert_paragraph(LaTeXConverter* converter, HTMLNode* node);
-static int convert_heading(LaTeXConverter* converter, HTMLNode* node);
-static int convert_essential_inline(LaTeXConverter* converter, HTMLNode* node);
-static int convert_essential_block(LaTeXConverter* converter, HTMLNode* node);
-
-static int convert_inline_bold(LaTeXConverter * converter, HTMLNode * node);
-static int convert_inline_italic(LaTeXConverter* converter, HTMLNode* node);
-static int convert_inline_underline(LaTeXConverter* converter, HTMLNode* node);
-static int convert_inline_anchor(LaTeXConverter* converter, HTMLNode* node);
-static int convert_inline_essential(LaTeXConverter* converter, HTMLNode* node);
 
 void append_string(LaTeXConverter* converter, const char* str) {
     if (!converter || !str || !converter->buffer)
@@ -97,7 +84,7 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
     }
 }
 
-static void escape_latex(LaTeXConverter* converter, const char* text) {
+void escape_latex(LaTeXConverter* converter, const char* text) {
     if (!converter || !text || !converter->buffer) return;
 
     /* use the existing StringBuffer utility for full LaTeX escaping */
@@ -1015,8 +1002,13 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
         }
 
         /* handle text nodes */
-        if (!current_node->tag && current_node->content)
+        if (!current_node->tag && current_node->content) {
             escape_latex(converter, current_node->content);
+            continue;
+        }
+        else if (is_supported_element(current_node)) {
+            convert_element(converter, current_node, true);
+        }
 
         /* push children in reverse order */
         if (current_node->children) {
@@ -1100,194 +1092,4 @@ cleanup:
     /* destroy the stacks */
     stack_cleanup(&node_stack);
     stack_cleanup(&css_stack);
-}
-
-inline bool is_valid_element(HTMLNode* node) {
-    return (node && node->tag
-        && node->tag[0] != '\0');
-}
-
-int convert_paragraph(LaTeXConverter* converter, HTMLNode* node) {
-    /* check only node, assuming that converter is not NULL */
-    if (!is_valid_element(node))
-        return -1;
-
-    /* definitely, not a paragraph */
-    if (node->tag[0] != 'p')
-        return 0;
-
-    /* is a block element, so write only newline */
-    append_string(converter, "\n");
-    return 1;
-}
-
-/* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
-int convert_essential_block(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -2;
-
-    /* max length of supported block elements */
-    if (strlen(node->tag) > 3)
-        return 0;
-
-    static const struct {
-        const char* key;
-        void (*process_block)(LaTeXConverter*, HTMLNode*);
-    } blocks[] = {
-        {"p", &convert_paragraph}, {"div", NULL}, {"h1", &convert_heading},
-        {"h2", &convert_heading}, {"h3", &convert_heading}, {"h4", &convert_heading},
-        {"h5", &convert_heading}, {NULL, NULL}
-    };
-
-    int i = 0;
-
-    for (const char* block_tag = blocks[i].key; blocks[i].key; i++) {
-        if (strcmp(node->tag, block_tag) == 0) {
-            blocks[i].process_block(converter, node);
-            return 1;
-        }
-    }
-
-    /* no supported block element found */
-    return 0;
-}
-
-int convert_heading(LaTeXConverter* converter, HTMLNode* node) {
-    /* check if is valid element */
-    if (!is_valid_element(node))
-        return -2;
-
-    if (node->tag[0] != 'h')
-        return -1;
-
-    int level = node->tag[1] - 48;
-    static const char* const heading_type[] = {
-        "\\chapter{", "\\section{", "\\subsection{",
-        "\\subsubsection{", "\\paragraph{"
-    };
-
-    if (level >= 1 && level <= 5) {
-        append_string(converter, heading_type[level - 1]);
-        return 1;
-    }
-
-    /* no supported heading */
-    return 0;
-}
-
-/* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
-int convert_essential_inline(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    /* max length of special inline element */
-    if (strlen(node->tag) > 6)
-        return 0;
-
-    static const struct {
-        const char* key;
-        int (*convert_inline_element)(LaTeXConverter*, HTMLNode*);
-    } entries[] = {
-        {"b", &convert_inline_bold}, {"strong", &convert_inline_bold}, {"i", &convert_inline_italic}, {"em", &convert_inline_italic},
-        {"u", &convert_inline_underline}, {"hr", &convert_inline_essential}, {"code", &convert_inline_essential}, {"font", NULL},
-        {"span", NULL}, {"a", &convert_inline_anchor}, {"br", &convert_inline_essential}, {NULL, NULL}
-    };
-
-    int i = 0;
-    bool found = false;
-
-    /* find if the specified node is special inline element */
-    for (const char* tag_name = entries[i].key; entries[i].key; i++) {
-        if (strcmp(node->tag, tag_name) == 0) {
-            found = true;
-            break;
-        }
-    }
-
-    if (found) {
-        if (i >= 7 && i < 9)
-            return 1;
-        else
-            return entries[i].convert_inline_element(
-                converter, node);
-    }
-
-    /* not found */
-    return 0;
-}
-
-int convert_inline_bold(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    if (!(converter->state.applied_props & CSS_BOLD)) {
-        append_string(converter, "\\textbf{");
-        converter->state.applied_props |= CSS_BOLD;
-        return 1;
-    }
-
-    /* not found */
-    return 0;
-}
-
-int convert_inline_italic(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    if (!(converter->state.applied_props & CSS_ITALIC)) {
-        append_string(converter, "\\textit{");
-        converter->state.applied_props |= CSS_ITALIC;
-        return 1;
-    }
-
-    return 0;
-}
-
-int convert_inline_underline(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    if (!(converter->state.applied_props & CSS_UNDERLINE)) {
-        append_string(converter, "\\underline{");
-        converter->state.applied_props |= CSS_UNDERLINE;
-        return 1;
-    }
-
-    return 0;
-}
-
-int convert_inline_anchor(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    const char* href = get_attribute(node->attributes, "href");
-
-    if (href) {
-        append_string(converter, "\\href{");
-        escape_latex(converter, href);
-        append_string(converter, "}{");
-        return 1;
-    }
-
-    return 0;
-}
-
-int convert_inline_essential(LaTeXConverter* converter, HTMLNode* node) {
-    if (!is_valid_element(node))
-        return -1;
-
-    if (strcmp(node->tag, "hr") == 0) {
-        append_string(converter, "\\hrulefill\n\n");
-        return 2;
-    }
-    else if (strcmp(node->tag, "br") == 0) {
-        append_string(converter, "\\\\\n");
-        return 2;
-    }
-    else if (strcmp(node->tag, "code") == 0) {
-        append_string(converter, "\\texttt{");
-        return 1;
-    }
-
-    return 0;
 }

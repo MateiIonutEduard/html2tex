@@ -95,7 +95,7 @@ extern "C" {
 	 * @brief Determines if HTML element is block-level.
 	 * @param tag_name Lowercase tag name (e.g., "div", "p")
 	 * @return 1: Block-level element
-	 * @return 0: Not block-leve
+	 * @return 0: Not block-level
 	 */
 	int is_block_element(const char* tag_name);
 

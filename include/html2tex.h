@@ -3,11 +3,12 @@
 
 #include <stddef.h>
 #include "dom_tree.h"
+#include "image_utils.h"
 #include "string_buffer.h"
 #include "html2tex_stack.h"
 #include "html2tex_queue.h"
 #include "css_properties.h"
-#include "image_utils.h"
+#include "html2tex_processor.h"
 #include "html2tex_errors.h"
 
 #ifdef __cplusplus
@@ -116,6 +117,8 @@ extern "C" {
 	 * @param str String to append (NULL-safe, empty string allowed)
 	 */
 	void append_string(LaTeXConverter* converter, const char* str);
+
+	void escape_latex(LaTeXConverter* converter, const char* text);
 
 	/**
 	 * @brief Converts an HTML DOM subtree to LaTeX using iterative DFS with full CSS inheritance.
