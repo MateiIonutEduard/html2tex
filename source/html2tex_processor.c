@@ -58,6 +58,15 @@ static int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node)
 static int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
 static int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
 
+static int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
+
+static int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node);
+
+static int convert_item_list(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_item_list(LaTeXConverter* converter, const HTMLNode* node);
+
 int convert_element(LaTeXConverter* converter, const HTMLNode* node, bool is_starting) {
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
@@ -115,7 +124,9 @@ int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
         {"p", &convert_paragraph}, {"div", NULL},
         {"h1", &convert_heading}, {"h2", &convert_heading},
         {"h3", &convert_heading}, {"h4", &convert_heading},
-        {"h5", &convert_heading}, {NULL, NULL}
+        {"h5", &convert_heading}, {"ul", &convert_unordered_list},
+        {"ol", &convert_ordered_list}, {"li", &convert_item_list},
+        {NULL, NULL}
     };
 
     int i = 0;
@@ -141,7 +152,8 @@ int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
         {"p", &finish_paragraph}, {"div", NULL},
         {"h1", &finish_heading}, {"h2", &finish_heading},
         {"h3", &finish_heading}, {"h4", &finish_heading},
-        {"h5", &finish_heading}, {NULL, NULL}
+        {"h5", &finish_heading}, {"ul", &finish_unordered_list}, 
+        {"ol", &finish_ordered_list}, {"li", &finish_item_list}, { NULL, NULL }
     };
 
     int i = 0;
@@ -177,6 +189,30 @@ int convert_heading(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
+int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "ul") != 0)
+        return 0;
+
+    append_string(converter, "\\begin{itemize}\n");
+    return 1;
+}
+
+int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "ol") != 0)
+        return 0;
+
+    append_string(converter, "\\begin{enumerate}\n");
+    return 1;
+}
+
+int convert_item_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "li") != 0)
+        return 0;
+
+    append_string(converter, "\\item ");
+    return 1;
+}
+
 int finish_heading(LaTeXConverter* converter, const HTMLNode* node) {
     if (node->tag[0] != 'h')
         return -1;
@@ -190,6 +226,30 @@ int finish_heading(LaTeXConverter* converter, const HTMLNode* node) {
 
     /* no supported heading */
     return 0;
+}
+
+int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "ul") != 0)
+        return 0;
+
+    append_string(converter, "\\end{itemize}\n");
+    return 1;
+}
+
+int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "ol") != 0)
+        return 0;
+
+    append_string(converter, "\\end{enumerate}\n");
+    return 1;
+}
+
+int finish_item_list(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "li") != 0)
+        return 0;
+
+    append_string(converter, "\n");
+    return 1;
 }
 
 /* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
