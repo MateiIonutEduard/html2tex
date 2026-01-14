@@ -5,8 +5,11 @@
 #include <ctype.h>
 
 void append_string(LaTeXConverter* converter, const char* str) {
-    if (!converter || !str || !converter->buffer)
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in append_string().");
         return;
+    }
 
     if (string_buffer_append(converter->buffer, str, 0) != 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
@@ -16,8 +19,11 @@ void append_string(LaTeXConverter* converter, const char* str) {
 
 /* Append a single character to the LaTeX output buffer. */
 static void append_char(LaTeXConverter* converter, char c) {
-    if (!converter || !converter->buffer)
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in append_string().");
         return;
+    }
 
     if (string_buffer_append_char(converter->buffer, c) != 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
