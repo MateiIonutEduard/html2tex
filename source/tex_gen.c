@@ -85,7 +85,11 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
 }
 
 void escape_latex(LaTeXConverter* converter, const char* text) {
-    if (!converter || !text || !converter->buffer) return;
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in escape_latex().");
+        return;
+    }
 
     /* use the existing StringBuffer utility for full LaTeX escaping */
     if (string_buffer_append_latex(converter->buffer, text) != 0) {
@@ -648,9 +652,8 @@ static char* extract_caption_text(HTMLNode* node) {
             if (length + text_len + 1 > capacity) {
                 /* double capacity, but ensure minimum growth */
                 size_t new_capacity = capacity * 2;
-                if (new_capacity < length + text_len + 1) {
+                if (new_capacity < length + text_len + 1)
                     new_capacity = length + text_len + 1;
-                }
 
                 /* overflow protection */
                 if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {

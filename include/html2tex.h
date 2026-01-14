@@ -118,6 +118,11 @@ extern "C" {
 	 */
 	void append_string(LaTeXConverter* converter, const char* str);
 
+	/**
+	 * @brief Escapes and appends text to LaTeX output with proper character escaping.
+	 * @param converter Active LaTeX conversion context
+	 * @param text Raw text to escape and append (UTF-8, NULL-terminated)
+	*/
 	void escape_latex(LaTeXConverter* converter, const char* text);
 
 	/**
