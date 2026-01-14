@@ -5,6 +5,9 @@
 #include <ctype.h>
 
 void append_string(LaTeXConverter* converter, const char* str) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in append_string().");
@@ -12,13 +15,18 @@ void append_string(LaTeXConverter* converter, const char* str) {
     }
 
     if (string_buffer_append(converter->buffer, str, 0) != 0) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-            "Failed to append string to buffer.");
+        if (!html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to append string to buffer.");
+        }
     }
 }
 
 /* Append a single character to the LaTeX output buffer. */
 static void append_char(LaTeXConverter* converter, char c) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in append_char().");
@@ -26,12 +34,17 @@ static void append_char(LaTeXConverter* converter, char c) {
     }
 
     if (string_buffer_append_char(converter->buffer, c) != 0) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-            "Failed to append character to buffer.");
+        if (!html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to append character to buffer.");
+        }
     }
 }
 
 static void escape_latex_special(LaTeXConverter* converter, const char* text) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in escape_latex_special().");
@@ -101,6 +114,9 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
 }
 
 void escape_latex(LaTeXConverter* converter, const char* text) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in escape_latex().");
@@ -109,17 +125,26 @@ void escape_latex(LaTeXConverter* converter, const char* text) {
 
     /* use the existing StringBuffer utility for full LaTeX escaping */
     if (string_buffer_append_latex(converter->buffer, text) != 0) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-            "Failed to escape LaTeX text.");
+        if (!html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Failed to escape LaTeX text.");
+        }
     }
 }
 
 static void begin_environment(LaTeXConverter* converter, const char* env) {
-    if (!converter || !env) {
-        if (converter) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
-                "NULL parameter to begin_environment().");
-        }
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in begin_environment().");
+        return;
+    }
+
+    if (!env) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL parameter to begin_environment().");
         return;
     }
 
@@ -132,11 +157,18 @@ static void begin_environment(LaTeXConverter* converter, const char* env) {
 }
 
 static void end_environment(LaTeXConverter* converter, const char* env) {
-    if (!converter || !env) {
-        if (converter) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
-                "NULL parameter to end_environment().");
-        }
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in end_environment().");
+        return;
+    }
+
+    if (!env) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL parameter to end_environment().");
         return;
     }
 
@@ -357,8 +389,14 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
 }
 
 static void begin_table(LaTeXConverter* converter, int columns) {
-    if (!converter || !converter->buffer)
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in begin_table().");
         return;
+    }
 
     if (columns <= 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE,
@@ -391,8 +429,14 @@ static void begin_table(LaTeXConverter* converter, int columns) {
 }
 
 static void end_table(LaTeXConverter* converter, const char* table_label) {
-    if (!converter || !converter->buffer)
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in end_table().");
         return;
+    }
 
     /* quick exit if not in table */
     if (!converter->state.in_table) {
@@ -462,6 +506,9 @@ cleanup:
 }
 
 static void begin_table_row(LaTeXConverter* converter) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in begin_table_row().");
@@ -473,6 +520,9 @@ static void begin_table_row(LaTeXConverter* converter) {
 }
 
 static void end_table_row(LaTeXConverter* converter) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in end_table_row().");
@@ -486,6 +536,9 @@ static void end_table_row(LaTeXConverter* converter) {
 }
 
 static void begin_table_cell(LaTeXConverter* converter, int is_header) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in begin_table_cell().");
@@ -503,6 +556,9 @@ static void begin_table_cell(LaTeXConverter* converter, int is_header) {
 }
 
 static void end_table_cell(LaTeXConverter* converter, int is_header) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in end_table_cell().");
@@ -516,16 +572,22 @@ static void end_table_cell(LaTeXConverter* converter, int is_header) {
 }
 
 int count_table_columns(HTMLNode* node) {
-    /* validate input */
-    if (!node) return 1;
-    int max_columns = 0;
+    /* clear previous errors */
+    html2tex_err_clear();
 
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML node is NULL in count_table_columns().");
+        return 0;
+    }
+
+    int max_columns = 0;
     Queue* front = NULL;
     Queue* rear = NULL;
 
-    /* initialize BFS queue with the node */
+    /* try to enqueue node to the BFS queue */
     if (!queue_enqueue(&front, &rear, node))
-        return 1;
+        return 0;
 
     /* BFS traversal for table structure */
     while (front) {
@@ -634,7 +696,14 @@ int count_table_columns(HTMLNode* node) {
 
 /* Returns the extracted caption text. */
 static char* extract_caption_text(HTMLNode* node) {
-    if (!node) return NULL;
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML node is NULL in extract_caption_text().");
+        return NULL;
+    }
 
     /* optimized dynamic string buffer */
     size_t capacity = 256;
@@ -765,7 +834,20 @@ static char* extract_caption_text(HTMLNode* node) {
 }
 
 void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
-    if (!converter || !img_node) return;
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in process_table_image().");
+        return;
+    }
+
+    if (!img_node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML node is NULL in process_table_image().");
+        return NULL;
+    }
 
     const char* src = get_attribute(img_node->attributes, "src");
     if (!src || src[0] == '\0') return;
@@ -870,8 +952,20 @@ void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
 }
 
 void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
-    if (!converter || !table_node)
+    /* clear previous errors */
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in append_figure_caption().");
         return;
+    }
+
+    if (!table_node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML node is NULL in append_figure_caption().");
+        return NULL;
+    }
 
     /* increment the counter */
     converter->state.figure_internal_counter++;
@@ -948,6 +1042,9 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
 }
 
 void convert_document(LaTeXConverter* converter, HTMLNode* node) {
+    /* clear previous errors */
+    html2tex_err_clear();
+
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in convert_document().");
@@ -970,8 +1067,10 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
     if (!stack_push(&node_stack, (void*)node) ||
         !stack_push(&css_stack, (void*)inherit_props) ||
         !stack_push(&processed_stack, (void*)0)) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to push initial nodes onto stack.");
+        if (!html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to push initial nodes onto stack.");
+        }
         goto cleanup;
     }
 
@@ -1054,8 +1153,10 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
                 if (!stack_push(&node_stack, (void*)current_node) ||
                     !stack_push(&css_stack, (void*)merged_css) ||
                     !stack_push(&processed_stack, (void*)1)) {
-                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to push node for closing pass.");
+                    if (!html2tex_has_error()) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to push node for closing pass.");
+                    }
                     goto cleanup;
                 }
 
@@ -1104,8 +1205,11 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
                     if (child_css && child_css != inherit_props)
                         css_properties_destroy(child_css);
 
-                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to push child node onto stack.");
+                    if (!html2tex_has_error()) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to push child node onto stack.");
+                    }
+
                     goto cleanup;
                 }
 
