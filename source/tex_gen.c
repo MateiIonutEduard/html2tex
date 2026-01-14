@@ -846,7 +846,7 @@ void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
     if (!img_node) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "HTML node is NULL in process_table_image().");
-        return NULL;
+        return;
     }
 
     const char* src = get_attribute(img_node->attributes, "src");
@@ -964,7 +964,7 @@ void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
     if (!table_node) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "HTML node is NULL in append_figure_caption().");
-        return NULL;
+        return;
     }
 
     /* increment the counter */
@@ -1066,13 +1066,8 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
     /* push root node with initial CSS properties */
     if (!stack_push(&node_stack, (void*)node) ||
         !stack_push(&css_stack, (void*)inherit_props) ||
-        !stack_push(&processed_stack, (void*)0)) {
-        if (!html2tex_has_error()) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to push initial nodes onto stack.");
-        }
+        !stack_push(&processed_stack, (void*)0))
         goto cleanup;
-    }
 
     /* depth-first traversal */
     while (!stack_is_empty(node_stack)) {
@@ -1152,13 +1147,8 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
             if (current_node->children || (current_node->tag && !is_void_element(current_node->tag))) {
                 if (!stack_push(&node_stack, (void*)current_node) ||
                     !stack_push(&css_stack, (void*)merged_css) ||
-                    !stack_push(&processed_stack, (void*)1)) {
-                    if (!html2tex_has_error()) {
-                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                            "Failed to push node for closing pass.");
-                    }
+                    !stack_push(&processed_stack, (void*)1))
                     goto cleanup;
-                }
 
                 /* merged_css will be cleaned up in second pass */
                 merged_css = NULL;
@@ -1204,12 +1194,6 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
                     !stack_push(&processed_stack, (void*)0)) {
                     if (child_css && child_css != inherit_props)
                         css_properties_destroy(child_css);
-
-                    if (!html2tex_has_error()) {
-                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                            "Failed to push child node onto stack.");
-                    }
-
                     goto cleanup;
                 }
 
