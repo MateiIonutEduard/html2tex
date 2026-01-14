@@ -21,7 +21,7 @@ void append_string(LaTeXConverter* converter, const char* str) {
 static void append_char(LaTeXConverter* converter, char c) {
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
-            "NULL converter in append_string().");
+            "NULL converter in append_char().");
         return;
     }
 
@@ -32,7 +32,11 @@ static void append_char(LaTeXConverter* converter, char c) {
 }
 
 static void escape_latex_special(LaTeXConverter* converter, const char* text) {
-    if (!converter || !text || !converter->buffer) return;
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "NULL converter in escape_latex_special().");
+        return;
+    }
 
     /* optimized lookup table for LaTeX special characters (subset) */
     static const unsigned char SPECIAL_SP[256] = {
@@ -63,16 +67,20 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
         if (p > start) {
             size_t normal_len = p - start;
             if (string_buffer_append(converter->buffer, start, normal_len) != 0) {
-                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-                    "Failed to append text during escape.");
+                if (!html2tex_has_error()) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                        "Failed to append text during escape.");
+                }
                 return;
             }
         }
 
         /* append escaped sequence using existing StringBuffer */
         if (string_buffer_append(converter->buffer, ESCAPED_SP[type], 0) != 0) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-                "Failed to append escaped sequence.");
+            if (!html2tex_has_error()) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Failed to append escaped sequence.");
+            }
             return;
         }
 
@@ -84,8 +92,10 @@ static void escape_latex_special(LaTeXConverter* converter, const char* text) {
     if (p > start) {
         size_t remaining_len = p - start;
         if (string_buffer_append(converter->buffer, start, remaining_len) != 0) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
-                "Failed to append remaining text.");
+            if (!html2tex_has_error()) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Failed to append remaining text.");
+            }
         }
     }
 }
