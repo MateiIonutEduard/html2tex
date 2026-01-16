@@ -760,7 +760,7 @@ cleanup:
     return result;
 }
 
-int table_contains_only_images(HTMLNode* node) {
+int table_contains_only_images(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
@@ -873,7 +873,7 @@ cleanup:
     return has_images;
 }
 
-void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
+void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!converter) {
@@ -1378,7 +1378,7 @@ int is_whitespace_only(const char* text) {
     return 1;
 }
 
-int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
+int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
     html2tex_err_clear();
 
     /* validate inputs with appropriate error messages */
@@ -1408,7 +1408,7 @@ int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
     return 0;
 }
 
-int is_inside_table(HTMLNode* node) {
+int is_inside_table(const HTMLNode* node) {
     if (!node) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table check.");
         return -1;

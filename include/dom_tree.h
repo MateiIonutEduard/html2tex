@@ -155,7 +155,7 @@ extern "C" {
 	 * @return 0: Not inside table
 	 * @return -1: Error
 	 */
-	int is_inside_table(HTMLNode* node);
+	int is_inside_table(const HTMLNode* node);
 
 	/**
 	 * @brief Determines if table contains only <img> elements.
@@ -164,7 +164,7 @@ extern "C" {
 	 * @return 0: Contains other content
 	 * @return -1: Error or not a table
 	 */
-	int table_contains_only_images(HTMLNode* node);
+	int table_contains_only_images(const HTMLNode* node);
 
 	/**
 	 * @brief Compresses HTML by removing unnecessary whitespace.
@@ -192,14 +192,14 @@ extern "C" {
 	 * @return 0: Not inside table cell
 	 * @return -1: Error
 	 */
-	int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node);
+	int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node);
 
 	/**
 	 * @brief Converts image-only table to LaTeX figure with grid layout.
 	 * @param converter Active conversion context
 	 * @param node Table element containing only images
 	 */
-	void convert_image_table(LaTeXConverter* converter, HTMLNode* node);
+	void convert_image_table(LaTeXConverter* converter, const HTMLNode* node);
 
 #ifndef HTML_TITLE_MAX_SIZE
 #define HTML_TITLE_MAX_SIZE 256

@@ -177,12 +177,22 @@ extern "C" {
 	 */
 	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
 
+	void begin_table(LaTeXConverter* converter, int columns);
+
+	void end_table(LaTeXConverter* converter, const char* table_label);
+
+	void begin_table_row(LaTeXConverter* converter);
+
+	void end_table_row(LaTeXConverter* converter);
+
+	char* extract_caption_text(const HTMLNode* node);
+
 	/**
 	 * @brief Generates LaTeX caption and label for image-only tables.
 	 * @param converter Active conversion context
 	 * @param table_node Table containing only images
 	 */
-	void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node);
+	void append_figure_caption(LaTeXConverter* converter, const HTMLNode* table_node);
 
 	/**
 	 * @brief Calculates maximum columns in HTML table structure.
@@ -190,7 +200,7 @@ extern "C" {
 	 * @return Success: Column count (≥1)
 	 * @return Failure: -1 with error set
 	 */
-	int count_table_columns(HTMLNode* node);
+	int count_table_columns(const HTMLNode* node);
 
 	/**
 	 * @brief Finds first DOM node matching predicate with computed CSS inheritance.

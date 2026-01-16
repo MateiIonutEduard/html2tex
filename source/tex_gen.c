@@ -388,7 +388,7 @@ static void apply_color(LaTeXConverter* converter, const char* color_value, int 
     free(hex_color);
 }
 
-static void begin_table(LaTeXConverter* converter, int columns) {
+void begin_table(LaTeXConverter* converter, int columns) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -428,7 +428,7 @@ static void begin_table(LaTeXConverter* converter, int columns) {
     append_string(converter, "}\n\\hline\n");
 }
 
-static void end_table(LaTeXConverter* converter, const char* table_label) {
+void end_table(LaTeXConverter* converter, const char* table_label) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -505,7 +505,7 @@ cleanup:
     converter->state.in_table_cell = 0;
 }
 
-static void begin_table_row(LaTeXConverter* converter) {
+void begin_table_row(LaTeXConverter* converter) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -519,7 +519,7 @@ static void begin_table_row(LaTeXConverter* converter) {
     converter->state.current_column = 0;
 }
 
-static void end_table_row(LaTeXConverter* converter) {
+void end_table_row(LaTeXConverter* converter) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -571,7 +571,7 @@ static void end_table_cell(LaTeXConverter* converter, int is_header) {
     converter->state.in_table_cell = 0;
 }
 
-int count_table_columns(HTMLNode* node) {
+int count_table_columns(const HTMLNode* node) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -586,7 +586,7 @@ int count_table_columns(HTMLNode* node) {
     Queue* rear = NULL;
 
     /* try to enqueue node to the BFS queue */
-    if (!queue_enqueue(&front, &rear, node))
+    if (!queue_enqueue(&front, &rear, (HTMLNode*)node))
         return 0;
 
     /* BFS traversal for table structure */
@@ -694,8 +694,7 @@ int count_table_columns(HTMLNode* node) {
     return max_columns > 0 ? max_columns : 1;
 }
 
-/* Returns the extracted caption text. */
-static char* extract_caption_text(HTMLNode* node) {
+char* extract_caption_text(const HTMLNode* node) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -951,7 +950,7 @@ void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
     if (img_css) css_properties_destroy(img_css);
 }
 
-void append_figure_caption(LaTeXConverter* converter, HTMLNode* table_node) {
+void append_figure_caption(LaTeXConverter* converter, const HTMLNode* table_node) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -1074,7 +1073,7 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
         intptr_t already_processed = (intptr_t)stack_pop(&processed_stack);
         CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
         HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
-
+        
         if (!current_node) {
             if (current_css && current_css != inherit_props)
                 css_properties_destroy(current_css);
@@ -1109,7 +1108,6 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
 
                         if (current_css && current_css != inherit_props)
                             css_properties_destroy(current_css);
-
                         goto cleanup;
                     }
                 }
@@ -1118,18 +1116,16 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
 
         if (!already_processed) {
             /* apply CSS and open element */
-            if (merged_css && current_node->tag) {
+            if (merged_css && current_node->tag)
                 css_properties_apply(converter, merged_css, current_node->tag);
-            }
 
             /* handle text nodes */
             if (!current_node->tag && current_node->content) {
                 escape_latex(converter, current_node->content);
 
                 /* CSS cleanup for text node context */
-                if (merged_css && current_node->parent && current_node->parent->tag) {
+                if (merged_css && current_node->parent && current_node->parent->tag)
                     css_properties_end(converter, merged_css, current_node->parent->tag);
-                }
 
                 /* cleanup CSS and continue */
                 if (merged_css && merged_css != current_css && merged_css != inherit_props)
@@ -1183,7 +1179,6 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
 
                         if (current_css && current_css != inherit_props)
                             css_properties_destroy(current_css);
-
                         goto cleanup;
                     }
                 }
@@ -1216,12 +1211,13 @@ void convert_document(LaTeXConverter* converter, HTMLNode* node) {
         if (current_css && current_css != inherit_props 
             && (already_processed || !current_node->children))
             css_properties_destroy(current_css);
-
+        
         /* check for errors from other operations */
         if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:
+    printf("error occured: '%s'", html2tex_get_error_message());
     /* destroy the remaining CSS properties */
     while (!stack_is_empty(css_stack)) {
         CSSProperties* css = (CSSProperties*)stack_pop(&css_stack);

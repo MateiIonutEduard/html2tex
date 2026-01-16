@@ -68,6 +68,18 @@ static int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node);
 static int convert_item_list(LaTeXConverter* converter, const HTMLNode* node);
 static int finish_item_list(LaTeXConverter* converter, const HTMLNode* node);
 
+static int convert_table(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_table(LaTeXConverter* converter, const HTMLNode* node);
+
+static int convert_caption(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_caption(LaTeXConverter* converter, const HTMLNode* node);
+
+static int convert_table_header(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_table_header(LaTeXConverter* converter, const HTMLNode* node);
+
+static int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node);
+static int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node);
+
 int convert_element(LaTeXConverter* converter, const HTMLNode* node, bool is_starting) {
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
@@ -120,14 +132,17 @@ int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node) {
 int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     static const struct {
         const char* key;
-        void (*process_block)(LaTeXConverter*, const HTMLNode*);
+        int (*process_block)(LaTeXConverter*, const HTMLNode*);
     } blocks[] = {
         {"p", &convert_paragraph}, {"div", NULL},
         {"h1", &convert_heading}, {"h2", &convert_heading},
         {"h3", &convert_heading}, {"h4", &convert_heading},
         {"h5", &convert_heading}, {"ul", &convert_unordered_list},
         {"ol", &convert_ordered_list}, {"li", &convert_item_list},
-        {NULL, NULL}
+        {"table", &convert_table}, {"caption", &convert_caption},
+        {"thead", NULL}, {"tbody", NULL}, {"tfoot", NULL},
+        {"tr", &convert_table_header}, {"td", &convert_table_cell},
+        {"th", &convert_table_cell}, {NULL, NULL}
     };
 
     int i = 0;
@@ -135,8 +150,7 @@ int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     for (i = 0; blocks[i].key != NULL; i++) {
         if (strcmp(node->tag, blocks[i].key) == 0) {
             if (blocks[i].process_block != NULL)
-                blocks[i].process_block(converter, node);
-            return 1;
+                return blocks[i].process_block(converter, node);
         }
     }
 
@@ -148,13 +162,17 @@ int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
 int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     static const struct {
         const char* key;
-        void (*finish_block)(LaTeXConverter*, const HTMLNode*);
+        int (*finish_block)(LaTeXConverter*, const HTMLNode*);
     } blocks[] = {
         {"p", &finish_paragraph}, {"div", NULL},
         {"h1", &finish_heading}, {"h2", &finish_heading},
         {"h3", &finish_heading}, {"h4", &finish_heading},
         {"h5", &finish_heading}, {"ul", &finish_unordered_list}, 
-        {"ol", &finish_ordered_list}, {"li", &finish_item_list}, { NULL, NULL }
+        {"ol", &finish_ordered_list}, {"li", &finish_item_list},
+        {"table", &finish_table}, {"caption", &finish_caption},
+        {"thead", NULL}, {"tbody", NULL}, {"tfoot", NULL},
+        {"tr", &finish_table_header}, {"td", &finish_table_cell},
+        {"th", &finish_table_cell}, {NULL, NULL}
     };
 
     int i = 0;
@@ -162,8 +180,7 @@ int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     for (i = 0; blocks[i].key != NULL; i++) {
         if (strcmp(node->tag, blocks[i].key) == 0) {
             if (blocks[i].finish_block != NULL)
-                blocks[i].finish_block(converter, node);
-            return 1;
+                return blocks[i].finish_block(converter, node);
         }
     }
 
@@ -211,6 +228,215 @@ int convert_item_list(LaTeXConverter* converter, const HTMLNode* node) {
         return 0;
 
     append_string(converter, "\\item ");
+    return 1;
+}
+
+int convert_table(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "table") != 0)
+        return 0;
+
+    if (table_contains_only_images(node))
+        convert_image_table(converter, node);
+    else {
+        /* reset CSS for table element */
+        converter->state.applied_props = 0;
+        int columns = count_table_columns(node);
+        begin_table(converter, columns);
+    }
+
+    return 1;
+}
+
+int finish_table(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "table") != 0)
+        return 0;
+
+    const char* table_id = get_attribute(node->attributes, "id");
+    if (table_id && table_id[0] != '\0') end_table(converter, table_id);
+    else {
+        char table_label[64];
+        char label_counter[32];
+
+        html2tex_itoa(converter->state.table_internal_counter,
+            label_counter, 10);
+
+        strcpy(table_label, "table_");
+        strcpy(table_label + 6, label_counter);
+        end_table(converter, table_label);
+    }
+
+    converter->state.applied_props = 0;
+    return 1;
+}
+
+int convert_caption(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "caption") != 0)
+        return 0;
+
+    if (converter->state.in_table) {
+        if (converter->state.table_caption) {
+            free(converter->state.table_caption);
+            converter->state.table_caption = NULL;
+        }
+
+        char* raw_caption = extract_caption_text(node);
+        const char* style_attr = get_attribute(node->attributes, 
+            "style");
+
+        if (raw_caption) {
+            CSSProperties* caption_css = NULL;
+            if (style_attr) caption_css = parse_css_style(style_attr);
+
+            if (caption_css) {
+                size_t buffer_size = (size_t)strlen(raw_caption) * 2 + 256;
+                char* formatted_caption = (char*)malloc(buffer_size);
+
+                if (formatted_caption) {
+                    formatted_caption[0] = '\0';
+                    const char* color = css_properties_get(caption_css, 
+                        "color");
+
+                    if (color) {
+                        char* hex_color = css_color_to_hex(color);
+
+                        if (hex_color && strcmp(hex_color, "000000") != 0) {
+                            strcat(formatted_caption, "\\textcolor[HTML]{");
+                            strcat(formatted_caption, hex_color);
+                            strcat(formatted_caption, "}{");
+                            free(hex_color);
+                        }
+                    }
+
+                    int has_bold = 0;
+                    const char* font_weight = css_properties_get(caption_css, 
+                        "font-weight");
+
+                    if (font_weight &&
+                        (strcmp(font_weight, "bold") == 0 ||
+                            strcmp(font_weight, "bolder") == 0)) {
+                        strcat(formatted_caption, "\\textbf{");
+                        has_bold = 1;
+                    }
+
+                    strcat(formatted_caption, raw_caption);
+                    if (has_bold) strcat(formatted_caption, "}");
+
+                    if (color) {
+                        char* hex_color = css_color_to_hex(color);
+
+                        if (hex_color && strcmp(hex_color, "000000") != 0) {
+                            strcat(formatted_caption, "}");
+                            free(hex_color);
+                        }
+                    }
+
+                    converter->state.table_caption = formatted_caption;
+                }
+
+                css_properties_destroy(caption_css);
+            }
+            else
+                converter->state.table_caption = raw_caption;
+        }
+    }
+
+    return 1;
+}
+
+int finish_caption(LaTeXConverter* converter, const HTMLNode* node) {
+    return strcmp(node->tag, "caption") != 0
+        ? 0 : 1;
+}
+
+int convert_table_header(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "tr") != 0)
+        return 0;
+
+    converter->state.current_column = 0;
+    converter->state.applied_props = 0;
+    begin_table_row(converter);
+    return 1;
+}
+
+int finish_table_header(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "tr") != 0)
+        return 0;
+
+    end_table_row(converter);
+    return 1;
+}
+
+int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "td") != 0
+        && strcmp(node->tag, "th") != 0)
+        return 0;
+
+    int is_header = (strcmp(node->tag, "th") == 0);
+    int colspan = 1;
+    
+    if (node->attributes != NULL) {
+        const char* colspan_attr = get_attribute(node->attributes, 
+            "colspan");
+
+        if (colspan_attr) {
+            colspan = atoi(colspan_attr);
+            if (colspan < 1) colspan = 1;
+        }
+    }
+
+    if (converter->state.current_column > 0) 
+        append_string(converter, " & ");
+
+    /* save current state for cell-internal CSS */
+    CSSPropertyMask saved_props = converter->state.applied_props;
+    converter->state.applied_props = 0;
+
+    if (is_header)
+        append_string(converter, "\\textbf{");
+
+    converter->state.in_table_cell = 1;
+    return 1;
+}
+
+int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "td") != 0
+        && strcmp(node->tag, "th") != 0)
+        return 0;
+
+    int is_header = (strcmp(node->tag, "th") == 0);
+    int colspan = 1;
+
+    if (node->attributes != NULL) {
+        const char* colspan_attr = get_attribute(node->attributes, 
+            "colspan");
+
+        if (colspan_attr) {
+            colspan = atoi(colspan_attr);
+            if (colspan < 1) colspan = 1;
+        }
+    }
+
+    /* close header bold formatting */
+    if (is_header) append_string(converter, "}");
+
+    /* close any CSS braces opened within this cell */
+    while (converter->state.css_braces > 0) {
+        append_string(converter, "}");
+        converter->state.css_braces--;
+    }
+
+    /* reset CSS properties */
+    converter->state.applied_props = 0;
+    converter->state.in_table_cell = 0;
+
+    /* handle colspan */
+    for (int i = 1; i < colspan; i++) {
+        converter->state.current_column++;
+        append_string(converter, " & ");
+        append_string(converter, " ");
+    }
+
+    converter->state.current_column++;
     return 1;
 }
 
@@ -424,115 +650,182 @@ int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
 int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node) {
     if (strcmp(node->tag, "img") != 0)
         return 0;
+    if (is_inside_table(node)) {
+        const char* src = get_attribute(node->attributes, "src");
+        const char* style_attr = get_attribute(node->attributes, "style");
+        const char* width_attr = get_attribute(node->attributes, "width");
+        const char* height_attr = get_attribute(node->attributes, "height");
 
-    converter->image_counter++;
-    converter->state.image_internal_counter++;
-    const char* src = get_attribute(node->attributes, "src");
-    const char* alt = get_attribute(node->attributes, "alt");
+        if (src) {
+            char* image_path = NULL;
 
-    const char* width_attr = get_attribute(node->attributes, "width");
-    const char* height_attr = get_attribute(node->attributes, "height");
-    const char* image_id_attr = get_attribute(node->attributes, "id");
-
-    if (src) {
-        char* image_path = NULL;
-
-        if (converter->download_images 
-            && converter->image_output_dir)
-            image_path = download_image_src(src, 
-                converter->image_output_dir,
-                converter->image_counter);
-
-        if (!image_path) {
-            if (is_base64_image(src) && converter->download_images && converter->image_output_dir)
+            if (converter->download_images && converter->image_output_dir) {
+                converter->image_counter++;
                 image_path = download_image_src(src, converter->image_output_dir,
                     converter->image_counter);
+            }
 
             if (!image_path) image_path = strdup(src);
-        }
+            append_string(converter, "\\includegraphics");
 
-        append_string(converter, "\n\n\\begin{figure}[h]\n");
-        append_string(converter, "\\centering\n");
+            int width_pt = 0;
+            int height_pt = 0;
 
-        int width_pt = css_length_to_pt(width_attr);
-        int height_pt = css_length_to_pt(height_attr);
+            if (width_attr) width_pt = css_length_to_pt(width_attr);
+            if (height_attr) height_pt = css_length_to_pt(height_attr);
 
-        if (width_pt == 0 && width_attr) width_pt = css_length_to_pt(width_attr);
-        if (height_pt == 0 && height_attr) height_pt = css_length_to_pt(height_attr);
-        append_string(converter, "\\includegraphics");
+            if (style_attr) {
+                CSSProperties* img_css = parse_css_style(style_attr);
 
-        if (width_pt > 0 || height_pt > 0) {
-            append_string(converter, "[");
+                if (img_css) {
+                    const char* width = css_properties_get(img_css, "width");
+                    const char* height = css_properties_get(img_css, "height");
 
-            if (width_pt > 0) {
-                char width_str[32];
-                snprintf(width_str, sizeof(width_str), "width=%dpt", width_pt);
-                append_string(converter, width_str);
+                    if (width) width_pt = css_length_to_pt(width);
+                    if (height) height_pt = css_length_to_pt(height);
+                    css_properties_destroy(img_css);
+                }
             }
 
-            if (height_pt > 0) {
-                if (width_pt > 0) append_string(converter, ",");
-                char height_str[32];
+            if (width_pt > 0 || height_pt > 0) {
+                append_string(converter, "[");
 
-                snprintf(height_str, sizeof(height_str), "height=%dpt", height_pt);
-                append_string(converter, height_str);
+                if (width_pt > 0) {
+                    char width_str[32];
+                    snprintf(width_str, sizeof(width_str), "width=%dpt", width_pt);
+                    append_string(converter, width_str);
+                }
+
+                if (height_pt > 0) {
+                    if (width_pt > 0) append_string(converter, ",");
+                    char height_str[32];
+                    snprintf(height_str, sizeof(height_str), "height=%dpt", height_pt);
+                    append_string(converter, height_str);
+                }
+
+                append_string(converter, "]");
             }
 
-            append_string(converter, "]");
+            append_string(converter, "{");
+            if (converter->download_images && converter->image_output_dir &&
+                strstr(image_path, converter->image_output_dir) == image_path)
+                escape_latex_special(converter, image_path + 2);
+            else
+                escape_latex(converter, image_path);
+            append_string(converter, "}");
+            free(image_path);
         }
+    }
+    else {
+        converter->image_counter++;
+        converter->state.image_internal_counter++;
+        const char* src = get_attribute(node->attributes, "src");
+        const char* alt = get_attribute(node->attributes, "alt");
 
-        append_string(converter, "{");
+        const char* width_attr = get_attribute(node->attributes, "width");
+        const char* height_attr = get_attribute(node->attributes, "height");
+        const char* image_id_attr = get_attribute(node->attributes, "id");
 
-        if (converter->download_images && converter->image_output_dir
-            && strstr(image_path, converter->image_output_dir) == image_path)
-            escape_latex_special(converter, image_path + 2);
-        else
-            escape_latex(converter, image_path);
-        append_string(converter, "}\n");
+        if (src) {
+            char* image_path = NULL;
 
-        if (alt && alt[0] != '\0') {
-            append_string(converter, "\n");
-            append_string(converter, "\\caption{");
+            if (converter->download_images
+                && converter->image_output_dir)
+                image_path = download_image_src(src,
+                    converter->image_output_dir,
+                    converter->image_counter);
 
-            escape_latex(converter, alt);
+            if (!image_path) {
+                if (is_base64_image(src) && converter->download_images && converter->image_output_dir)
+                    image_path = download_image_src(src, converter->image_output_dir,
+                        converter->image_counter);
+
+                if (!image_path) image_path = strdup(src);
+            }
+
+            append_string(converter, "\n\n\\begin{figure}[h]\n");
+            append_string(converter, "\\centering\n");
+
+            int width_pt = css_length_to_pt(width_attr);
+            int height_pt = css_length_to_pt(height_attr);
+
+            if (width_pt == 0 && width_attr) width_pt = css_length_to_pt(width_attr);
+            if (height_pt == 0 && height_attr) height_pt = css_length_to_pt(height_attr);
+            append_string(converter, "\\includegraphics");
+
+            if (width_pt > 0 || height_pt > 0) {
+                append_string(converter, "[");
+
+                if (width_pt > 0) {
+                    char width_str[32];
+                    snprintf(width_str, sizeof(width_str), "width=%dpt", width_pt);
+                    append_string(converter, width_str);
+                }
+
+                if (height_pt > 0) {
+                    if (width_pt > 0) append_string(converter, ",");
+                    char height_str[32];
+
+                    snprintf(height_str, sizeof(height_str), "height=%dpt", height_pt);
+                    append_string(converter, height_str);
+                }
+
+                append_string(converter, "]");
+            }
+
+            append_string(converter, "{");
+
+            if (converter->download_images && converter->image_output_dir
+                && strstr(image_path, converter->image_output_dir) == image_path)
+                escape_latex_special(converter, image_path + 2);
+            else
+                escape_latex(converter, image_path);
             append_string(converter, "}\n");
+
+            if (alt && alt[0] != '\0') {
+                append_string(converter, "\n");
+                append_string(converter, "\\caption{");
+
+                escape_latex(converter, alt);
+                append_string(converter, "}\n");
+            }
+            else {
+                append_string(converter, "\\caption{");
+                char text_caption[64] = { 0 };
+
+                char caption_counter[32] = { 0 };
+                html2tex_itoa(converter->state.image_internal_counter,
+                    caption_counter, 10);
+
+                strcpy(text_caption, "Image ");
+                strcpy(text_caption + 6, caption_counter);
+
+                escape_latex(converter, text_caption);
+                append_string(converter, "}\n");
+            }
+
+            if (image_id_attr && image_id_attr[0] != '\0') {
+                append_string(converter, "\\label{fig:");
+                escape_latex(converter, image_id_attr);
+                append_string(converter, "}\n");
+            }
+            else {
+                append_string(converter, "\\label{fig:");
+                char image_label_id[64];
+                char label_counter[32];
+
+                html2tex_itoa(converter->state.image_internal_counter,
+                    label_counter, 10);
+
+                strcpy(image_label_id, "image_");
+                strcpy(image_label_id + 6, label_counter);
+                escape_latex_special(converter, image_label_id);
+                append_string(converter, "}\n");
+            }
+
+            append_string(converter, "\\end{figure}\n");
+            append_string(converter, "\\FloatBarrier\n\n");
         }
-        else {
-            append_string(converter, "\\caption{");
-            char text_caption[64] = {0};
-
-            char caption_counter[32] = {0};
-            html2tex_itoa(converter->state.image_internal_counter, 
-                caption_counter, 10);
-
-            strcpy(text_caption, "Image ");
-            strcpy(text_caption + 6, caption_counter);
-
-            escape_latex(converter, text_caption);
-            append_string(converter, "}\n");
-        }
-
-        if (image_id_attr && image_id_attr[0] != '\0') {
-            append_string(converter, "\\label{fig:");
-            escape_latex(converter, image_id_attr);
-            append_string(converter, "}\n");
-        }
-        else {
-            append_string(converter, "\\label{fig:");
-            char image_label_id[64];
-            char label_counter[32];
-
-            html2tex_itoa(converter->state.image_internal_counter, 
-                label_counter, 10);
-
-            strcpy(image_label_id, "image_");
-            strcpy(image_label_id + 6, label_counter);
-            escape_latex_special(converter, image_label_id);
-            append_string(converter, "}\n");
-        }
-
-        append_string(converter, "\\end{figure}\n");
-        append_string(converter, "\\FloatBarrier\n\n");
     }
 
     return 2;
