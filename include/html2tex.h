@@ -10,6 +10,7 @@
 #include "css_properties.h"
 #include "html2tex_processor.h"
 #include "html2tex_errors.h"
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -124,6 +125,13 @@ extern "C" {
 	 * @param text Raw text to escape and append (UTF-8, NULL-terminated)
 	*/
 	void escape_latex(LaTeXConverter* converter, const char* text);
+
+	/**
+	 * @brief Escapes only critical LaTeX special characters (minimal escaping).
+	 * @param converter Active LaTeX conversion context
+	 * @param text Text to minimally escape (NULL-safe)
+	*/
+	void escape_latex_special(LaTeXConverter* converter, const char* text);
 
 	/**
 	 * @brief Converts an HTML DOM subtree to LaTeX using iterative DFS with full CSS inheritance.

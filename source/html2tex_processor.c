@@ -58,6 +58,7 @@ static int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node)
 static int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
 static int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
 
+static int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node);
 static int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
 static int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
 
@@ -258,9 +259,10 @@ int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
         const char* key;
         int (*convert_inline_element)(LaTeXConverter*, const HTMLNode*);
     } entries[] = {
-        {"b", &convert_inline_bold}, {"strong", &convert_inline_bold}, {"i", &convert_inline_italic}, {"em", &convert_inline_italic},
-        {"u", &convert_inline_underline}, {"hr", &convert_inline_essential}, {"code", &convert_inline_essential}, {"font", NULL},
-        {"span", NULL}, {"a", &convert_inline_anchor}, {"br", &convert_inline_essential}, {NULL, NULL}
+        {"b", &convert_inline_bold}, {"strong", &convert_inline_bold}, {"i", &convert_inline_italic}, 
+        {"em", &convert_inline_italic}, {"u", &convert_inline_underline}, {"hr", &convert_inline_essential}, 
+        {"code", &convert_inline_essential}, {"font", NULL}, {"span", NULL}, {"a", &convert_inline_anchor}, 
+        {"br", &convert_inline_essential}, {"img", &convert_inline_image}, { NULL, NULL }
     };
 
     int i = 0;
@@ -292,9 +294,10 @@ int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
         const char* key;
         int (*finish_inline_element)(LaTeXConverter*, const HTMLNode*);
     } entries[] = {
-        {"b", &finish_inline_bold}, {"strong", &finish_inline_bold}, {"i", &finish_inline_italic}, {"em", &finish_inline_italic},
-        {"u", &finish_inline_underline}, {"hr", &finish_inline_essential}, {"code", &finish_inline_essential}, {"font", NULL},
-        {"span", NULL}, {"a", &finish_inline_anchor}, {"br", &finish_inline_essential}, {NULL, NULL}
+        {"b", &finish_inline_bold}, {"strong", &finish_inline_bold}, {"i", &finish_inline_italic}, 
+        {"em", &finish_inline_italic}, {"u", &finish_inline_underline}, {"hr", &finish_inline_essential}, 
+        {"code", &finish_inline_essential}, {"font", NULL}, {"span", NULL}, {"a", &finish_inline_anchor}, 
+        {"br", &finish_inline_essential}, {"img", NULL}, { NULL, NULL }
     };
 
     int i = 0;
@@ -416,4 +419,121 @@ int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
     }
 
     return 0;
+}
+
+int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node) {
+    if (strcmp(node->tag, "img") != 0)
+        return 0;
+
+    converter->image_counter++;
+    converter->state.image_internal_counter++;
+    const char* src = get_attribute(node->attributes, "src");
+    const char* alt = get_attribute(node->attributes, "alt");
+
+    const char* width_attr = get_attribute(node->attributes, "width");
+    const char* height_attr = get_attribute(node->attributes, "height");
+    const char* image_id_attr = get_attribute(node->attributes, "id");
+
+    if (src) {
+        char* image_path = NULL;
+
+        if (converter->download_images 
+            && converter->image_output_dir)
+            image_path = download_image_src(src, 
+                converter->image_output_dir,
+                converter->image_counter);
+
+        if (!image_path) {
+            if (is_base64_image(src) && converter->download_images && converter->image_output_dir)
+                image_path = download_image_src(src, converter->image_output_dir,
+                    converter->image_counter);
+
+            if (!image_path) image_path = strdup(src);
+        }
+
+        append_string(converter, "\n\n\\begin{figure}[h]\n");
+        append_string(converter, "\\centering\n");
+
+        int width_pt = css_length_to_pt(width_attr);
+        int height_pt = css_length_to_pt(height_attr);
+
+        if (width_pt == 0 && width_attr) width_pt = css_length_to_pt(width_attr);
+        if (height_pt == 0 && height_attr) height_pt = css_length_to_pt(height_attr);
+        append_string(converter, "\\includegraphics");
+
+        if (width_pt > 0 || height_pt > 0) {
+            append_string(converter, "[");
+
+            if (width_pt > 0) {
+                char width_str[32];
+                snprintf(width_str, sizeof(width_str), "width=%dpt", width_pt);
+                append_string(converter, width_str);
+            }
+
+            if (height_pt > 0) {
+                if (width_pt > 0) append_string(converter, ",");
+                char height_str[32];
+
+                snprintf(height_str, sizeof(height_str), "height=%dpt", height_pt);
+                append_string(converter, height_str);
+            }
+
+            append_string(converter, "]");
+        }
+
+        append_string(converter, "{");
+
+        if (converter->download_images && converter->image_output_dir
+            && strstr(image_path, converter->image_output_dir) == image_path)
+            escape_latex_special(converter, image_path + 2);
+        else
+            escape_latex(converter, image_path);
+        append_string(converter, "}\n");
+
+        if (alt && alt[0] != '\0') {
+            append_string(converter, "\n");
+            append_string(converter, "\\caption{");
+
+            escape_latex(converter, alt);
+            append_string(converter, "}\n");
+        }
+        else {
+            append_string(converter, "\\caption{");
+            char text_caption[64] = {0};
+
+            char caption_counter[32] = {0};
+            html2tex_itoa(converter->state.image_internal_counter, 
+                caption_counter, 10);
+
+            strcpy(text_caption, "Image ");
+            strcpy(text_caption + 6, caption_counter);
+
+            escape_latex(converter, text_caption);
+            append_string(converter, "}\n");
+        }
+
+        if (image_id_attr && image_id_attr[0] != '\0') {
+            append_string(converter, "\\label{fig:");
+            escape_latex(converter, image_id_attr);
+            append_string(converter, "}\n");
+        }
+        else {
+            append_string(converter, "\\label{fig:");
+            char image_label_id[64];
+            char label_counter[32];
+
+            html2tex_itoa(converter->state.image_internal_counter, 
+                label_counter, 10);
+
+            strcpy(image_label_id, "image_");
+            strcpy(image_label_id + 6, label_counter);
+            escape_latex_special(converter, image_label_id);
+            append_string(converter, "}\n");
+        }
+
+        append_string(converter, "\\end{figure}\n");
+        append_string(converter, "\\FloatBarrier\n\n");
+    }
+
+    return 2;
 }

@@ -41,7 +41,7 @@ static void append_char(LaTeXConverter* converter, char c) {
     }
 }
 
-static void escape_latex_special(LaTeXConverter* converter, const char* text) {
+void escape_latex_special(LaTeXConverter* converter, const char* text) {
     /* clear previous errors */
     html2tex_err_clear();
 
