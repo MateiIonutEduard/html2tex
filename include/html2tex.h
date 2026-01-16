@@ -175,16 +175,40 @@ extern "C" {
 	 * @param converter Active conversion context
 	 * @param img_node <img> element node (must be inside table)
 	 */
-	void process_table_image(LaTeXConverter* converter, HTMLNode* img_node);
+	void process_table_image(LaTeXConverter* converter, const HTMLNode* img_node);
 
+	/**
+	 * @brief Initializes a LaTeX table environment with specified column layout.
+	 * @param converter Active LaTeX conversion context (non-NULL)
+	 * @param columns Number of columns in table (must be ≥1)
+	*/
 	void begin_table(LaTeXConverter* converter, int columns);
 
+	/**
+	 * @brief Finalizes LaTeX table environment with caption and labeling.
+	 * @param converter Active LaTeX conversion context (non-NULL)
+	 * @param table_label Optional identifier for LaTeX \label{} command (NULL allowed)
+	*/
 	void end_table(LaTeXConverter* converter, const char* table_label);
 
+	/**
+	 * @brief Starts new row within active LaTeX table environment.
+	 * @param converter Active LaTeX conversion context (non-NULL, must be in table)
+	*/
 	void begin_table_row(LaTeXConverter* converter);
 
+	/**
+	 * @brief Completes current table row with proper LaTeX formatting.
+	 * @param converter Active LaTeX conversion context (non-NULL, must be in table row)
+	*/
 	void end_table_row(LaTeXConverter* converter);
 
+	/**
+	 * @brief Extracts text content from HTML caption element hierarchy.
+	 * @param node Root caption node (<caption> element, non-NULL)
+	 * @return Success: Concatenated caption text (caller must free())
+	 * @return Failure: NULL with error set (HTML2TEX_ERR_NULL, HTML2TEX_ERR_NOMEM)
+	*/
 	char* extract_caption_text(const HTMLNode* node);
 
 	/**

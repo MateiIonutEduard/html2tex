@@ -832,7 +832,7 @@ char* extract_caption_text(const HTMLNode* node) {
     return result ? result : buffer;
 }
 
-void process_table_image(LaTeXConverter* converter, HTMLNode* img_node) {
+void process_table_image(LaTeXConverter* converter, const HTMLNode* img_node) {
     /* clear previous errors */
     html2tex_err_clear();
 
