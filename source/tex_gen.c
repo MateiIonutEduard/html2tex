@@ -942,18 +942,20 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
 
             /* handle text nodes */
             if (!current_node->tag && current_node->content) {
-                escape_latex(converter, current_node->content);
+                if (current_node->parent && strcmp(current_node->parent->tag, "caption") != 0) {
+                    escape_latex(converter, current_node->content);
 
-                /* CSS cleanup for text node context */
-                if (merged_css && current_node->parent && current_node->parent->tag)
-                    css_properties_end(converter, merged_css, current_node->parent->tag);
+                    /* CSS cleanup for text node context */
+                    if (merged_css && current_node->parent && current_node->parent->tag)
+                        css_properties_end(converter, merged_css, current_node->parent->tag);
 
-                /* cleanup CSS and continue */
-                if (merged_css && merged_css != current_css && merged_css != inherit_props)
-                    css_properties_destroy(merged_css);
+                    /* cleanup CSS and continue */
+                    if (merged_css && merged_css != current_css && merged_css != inherit_props)
+                        css_properties_destroy(merged_css);
 
-                if (current_css && current_css != inherit_props)
-                    css_properties_destroy(current_css);
+                    if (current_css && current_css != inherit_props)
+                        css_properties_destroy(current_css);
+                }
 
                 continue;
             }
