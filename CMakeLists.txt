@@ -169,6 +169,7 @@ add_library(html2tex_c STATIC
     source/html2tex_queue_utils.c
     source/html2tex_stack_utils.c
     source/html2tex_image_utils.c
+    source/html2tex_processor.c
 )
 
 # Set C library properties
@@ -257,6 +258,7 @@ install(FILES
     include/data_structures.h
     include/css_properties.h
     include/image_utils.h
+    include/html2tex_processor.h
     DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 

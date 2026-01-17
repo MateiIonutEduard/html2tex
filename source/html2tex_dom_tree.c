@@ -3,12 +3,34 @@
 #include <ctype.h>
 
 char* html2tex_compress_html(const char* html) {
-    if (!html) return NULL;
+    html2tex_err_clear();
+
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML input is NULL for compression.");
+        return NULL;
+    }
+
     size_t len = strlen(html);
-    if (len == 0) return strdup("");
+
+    if (len == 0) {
+        char* empty = strdup("");
+
+        if (!empty) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate empty string for HTML compression.");
+        }
+
+        return empty;
+    }
 
     char* result = (char*)malloc(len + 1);
-    if (!result) return NULL;
+
+    if (!result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for HTML compression buffer.", len + 1);
+        return NULL;
+    }
+
     const char* src = html;
     char* dest = result;
 
@@ -25,9 +47,8 @@ char* html2tex_compress_html(const char* html) {
 
         /* handle comments */
         if (!in_quotes && !in_tag && !in_script_style) {
-            if (c == '<' && strncmp(src, "<!--", 4) == 0) {
+            if (c == '<' && strncmp(src, "<!--", 4) == 0)
                 in_comment = 1;
-            }
             else if (c == '-' && in_comment && strncmp(src, "-->", 3) == 0) {
                 in_comment = 0;
                 *dest++ = '-'; *dest++ = '-'; *dest++ = '>';
@@ -126,13 +147,30 @@ char* html2tex_compress_html(const char* html) {
     /* trim to actual size */
     size_t final_len = dest - result;
     char* final_result = (char*)realloc(result, final_len + 1);
-    return final_result ? final_result : result;
+
+    if (!final_result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to reallocate HTML compression buffer to %zu bytes.",
+            final_len + 1);
+
+        return result;
+    }
+
+    return final_result;
 }
 
 HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
-    /* validate input parameters */
-    if (!root || !predicate)
+    html2tex_err_clear();
+
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML root node is NULL for tree search.");
         return NULL;
+    }
+
+    if (!predicate) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Predicate function is NULL for tree search.");
+        return NULL;
+    }
 
     Stack* node_stack = NULL;
     Stack* css_stack = NULL;
@@ -140,8 +178,11 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
 
     /* push root node with initial CSS properties */
     if (!stack_push(&node_stack, (void*)root) ||
-        !stack_push(&css_stack, (void*)inherited_props))
+        !stack_push(&css_stack, (void*)inherited_props)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to push initial nodes onto stack for tree search.");
         goto cleanup;
+    }
 
     /* pop current context */
     while (!stack_is_empty(node_stack)) {
@@ -149,23 +190,37 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
         HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
 
         if (!current_node) {
+            /* only destroy if we allocated */
             if (current_css && current_css != inherited_props)
                 css_properties_destroy(current_css);
+            
             continue;
         }
 
         /* merge CSS properties with inline styles if node has style attribute */
         CSSProperties* merged_css = current_css;
+        CSSProperties* inline_css = NULL;
 
         if (current_node->tag) {
             const char* style_attr = get_attribute(current_node->attributes, "style");
 
             if (style_attr) {
-                CSSProperties* inline_css = parse_css_style(style_attr);
+                inline_css = parse_css_style(style_attr);
 
                 if (inline_css) {
                     merged_css = css_properties_merge(current_css, inline_css);
                     css_properties_destroy(inline_css);
+
+                    if (html2tex_has_error()) {
+                        /* if merge failed, merged_css might be current_css or NULL */
+                        if (merged_css && merged_css != current_css)
+                            css_properties_destroy(merged_css);
+                        
+                        if (current_css && current_css != inherited_props)
+                            css_properties_destroy(current_css);
+                        
+                        goto cleanup;
+                    }
                 }
             }
         }
@@ -175,10 +230,13 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
             result = (HTMLElement*)malloc(sizeof(HTMLElement));
 
             if (!result) {
-                if (merged_css != current_css && merged_css != inherited_props)
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate HTMLElement structure.");
+
+                if (merged_css && merged_css != current_css && merged_css != inherited_props)
                     css_properties_destroy(merged_css);
                 
-                if (current_css != inherited_props)
+                if (current_css && current_css != inherited_props)
                     css_properties_destroy(current_css);
                 
                 goto cleanup;
@@ -190,78 +248,99 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
             if (merged_css) result->css_props = css_properties_copy(merged_css);
             else result->css_props = css_properties_create();
 
-            if (!result->css_props) {
+            if (!result->css_props || html2tex_has_error()) {
+                if (result->css_props)
+                    css_properties_destroy(result->css_props);
+                
                 free(result);
                 result = NULL;
+
+                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                
+                if (current_css && current_css != inherited_props) 
+                    css_properties_destroy(current_css);
+                
+                goto cleanup;
             }
 
-            /* clean up CSS allocations */
-            if (merged_css != current_css && merged_css != inherited_props)
+            /* clean up current node's CSS props */
+            if (merged_css && merged_css != current_css && merged_css != inherited_props)
                 css_properties_destroy(merged_css);
-
-            if (current_css != inherited_props)
+            
+            if (current_css && current_css != inherited_props)
                 css_properties_destroy(current_css);
 
             break;
         }
 
-        /* if node has children, push them onto stack for processing */
+        /* push children in reverse order */
         if (current_node->children) {
-            HTMLNode* child = current_node->children;
-            HTMLNode* last_child = child;
+            HTMLNode* last_child = current_node->children;
+            while (last_child->next) last_child = last_child->next;
+            HTMLNode* child = last_child;
 
-            while (last_child->next)
-                last_child = last_child->next;
-
-            /* push from last to first */
-            HTMLNode* current_child = last_child;
-
-            while (current_child) {
+            while (child) {
                 CSSProperties* child_css = merged_css;
 
+                /* only copy CSS if it's different from inherited and it need a unique copy */
                 if (child_css && child_css != inherited_props) {
                     child_css = css_properties_copy(merged_css);
-
-                    if (!child_css) {
-                        if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
-                        if (current_css != inherited_props) css_properties_destroy(current_css);
+                    if (!child_css || html2tex_has_error()) {
+                        if (merged_css && merged_css != current_css && merged_css != inherited_props) 
+                            css_properties_destroy(merged_css);
+                        
+                        if (current_css && current_css != inherited_props) 
+                            css_properties_destroy(current_css);
+                        
                         goto cleanup;
                     }
                 }
 
                 /* push child onto stack */
-                if (!stack_push(&node_stack, (void*)current_child) ||
-                    !stack_push(&css_stack, (void*)child_css)) {
-                    if (child_css && child_css != merged_css && child_css != inherited_props) css_properties_destroy(child_css);
-                    if (merged_css != current_css && merged_css != inherited_props) css_properties_destroy(merged_css);
-                    if (current_css != inherited_props) css_properties_destroy(current_css);
+                if (!stack_push(&node_stack, (void*)child) || !stack_push(&css_stack, (void*)child_css)) {
+                    if (child_css && child_css != merged_css && child_css != inherited_props)
+                        css_properties_destroy(child_css);
+
+                    if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                        css_properties_destroy(merged_css);
+                    
+                    if (current_css && current_css != inherited_props)
+                        css_properties_destroy(current_css);
+
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to push child node onto stack.");
                     goto cleanup;
                 }
 
                 /* move to previous sibling */
-                if (current_child == current_node->children)
-                    current_child = NULL;
+                if (child == current_node->children)
+                    child = NULL;
                 else {
                     HTMLNode* prev = current_node->children;
-                    while (prev->next != current_child) prev = prev->next;
-                    current_child = prev;
+                    while (prev->next != child) prev = prev->next;
+                    child = prev;
                 }
             }
         }
 
-        /* clean up CSS allocations for current node */
-        if (merged_css != current_css && merged_css != inherited_props)
+        /* clean up current node's CSS if we haven't passed it to children */
+        if (merged_css && merged_css != current_css && merged_css != inherited_props)
             css_properties_destroy(merged_css);
         
-        if (current_css != inherited_props)
+        if (current_css && current_css != inherited_props)
             css_properties_destroy(current_css);
+
+        /* check for errors from predicate or other operations */
+        if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:
     /* clean up any remaining CSS properties on the stack */
     while (!stack_is_empty(css_stack)) {
         CSSProperties* css = (CSSProperties*)stack_pop(&css_stack);
-        if (css && css != inherited_props) css_properties_destroy(css);
+        if (css && css != inherited_props)
+            css_properties_destroy(css);
     }
 
     /* clean up any remaining nodes on the stack */
@@ -271,6 +350,13 @@ cleanup:
     /* clean up stacks */
     stack_cleanup(&node_stack);
     stack_cleanup(&css_stack);
+
+    /* if error occurred but result was allocated, free it */
+    if (html2tex_has_error() && result) {
+        html_element_destroy(result);
+        result = NULL;
+    }
+
     return result;
 }
 
@@ -283,7 +369,23 @@ void html_element_destroy(HTMLElement* elem) {
 }
 
 const char* get_attribute(HTMLAttribute* attrs, const char* key) {
-    if (!key || key[0] == '\0') return NULL;
+    html2tex_err_clear();
+
+    if (!attrs) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute list is NULL.");
+        return NULL;
+    }
+
+    if (!key) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute key is NULL.");
+        return NULL;
+    }
+
+    if (key[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, "Attribute key is empty.");
+        return NULL;
+    }
+
     size_t key_len = 0;
 
     /* precompute key length once for fast rejection */
@@ -326,215 +428,298 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
 }
 
 char* html2tex_extract_title(HTMLNode* root) {
-    if (!root) return NULL;
-    Queue* front = NULL;
+    html2tex_err_clear();
 
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Root node is NULL for title extraction.");
+        return NULL;
+    }
+
+    Queue* front = NULL;
     Queue* rear = NULL;
     char* title_text = NULL;
 
-    /* init BFS with root's direct children */
+    /* initialize BFS with root's direct children */
     HTMLNode* child = root->children;
 
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
-            queue_cleanup(&front, &rear);
-            return NULL;
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue child node for BFS title search.");
+            goto cleanup;
         }
-
         child = child->next;
     }
 
     /* BFS search for title element */
     while (front) {
         HTMLNode* current = (HTMLNode*)queue_dequeue(&front, &rear);
+        if (!current) continue;
 
-        /* fast check for title tag */
-        if (current->tag && current->tag[0] == 't' &&
-            strcmp(current->tag, "title") == 0) {
+        /* Fast check for title tag, optimized with length check first */
+        if (current->tag && current->tag[0] == 't') {
+            size_t tag_len = strlen(current->tag);
 
             /* extract all text content from title element */
-            size_t capacity = 256;
+            if (tag_len == 5 && strcmp(current->tag, "title") == 0) {
+                size_t capacity = HTML_TITLE_MAX_SIZE;
+                char* buffer = (char*)malloc(capacity);
 
-            char* buffer = (char*)malloc(capacity);
-            if (!buffer) break;
+                if (!buffer) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to allocate %zu bytes for title buffer.", capacity);
+                    goto cleanup;
+                }
 
-            size_t length = 0;
-            buffer[0] = '\0';
+                size_t length = 0;
+                buffer[0] = '\0';
 
-            /* BFS within title node for text content */
-            Queue* title_front = NULL;
-            Queue* title_rear = NULL;
+                /* BFS within title node for text content */
+                Queue* title_front = NULL;
+                Queue* title_rear = NULL;
 
-            if (!queue_enqueue(&title_front, &title_rear, current)) {
-                free(buffer);
-                goto cleanup;
-            }
+                if (!queue_enqueue(&title_front, &title_rear, current)) {
+                    free(buffer);
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to initialize BFS for title content extraction.");
+                    goto cleanup;
+                }
 
-            while (title_front) {
-                HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
+                while (title_front) {
+                    HTMLNode* title_node = (HTMLNode*)queue_dequeue(&title_front, &title_rear);
 
-                /* collect text content */
-                if (!title_node->tag && title_node->content && title_node->content[0]) {
-                    size_t text_len = strlen(title_node->content);
+                    if (!title_node)
+                        continue;
 
-                    /* ensure capacity */
-                    if (length + text_len + 1 > capacity) {
-                        /* double the capacity, ensuring minimum growth */
-                        size_t new_capacity = capacity * 2;
+                    /* collect text content */
+                    if (!title_node->tag && title_node->content && title_node->content[0]) {
+                        size_t text_len = strlen(title_node->content);
 
-                        if (new_capacity < length + text_len + 1)
-                            new_capacity = length + text_len + 1;
-
-                        /* guard against overflow */
-                        if (new_capacity < capacity || new_capacity > SIZE_MAX / 2) {
-                            free(buffer); queue_cleanup(&title_front, &title_rear);
+                        /* ensure capacity with safe overflow checking */
+                        if (length > SIZE_MAX - text_len - 1) {
+                            free(buffer);
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                                "Title text size exceeds maximum allowed.");
+                            queue_cleanup(&title_front, &title_rear);
                             goto cleanup;
                         }
 
-                        char* new_buffer = (char*)realloc(buffer, new_capacity);
+                        if (length + text_len + 1 > capacity) {
+                            /* calculate new capacity with overflow protection */
+                            size_t new_capacity;
 
-                        if (!new_buffer) {
-                            free(buffer); queue_cleanup(&title_front, &title_rear);
-                            goto cleanup;
+                            /* cannot double, try to add exactly what's needed */
+                            if (capacity > SIZE_MAX / 2) {
+                                if (SIZE_MAX - length - text_len - 1 < capacity) {
+                                    free(buffer);
+                                    HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                                        "Title text requires capacity exceeding SIZE_MAX.");
+                                    queue_cleanup(&title_front, &title_rear);
+                                    goto cleanup;
+                                }
+
+                                new_capacity = length + text_len + 1;
+                            }
+                            else {
+                                /* double capacity with overflow check */
+                                new_capacity = capacity * 2;
+
+                                if (new_capacity < length + text_len + 1)
+                                    new_capacity = length + text_len + 1;
+                            }
+
+                            char* new_buffer = (char*)realloc(buffer, new_capacity);
+                            if (!new_buffer) {
+                                free(buffer);
+                                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                    "Failed to reallocate title buffer from %zu to %zu bytes.",
+                                    capacity, new_capacity);
+                                queue_cleanup(&title_front, &title_rear);
+                                goto cleanup;
+                            }
+
+                            buffer = new_buffer;
+                            capacity = new_capacity;
                         }
 
-                        buffer = new_buffer;
-                        capacity = new_capacity;
-                    }
-
-                    /* safe copy with bounds check */
-                    if (length + text_len < capacity) {
+                        /* safe copy with bounds check */
                         memcpy(buffer + length, title_node->content, text_len);
                         length += text_len;
                         buffer[length] = '\0';
                     }
-                }
 
-                /* enqueue children */
-                HTMLNode* title_child = title_node->children;
+                    /* enqueue children */
+                    HTMLNode* title_child = title_node->children;
 
-                while (title_child) {
-                    if (!queue_enqueue(&title_front, &title_rear, title_child)) {
-                        free(buffer);
-                        queue_cleanup(&title_front, &title_rear);
-                        goto cleanup;
+                    while (title_child) {
+                        if (!queue_enqueue(&title_front, &title_rear, title_child)) {
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                "Failed to enqueue title child node.");
+                            free(buffer);
+                            queue_cleanup(&title_front, &title_rear);
+                            goto cleanup;
+                        }
+
+                        title_child = title_child->next;
                     }
-
-                    title_child = title_child->next;
-                }
-            }
-
-            queue_cleanup(&title_front, &title_rear);
-
-            /* trim whitespace if we collected text */
-            if (length > 0) {
-                /* trim leading whitespace */
-                char* start = buffer;
-
-                while (*start && isspace((unsigned char)*start)) {
-                    start++;
-                    length--;
                 }
 
-                /* trim trailing whitespace */
+                queue_cleanup(&title_front, &title_rear);
+
+                /* process the extracted title text */
                 if (length > 0) {
+                    /* trim whitespace efficiently */
+                    char* start = buffer;
                     char* end = buffer + length - 1;
-                    while (end >= buffer && isspace((unsigned char)*end)) {
-                        *end = '\0';
-                        end--;
-                        length--;
+
+                    /* trim leading whitespace */
+                    while (start <= end && isspace((unsigned char)*start)) {
+                        start++;
                     }
-                }
 
-                /* move trimmed content if needed */
-                if (start != buffer && length > 0)
-                    memmove(buffer, start, length + 1);
+                    /* trim trailing whitespace */
+                    while (end >= start && isspace((unsigned char)*end))
+                        end--;
 
-                /* resize to exact length */
-                if (length > 0) {
-                    char* trimmed = (char*)realloc(buffer, length + 1);
-                    title_text = trimmed ? trimmed : buffer;
+                    size_t trimmed_len = (end >= start) ? 
+                        (size_t)(end - start + 1) : 0;
+
+                    if (trimmed_len > 0) {
+                        /* allocate exact size for trimmed title */
+                        title_text = (char*)malloc(trimmed_len + 1);
+
+                        if (!title_text) {
+                            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                "Failed to allocate %zu bytes for trimmed title.",
+                                trimmed_len + 1);
+                            free(buffer);
+                            goto cleanup;
+                        }
+
+                        memcpy(title_text, start, trimmed_len);
+                        title_text[trimmed_len] = '\0';
+                    }
+                    else {
+                        /* empty after trimming */
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
+                            "Title element contains only whitespace.");
+                    }
+
+                    free(buffer);
                 }
                 else {
+                    /* empty title */
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
+                        "Title element contains no text content.");
                     free(buffer);
-                    title_text = NULL;
                 }
-            }
-            else {
-                free(buffer);
-                title_text = NULL;
-            }
 
-            /* found title, exit BFS */
-            break;
+                /* found title, exit BFS */
+                break;
+            }
         }
+
+        /* check if an error occurred during processing */
+        if (html2tex_has_error())
+            goto cleanup;
 
         /* enqueue children for further search */
         HTMLNode* current_child = current->children;
 
         while (current_child) {
             if (!queue_enqueue(&front, &rear, current_child)) {
-                if(title_text) free(title_text);
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child node during BFS title search.");
                 goto cleanup;
             }
-
             current_child = current_child->next;
         }
     }
 
 cleanup:
+    /* clean up BFS queues */
     queue_cleanup(&front, &rear);
+
+    /* if error occurred but title_text was allocated, free it */
+    if (html2tex_has_error() && title_text) {
+        free(title_text);
+        title_text = NULL;
+    }
+
+    /* return result */
     return title_text;
 }
 
 int should_skip_nested_table(HTMLNode* node) {
-    if (!node) return -1;
-    Queue* front = NULL;
+    html2tex_err_clear();
 
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for nested table check.");
+        return -1;
+    }
+
+    Queue* front = NULL;
     Queue* rear = NULL;
     int result = 0;
 
     /* if current node is a table, check for nested tables in descendants */
     if (node->tag && strcmp(node->tag, "table") == 0) {
-        /* if no children, definitely no nested tables */
-        if (!node->children) return 0;
+        if (!node->children) 
+            return 0;
 
         /* enqueue direct children */
         HTMLNode* child = node->children;
 
         while (child) {
-            if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+            if (!queue_enqueue(&front, &rear, child)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child for nested table BFS.");
+                goto cleanup;
+            }
+
             child = child->next;
         }
 
         /* BFS for nested tables */
-        while ((child = (HTMLNode*)queue_dequeue(&front, &rear))) {
-            if (child->tag && strcmp(child->tag, "table") == 0) {
+        HTMLNode* current;
+        while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
+            if (current->tag && strcmp(current->tag, "table") == 0) {
                 result = 1;
                 goto cleanup;
             }
 
             /* enqueue children for further search */
-            HTMLNode* grandchild = child->children;
-
+            HTMLNode* grandchild = current->children;
             while (grandchild) {
-                if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
+                if (!queue_enqueue(&front, &rear, grandchild)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to enqueue grandchild for nested table BFS.");
+                    goto cleanup;
+                }
                 grandchild = grandchild->next;
             }
+
+            /* check if error occurred during processing */
+            if (html2tex_has_error())
+                goto cleanup;
         }
     }
 
     /* check parent hierarchy for table with nested tables */
     for (HTMLNode* parent = node->parent; parent; parent = parent->parent) {
         if (parent->tag && strcmp(parent->tag, "table") == 0) {
-            /* clean and reuse the queue */
             queue_cleanup(&front, &rear);
 
-            /* enqueue parent's children */
+            /* enqueue parent's children, excluding current node */
             HTMLNode* sibling = parent->children;
 
             while (sibling) {
-                if (sibling != node && !queue_enqueue(&front, &rear, sibling)) goto cleanup;
+                if (sibling != node && !queue_enqueue(&front, &rear, sibling)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to enqueue sibling for parent table BFS.");
+                    goto cleanup;
+                }
+
                 sibling = sibling->next;
             }
 
@@ -549,9 +734,17 @@ int should_skip_nested_table(HTMLNode* node) {
                 /* enqueue children for further search */
                 HTMLNode* grandchild = current->children;
                 while (grandchild) {
-                    if (!queue_enqueue(&front, &rear, grandchild)) goto cleanup;
+                    if (!queue_enqueue(&front, &rear, grandchild)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue parent descendant for BFS.");
+                        goto cleanup;
+                    }
                     grandchild = grandchild->next;
                 }
+
+                /* check if error occurred during processing */
+                if (html2tex_has_error())
+                    goto cleanup;
             }
 
             /* found nested table in parent chain? */
@@ -561,45 +754,98 @@ int should_skip_nested_table(HTMLNode* node) {
 
 cleanup:
     queue_cleanup(&front, &rear);
+
+    /* return -1 on error, otherwise the actual result */
+    if (html2tex_has_error())  return -1;
     return result;
 }
 
-int table_contains_only_images(HTMLNode* node) {
-    if (!node || !node->tag || strcmp(node->tag, "table") != 0)
-        return 0;
+int table_contains_only_images(const HTMLNode* node) {
+    html2tex_err_clear();
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table image check.");
+        return -1;
+    }
+
+    if (!node->tag || strcmp(node->tag, "table") != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Node is not a table element for image-only check.");
+        return -1;
+    }
 
     Queue* front = NULL;
     Queue* rear = NULL;
     int has_images = 0;
 
     /* enqueue direct children */
-    for (HTMLNode* child = node->children; child; child = child->next)
-        if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+    HTMLNode* child = node->children;
+    while (child) {
+        if (!queue_enqueue(&front, &rear, child)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue table child for BFS traversal.");
+            goto cleanup;
+        }
+        child = child->next;
+    }
 
     /* BFS traversal */
     HTMLNode* current;
 
     while ((current = (HTMLNode*)queue_dequeue(&front, &rear))) {
+        /* error occurred during processing */
+        if (html2tex_has_error()) {
+            has_images = 0;
+            goto cleanup;
+        }
+
         if (current->tag) {
-            /* check for image tag */
-            if (strcmp(current->tag, "img") == 0) {
+            /* fast path for image tag detection */
+            if (current->tag[0] == 'i' && strcmp(current->tag, "img") == 0) {
                 has_images = 1;
                 continue;
             }
 
-            /* check for structural table elements */
-            if (strcmp(current->tag, "tbody") == 0 ||
-                strcmp(current->tag, "thead") == 0 ||
-                strcmp(current->tag, "tfoot") == 0 ||
-                strcmp(current->tag, "tr") == 0 ||
-                strcmp(current->tag, "td") == 0 ||
-                strcmp(current->tag, "th") == 0 ||
-                strcmp(current->tag, "caption") == 0) {
+            /* optimized check for structural table elements */
+            char first_char = current->tag[0];
+            int is_table_element = 0;
 
-                /* enqueue children */
-                for (HTMLNode* child = current->children; child; child = child->next)
-                    if (!queue_enqueue(&front, &rear, child)) goto cleanup;
+            switch (first_char) {
+            case 't':
+                /* check specific 't' tags */
+                if (strcmp(current->tag, "tbody") == 0 ||
+                    strcmp(current->tag, "thead") == 0 ||
+                    strcmp(current->tag, "tfoot") == 0 ||
+                    strcmp(current->tag, "tr") == 0 ||
+                    strcmp(current->tag, "td") == 0 ||
+                    strcmp(current->tag, "th") == 0)
+                    is_table_element = 1;
+                
+                break;
 
+            case 'c':
+                /* check caption */
+                if (strcmp(current->tag, "caption") == 0)
+                    is_table_element = 1;
+                
+                break;
+
+            default:
+                break;
+            }
+
+            /* enqueue children */
+            if (is_table_element) {
+                HTMLNode* inner_child = current->children;
+                while (inner_child) {
+                    if (!queue_enqueue(&front, &rear, inner_child)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue inner child during table BFS.");
+                        has_images = 0;
+                        goto cleanup;
+                    }
+                    inner_child = inner_child->next;
+                }
                 continue;
             }
 
@@ -612,10 +858,12 @@ int table_contains_only_images(HTMLNode* node) {
             const char* p = current->content;
 
             while (*p) {
-                if (!isspace(*p++)) {
+                if (!isspace((unsigned char)*p)) {
                     has_images = 0;
                     goto cleanup;
                 }
+
+                p++;
             }
         }
     }
@@ -625,17 +873,47 @@ cleanup:
     return has_images;
 }
 
-void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
+void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
+    html2tex_err_clear();
+
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for image table conversion.");
+        return;
+    }
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Table node is NULL for image table conversion.");
+        return;
+    }
+
     /* write figure header */
     append_string(converter, "\\begin{figure}[htbp]\n\\centering\n");
+    if (html2tex_has_error()) return;
+
     append_string(converter, "\\setlength{\\fboxsep}{0pt}\n\\setlength{\\tabcolsep}{1pt}\n");
+    if (html2tex_has_error()) return;
 
     /* start tabular */
     int columns = count_table_columns(node);
-    append_string(converter, "\\begin{tabular}{");
+    if (html2tex_has_error()) return;
 
-    for (int i = 0; i < columns; i++) append_string(converter, "c");
+    if (columns <= 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE_STRUCTURE,
+            "Invalid column count (%d) for image table.", columns);
+        return;
+    }
+
+    append_string(converter, "\\begin{tabular}{");
+    if (html2tex_has_error()) return;
+
+    for (int i = 0; i < columns; i++) {
+        append_string(converter, "c");
+        if (html2tex_has_error()) 
+            goto cleanup_queues;
+    }
+
     append_string(converter, "}\n");
+    if (html2tex_has_error()) goto cleanup_queues;
 
     /* BFS for table rows */
     Queue* queue = NULL, * rear = NULL;
@@ -643,72 +921,145 @@ void convert_image_table(LaTeXConverter* converter, HTMLNode* node) {
     int first_row = 1;
 
     /* enqueue table children */
-    for (HTMLNode* child = node->children; child; child = child->next)
-        queue_enqueue(&queue, &rear, child);
+    HTMLNode* child = node->children;
+
+    while (child) {
+        if (!queue_enqueue(&queue, &rear, child)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to enqueue table child for BFS traversal.");
+            goto cleanup_queues;
+        }
+
+        child = child->next;
+    }
 
     /* process table */
     HTMLNode* current;
-
     while ((current = (HTMLNode*)queue_dequeue(&queue, &rear))) {
+        if (html2tex_has_error()) goto cleanup_queues;
         if (!current->tag) continue;
 
-        if (strcmp(current->tag, "tr") == 0) {
-            if (!first_row) append_string(converter, " \\\\\n");
-            first_row = 0;
+        /* optimized tag checking with first char */
+        char first_char = current->tag[0];
 
-            /* process cells in row */
-            HTMLNode* cell = current->children;
-            int col_count = 0;
-
-            while (cell) {
-                if (cell->tag && (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0)) {
-                    if (col_count++ > 0) append_string(converter, " & ");
-
-                    /* BFS search for image in cell */
-                    cell_queue = cell_rear = NULL;
-
-                    for (HTMLNode* cell_child = cell->children; cell_child; cell_child = cell_child->next)
-                        queue_enqueue(&cell_queue, &cell_rear, cell_child);
-
-                    int img_found = 0;
-                    HTMLNode* cell_node;
-
-                    while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
-                        if (cell_node->tag && strcmp(cell_node->tag, "img") == 0) {
-                            process_table_image(converter, cell_node);
-                            img_found = 1;
-                        }
-                        else if (cell_node->tag) {
-                            /* enqueue children for deeper search */
-                            for (HTMLNode* grandchild = cell_node->children; grandchild; grandchild = grandchild->next)
-                                queue_enqueue(&cell_queue, &cell_rear, grandchild);
-                        }
-                    }
-
-                    if (!img_found) append_string(converter, " ");
-                    queue_cleanup(&cell_queue, &cell_rear);
+        /* check specific 't' tags */
+        if (first_char == 't') {
+            if (strcmp(current->tag, "tr") == 0) {
+                if (!first_row) {
+                    append_string(converter, " \\\\\n");
+                    if (html2tex_has_error()) goto cleanup_queues;
                 }
 
-                cell = cell->next;
+                first_row = 0;
+
+                /* process cells in row */
+                HTMLNode* cell = current->children;
+                int col_count = 0;
+
+                while (cell) {
+                    if (html2tex_has_error())
+                        goto cleanup_queues;
+
+                    if (cell->tag && (cell->tag[0] == 't' &&
+                        (strcmp(cell->tag, "td") == 0 || strcmp(cell->tag, "th") == 0))) {
+                        if (col_count++ > 0) {
+                            append_string(converter, " & ");
+                            if (html2tex_has_error()) goto cleanup_queues;
+                        }
+
+                        /* BFS search for image in cell */
+                        cell_queue = cell_rear = NULL;
+                        HTMLNode* cell_child = cell->children;
+
+                        while (cell_child) {
+                            if (!queue_enqueue(&cell_queue, &cell_rear, cell_child)) {
+                                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                    "Failed to enqueue cell child for image search.");
+                                goto cleanup_queues;
+                            }
+
+                            cell_child = cell_child->next;
+                        }
+
+                        int img_found = 0;
+                        HTMLNode* cell_node;
+
+                        while ((cell_node = (HTMLNode*)queue_dequeue(&cell_queue, &cell_rear)) && !img_found) {
+                            if (html2tex_has_error()) {
+                                queue_cleanup(&cell_queue, &cell_rear);
+                                goto cleanup_queues;
+                            }
+
+                            if (cell_node->tag && cell_node->tag[0] == 'i' &&
+                                strcmp(cell_node->tag, "img") == 0) {
+                                process_table_image(converter, cell_node);
+
+                                if (html2tex_has_error()) {
+                                    queue_cleanup(&cell_queue, &cell_rear);
+                                    goto cleanup_queues;
+                                }
+
+                                img_found = 1;
+                            }
+                            /* enqueue children for deeper search */
+                            else if (cell_node->tag) {
+                                HTMLNode* grandchild = cell_node->children;
+                                while (grandchild) {
+                                    if (!queue_enqueue(&cell_queue, &cell_rear, grandchild)) {
+                                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                                            "Failed to enqueue grandchild for image search.");
+                                        queue_cleanup(&cell_queue, &cell_rear);
+                                        goto cleanup_queues;
+                                    }
+                                    grandchild = grandchild->next;
+                                }
+                            }
+                        }
+
+                        if (!img_found) {
+                            append_string(converter, " ");
+                            if (html2tex_has_error()) {
+                                queue_cleanup(&cell_queue, &cell_rear);
+                                goto cleanup_queues;
+                            }
+                        }
+
+                        queue_cleanup(&cell_queue, &cell_rear);
+                    }
+
+                    cell = cell->next;
+                }
             }
-        }
-        else if (strcmp(current->tag, "tbody") == 0 || strcmp(current->tag, "thead") == 0 ||
-            strcmp(current->tag, "tfoot") == 0) {
             /* enqueue section children */
-            for (HTMLNode* section_child = current->children; section_child; section_child = section_child->next)
-                queue_enqueue(&queue, &rear, section_child);
+            else if (strcmp(current->tag, "tbody") == 0 ||
+                strcmp(current->tag, "thead") == 0 ||
+                strcmp(current->tag, "tfoot") == 0) {
+                HTMLNode* section_child = current->children;
+
+                while (section_child) {
+                    if (!queue_enqueue(&queue, &rear, section_child)) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                            "Failed to enqueue table section child.");
+                        goto cleanup_queues;
+                    }
+
+                    section_child = section_child->next;
+                }
+            }
         }
     }
 
-    /* cleanup queues */
-    queue_cleanup(&queue, &rear);
-    queue_cleanup(&cell_queue, &cell_rear);
-
     /* finish tabular and figure */
     append_string(converter, "\n\\end{tabular}\n");
+    if (html2tex_has_error()) goto cleanup_queues;
 
     append_figure_caption(converter, node);
+    if (html2tex_has_error()) goto cleanup_queues;
     append_string(converter, "\\end{figure}\n\\FloatBarrier\n\n");
+
+cleanup_queues:
+    queue_cleanup(&queue, &rear);
+    queue_cleanup(&cell_queue, &cell_rear);
 }
 
 int is_block_element(const char* tag_name) {
@@ -727,7 +1078,8 @@ int is_block_element(const char* tag_name) {
         {"th", 't', 2}, {"blockquote", 'b', 10}, {"section", 's', 7}, 
         {"article", 'a', 7}, {"header", 'h', 6}, {"footer", 'f', 6},
         {"nav", 'n', 3}, {"aside", 'a', 5}, {"main", 'm', 4}, 
-        {"figure", 'f', 6}, {"figcaption", 'f', 10}, {NULL, 0, 0}
+        {"figure", 'f', 6}, {"figcaption", 'f', 10}, 
+        {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
     /* length-based tags detection */
@@ -1027,18 +1379,29 @@ int is_whitespace_only(const char* text) {
     return 1;
 }
 
-int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
-    if (!node) return converter->state.in_table_cell;
+int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
+    html2tex_err_clear();
 
-    /* first check converter state for table cell */
+    /* validate inputs with appropriate error messages */
+    if (!converter) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for table cell check.");
+        return -1;
+    }
+
+    /* check converter state first */
     if (converter->state.in_table_cell) return 1;
+    if (!node) return 0;
 
-    /* then check the node's parent hierarchy */
+    /* check node's parent hierarchy for table cells */
     HTMLNode* current = node->parent;
 
     while (current) {
-        if (current->tag && (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0))
-            return 1;
+        if (current->tag) {
+            if (current->tag[0] == 't') {
+                if (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0)
+                    return 1;
+            }
+        }
 
         current = current->parent;
     }
@@ -1046,8 +1409,12 @@ int is_inside_table_cell(LaTeXConverter* converter, HTMLNode* node) {
     return 0;
 }
 
-int is_inside_table(HTMLNode* node) {
-    if (!node) return 0;
+int is_inside_table(const HTMLNode* node) {
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table check.");
+        return -1;
+    }
+
     HTMLNode* current = node->parent;
 
     while (current) {

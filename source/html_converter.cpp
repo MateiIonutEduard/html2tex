@@ -275,16 +275,16 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, std::ofstream& ou
 }
 
 bool HtmlTeXConverter::hasError() const {
-    return converter && html2tex_get_error(converter.get()) != 0;
+    return converter && html2tex_get_error() != 0;
 }
 
 int HtmlTeXConverter::getErrorCode() const {
-    return converter ? html2tex_get_error(converter.get()) : -1;
+    return converter ? html2tex_get_error() : -1;
 }
 
 std::string HtmlTeXConverter::getErrorMessage() const {
     if (!converter) return "Converter not initialized.";
-    return html2tex_get_error_message(converter.get());
+    return html2tex_get_error_message();
 }
 
 bool HtmlTeXConverter::isValid() const { return valid; }

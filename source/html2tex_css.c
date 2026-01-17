@@ -199,7 +199,13 @@ static int handle_margin_shorthand(CSSProperties* props, const char* key, const 
 
 CSSProperties* css_properties_create(void) {
     CSSProperties* props = (CSSProperties*)calloc(1, sizeof(CSSProperties));
-    if (!props) return NULL;
+
+    if (!props) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for CSSProperties.",
+            sizeof(CSSProperties));
+        return NULL;
+    }
 
     props->head = NULL;
     props->tail = NULL;
@@ -210,7 +216,11 @@ CSSProperties* css_properties_create(void) {
 }
 
 void css_properties_destroy(CSSProperties* props) {
-    if (!props) return;
+    if (!props) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSSProperties object for destruction.");
+        return;
+    }
+
     CSSProperty* current = props->head;
 
     while (current) {
@@ -283,41 +293,108 @@ static CSSPropertyMask property_to_mask(const char* key) {
     return 0;
 }
 
-int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
-    /* efficient input validation */
-    if (!props || !key || !value)
+static int validate_css_value(const char* value) {
+    if (!value) return 0;
+
+    /* check for reasonable length first */
+    size_t len = strlen(value);
+
+    if (len > CSS_MAX_PROPERTY_LENGTH) 
         return 0;
 
-    /* prevent empty keys and obviously bad input */
-    if (key[0] == '\0') return 0;
+    /* check for malicious content in values */
+    static const char* dangerous_patterns[] = {
+        "javascript:", "data:text/html", "expression(",
+        "eval(", "onload=", "onerror=", NULL
+    };
 
-    /* sanity check for injection attempts in CSS property names */
-    const char* dangerous_chars = "<>;\"'";
-
-    for (const char* c = dangerous_chars; *c; c++) {
-        if (strchr(key, *c))
+    for (int i = 0; dangerous_patterns[i]; i++) {
+        if (strstr(value, dangerous_patterns[i]))
             return 0;
+    }
+
+    return 1;
+}
+
+int css_properties_set(CSSProperties* props, const char* key, const char* value, int important) {
+    html2tex_err_clear();
+
+    /* efficient input validation with specific errors */
+    if (!props) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSSProperties object is NULL.");
+        return 0;
+    }
+
+    if (!key) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSS property key is NULL.");
+        return 0;
+    }
+
+    if (!value) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSS property value is NULL.");
+        return 0;
+    }
+
+    if (!validate_css_value(value)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_VALUE,
+            "Invalid or potentially dangerous CSS value: %s.", value);
+        return 0;
+    }
+
+    /* prevent empty keys */
+    if (key[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS, "Empty CSS property key.");
+        return 0;
+    }
+
+    /* check for injection attempts in CSS property names */
+    static const char dangerous_chars[] = "<>;\"'";
+    for (const char* c = dangerous_chars; *c; c++) {
+        if (strchr(key, *c)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+                "Dangerous character '%c' in CSS property: %s.", *c, key);
+            return 0;
+        }
     }
 
     /* length limits to prevent DoS */
     size_t key_len = strlen(key);
     size_t value_len = strlen(value);
 
-    if (key_len > CSS_KEY_PROPERTY_LENGTH || value_len > CSS_MAX_PROPERTY_LENGTH)
+    if (key_len > CSS_KEY_PROPERTY_LENGTH) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+            "CSS property key too long: %zu > %d.", key_len, CSS_KEY_PROPERTY_LENGTH);
         return 0;
+    }
+
+    if (value_len > CSS_MAX_PROPERTY_LENGTH) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+            "CSS property value too long: %zu > %d.", value_len, CSS_MAX_PROPERTY_LENGTH);
+        return 0;
+    }
 
     /* handle special case for margin shorthand */
-    if (strcasecmp(key, "margin") == 0)
-        return css_properties_set_margin_shorthand(props, value);
+    if (strcasecmp(key, "margin") == 0) {
+        int result = css_properties_set_margin_shorthand(props, value);
+        if (!result && !html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_VALUE, 
+                "Failed to set margin shorthand.");
+        }
+        return result;
+    }
 
-    /* check if property already exists */
+    /* check if property already exists - update existing */
     CSSProperty* current = props->head;
     CSSProperty* prev = NULL;
 
     while (current) {
         if (strcasecmp(current->key, key) == 0) {
             char* new_value = strdup(value);
-            if (!new_value) return 0;
+            if (!new_value) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to duplicate CSS value for property: %s.", key);
+                return 0;
+            }
 
             free(current->value);
             current->value = new_value;
@@ -333,20 +410,30 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
         current = current->next;
     }
 
-    /* create new property */
+    /* create new property, all allocations must succeed or cleanup */
     CSSProperty* new_prop = NULL;
     char* key_copy = NULL;
     char* value_copy = NULL;
+    int success = 0;
 
-    /* allocate and initialize */
+    /* allocate with proper error context */
     new_prop = (CSSProperty*)calloc(1, sizeof(CSSProperty));
-    if (!new_prop) goto cleanup_failure;
+    if (!new_prop) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM, "CSSProperty structure allocation failure.");
+        goto cleanup;
+    }
 
     key_copy = strdup(key);
-    if (!key_copy) goto cleanup_failure;
+    if (!key_copy) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM, "CSS property key duplication: %s.", key);
+        goto cleanup;
+    }
 
     value_copy = strdup(value);
-    if (!value_copy) goto cleanup_failure;
+    if (!value_copy) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM, "CSS property value duplication.");
+        goto cleanup;
+    }
 
     /* initialize after all allocations succeeded */
     new_prop->key = key_copy;
@@ -369,24 +456,54 @@ int css_properties_set(CSSProperties* props, const char* key, const char* value,
     /* update metadata */
     CSSPropertyMask mask = property_to_mask(key);
     if (mask) props->mask |= mask;
-    return 1;
 
-cleanup_failure:
+    success = 1;
+    goto exit;
+
+cleanup:
     /* cleanup path for any allocation failure */
     if (key_copy) free(key_copy);
     if (value_copy) free(value_copy);
     if (new_prop) free(new_prop);
-    return 0;
+
+exit:
+    return success;
 }
 
 const char* css_properties_get(const CSSProperties* props, const char* key) {
-    if (!props || !key) return NULL;
+    html2tex_err_clear();
+
+    /* validate input parameters */
+    if (!props) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSSProperties object for property lookup.");
+        return NULL;
+    }
+
+    if (!key) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSS property key for lookup.");
+        return NULL;
+    }
+
+    /* empty key is technically valid but pointless */
+    if (key[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS, "Empty CSS property key for lookup.");
+        return NULL;
+    }
+
+    /* check bitmask first if we have metadata */
+    if (props->mask != 0) {
+        CSSPropertyMask expected_mask = property_to_mask(key);
+        if (expected_mask && !(props->mask & expected_mask))
+            return NULL;
+    }
+
+    /* linear search through properties */
     CSSProperty* current = props->head;
 
     while (current) {
         if (strcasecmp(current->key, key) == 0)
             return current->value;
-
+        
         current = current->next;
     }
 
@@ -394,11 +511,38 @@ const char* css_properties_get(const CSSProperties* props, const char* key) {
 }
 
 int css_properties_has(const CSSProperties* props, const char* key) {
-    if (!props || !key) return 0;
+    /* clear previous errors and validate parameters */
+    html2tex_err_clear();
+
+    if (!props) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSSProperties object for existence check.");
+        return 0;
+    }
+
+    if (!key) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSS property key for existence check.");
+        return 0;
+    }
+
+    /* empty key is invalid for existence check */
+    if (key[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS, "Empty CSS property key for existence check.");
+        return 0;
+    }
+
+    /* check bitmask first if available */
+    if (props->mask != 0) {
+        CSSPropertyMask expected_mask = property_to_mask(key);
+        if (expected_mask && !(props->mask & expected_mask))
+            return 0;
+    }
+
+    /* linear search through properties */
     CSSProperty* current = props->head;
 
     while (current) {
-        if (strcasecmp(current->key, key) == 0) return 1;
+        if (strcasecmp(current->key, key) == 0)
+            return 1;
         current = current->next;
     }
 
@@ -406,21 +550,56 @@ int css_properties_has(const CSSProperties* props, const char* key) {
 }
 
 CSSProperties* css_properties_copy(const CSSProperties* src) {
-    if (!src) return NULL;
-    CSSProperties* copy = css_properties_create();
+    /* clear any previous errors */
+    html2tex_err_clear();
 
+    /* validate source parameter */
+    if (!src) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Source CSSProperties for copy.");
+        return NULL;
+    }
+
+    /* create the destination container */
+    CSSProperties* copy = css_properties_create();
     if (!copy) return NULL;
+
+    /* empty source */
+    if (!src->head)
+        return copy;
+
+    /* deep copy all properties */
     CSSProperty* current = src->head;
+    CSSProperty* last_copied = NULL;
 
     while (current) {
         if (!css_properties_set(copy, current->key, current->value, current->important)) {
+            if (!html2tex_has_error()) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+                    "Failed to copy CSS property: %s.", current->key);
+            }
+
+            /* cleanup partial copy */
             css_properties_destroy(copy);
             return NULL;
         }
 
+        /* track which property failed if needed for debugging */
+        last_copied = current;
         current = current->next;
     }
 
+    /* verify copy integrity */
+    if (src->count > 0 && copy->count == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+            "CSS copy failed: source had %zu properties, copy has 0.",
+            src->count);
+        css_properties_destroy(copy);
+        return NULL;
+    }
+
+    return copy;
+
+    /* return the copy */
     return copy;
 }
 
@@ -485,8 +664,14 @@ cleanup_failure:
 }
 
 CSSProperties* parse_css_style(const char* style_str) {
-    /* validate  the input first */
-    if (!style_str) return NULL;
+    /* clear previous errors before parsing */
+    html2tex_err_clear();
+
+    /* validate input parameter */
+    if (!style_str) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "CSS style string is NULL.");
+        return NULL;
+    }
 
     /* quick empty check for common case optimization */
     if (style_str[0] == '\0')
@@ -495,37 +680,47 @@ CSSProperties* parse_css_style(const char* style_str) {
     /* prevent DoS via extremely long style strings */
     size_t total_len = strlen(style_str);
 
-    if (total_len > CSS_MAX_PROPERTY_LENGTH * 4)
+    if (total_len > CSS_MAX_PROPERTY_LENGTH * 4) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+            "CSS style string too long: %zu > %zu.",
+            total_len, CSS_MAX_PROPERTY_LENGTH * 4);
         return NULL;
+    }
 
-    /* create properties container with error handling */
+    /* create properties container */
     CSSProperties* props = css_properties_create();
     if (!props) return NULL;
 
     /* single-pass fast parsing */
     const char* p = style_str;
+    size_t declaration_count = 0;
 
     while (*p) {
         /* skip whitespace between declarations */
         while (*p && isspace((unsigned char)*p))
             p++;
-        
+
         if (!*p) break;
+        declaration_count++;
 
         /* parse property name up to colon or semicolon */
         const char* prop_start = p;
-
         while (*p && *p != ':' && *p != ';')
             p++;
 
-        /* validate if need colon before semicolon */
+        /* validate if we have a colon before semicolon */
         if (!*p || *p == ';') {
-            if (*p == ';') p++;
+            if (*p == ';') {
+                p++;
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+                    "Empty CSS declaration at position %zu.", (size_t)(prop_start - style_str));
+            }
             continue;
         }
 
         /* trim trailing whitespace from property name */
         const char* prop_end = p;
+
         while (prop_end > prop_start && isspace((unsigned char)prop_end[-1]))
             prop_end--;
 
@@ -535,8 +730,14 @@ CSSProperties* parse_css_style(const char* style_str) {
         /* skip whitespace before value */
         while (*p && isspace((unsigned char)*p))
             p++;
-        
-        if (!*p) break;
+
+        if (!*p) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+                "Missing CSS value after colon at position %zu.",
+                (size_t)(prop_start - style_str));
+
+            break;
+        }
 
         /* parse value with !important detection */
         const char* value_start = p;
@@ -547,7 +748,6 @@ CSSProperties* parse_css_style(const char* style_str) {
             if (!important && (unsigned char)*p == '!') {
                 if (strncasecmp(p, "!important", 10) == 0) {
                     char after = p[10];
-
                     if (!after || after == ';' || isspace((unsigned char)after)) {
                         important = 1;
                         last_non_ws = p;
@@ -564,9 +764,8 @@ CSSProperties* parse_css_style(const char* style_str) {
             p++;
         }
 
-        const char* value_end = last_non_ws;
-
         /* skip semicolon for next iteration */
+        const char* value_end = last_non_ws;
         if (*p == ';') p++;
 
         /* calculate lengths for validation */
@@ -574,34 +773,49 @@ CSSProperties* parse_css_style(const char* style_str) {
         size_t value_len = value_end - value_start;
 
         /* validate property name length and content */
-        if (prop_len == 0 || prop_len > CSS_KEY_PROPERTY_LENGTH)
+        if (prop_len == 0 || prop_len > CSS_KEY_PROPERTY_LENGTH) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+                "Invalid CSS property name length at position %zu.",
+                (size_t)(prop_start - style_str));
             continue;
+        }
 
         /* validate the value length */
-        if (value_len == 0 || value_len > CSS_MAX_PROPERTY_LENGTH)
+        if (value_len == 0 || value_len > CSS_MAX_PROPERTY_LENGTH) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+                "Invalid CSS value length at position %zu.",
+                (size_t)(value_start - style_str));
             continue;
+        }
 
         /* validate property name doesn't contain dangerous chars */
         int valid_property = 1;
 
         for (const char* c = prop_start; c < prop_end; c++) {
             unsigned char ch = (unsigned char)*c;
-            
             if (ch == '<' || ch == '>' || ch == ';' || ch == '"' || ch == '\'') {
                 valid_property = 0;
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+                    "Dangerous character in CSS property name at position %zu.",
+                    (size_t)(c - style_str));
                 break;
             }
         }
 
         /* skip potentially malicious property */
         if (!valid_property) continue;
+
+        /* allocate property name and value */
         char* prop_name = (char*)malloc(prop_len + 1);
         char* prop_value = (char*)malloc(value_len + 1);
 
-        /* cleanup on allocation failure */
         if (!prop_name || !prop_value) {
             if (prop_name) free(prop_name);
             if (prop_value) free(prop_value);
+
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate CSS property buffer (prop_len=%zu, value_len=%zu).",
+                prop_len, value_len);
             css_properties_destroy(props);
             return NULL;
         }
@@ -613,18 +827,30 @@ CSSProperties* parse_css_style(const char* style_str) {
         memcpy(prop_value, value_start, value_len);
         prop_value[value_len] = '\0';
 
-        /* add failures handling */
+        /* add property to container */
         int success = css_properties_set(props, prop_name, prop_value, important);
 
         /* clean up temporary strings */
         free(prop_name);
         free(prop_value);
 
-        /* abort entire parsing */
+        /* if setting property fails, abort entire parsing */
         if (!success) {
+            if (!html2tex_has_error()) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS,
+                    "Failed to set CSS property at position %zu.",
+                    (size_t)(prop_start - style_str));
+            }
+
             css_properties_destroy(props);
             return NULL;
         }
+    }
+
+    /* return parsed properties */
+    if (declaration_count == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_CSS_SYNTAX,
+            "No valid CSS declarations found in style string.");
     }
 
     return props;
@@ -1031,7 +1257,7 @@ int css_length_to_pt(const char* length_str) {
     }
 
     /* validate the value range */
-    if (value < -1000000.0 || value > 1000000.0) 
+    if (value < -1000000.0 || value > 1000000.0)
         return 0;
 
     int result = 0;
@@ -1109,8 +1335,13 @@ int css_length_to_pt(const char* length_str) {
 }
 
 char* css_color_to_hex(const char* color_value) {
-    if (!color_value || color_value[0] == '\0') return NULL;
+    html2tex_err_clear();
     const char* p = color_value;
+
+    if (!color_value || color_value[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Color value for hex conversion.");
+        return NULL;
+    }
 
     /* skip leading whitespace */
     while (*p && (*p == ' ' || *p == '\t')) p++;
@@ -1125,17 +1356,20 @@ char* css_color_to_hex(const char* color_value) {
         while (hex_start[hex_len]) {
             char c = hex_start[hex_len];
 
-            if (!((c >= '0' && c <= '9') || 
-                (c >= 'a' && c <= 'f') || 
+            if (!((c >= '0' && c <= '9') ||
+                (c >= 'a' && c <= 'f') ||
                 (c >= 'A' && c <= 'F')))
                 break;
-            
+
             hex_len++;
         }
 
         if (hex_len == 3) {
             char* result = (char*)malloc(7);
-            if (!result) return NULL;
+            if (!result) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate memory for hex color conversion.");
+            }
 
             result[0] = hex_start[0];
             result[1] = hex_start[0];
@@ -1156,7 +1390,10 @@ char* css_color_to_hex(const char* color_value) {
         }
         else if (hex_len == 6) {
             char* result = (char*)malloc(7);
-            if (!result) return NULL;
+            if (!result) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate memory for hex color conversion.");
+            }
 
             memcpy(result, hex_start, 6);
             result[6] = '\0';
@@ -1191,7 +1428,10 @@ char* css_color_to_hex(const char* color_value) {
                 if (b < 0) b = 0; else if (b > 255) b = 255;
 
                 char* result = (char*)malloc(7);
-                if (!result) return NULL;
+                if (!result) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to allocate memory for hex color conversion.");
+                }
 
                 snprintf(result, 7, "%02X%02X%02X", r, g, b);
                 return result;
@@ -1225,7 +1465,7 @@ char* css_color_to_hex(const char* color_value) {
         {"purple", "800080"},
         {"orange", "FFA500"},
         {"transparent", "FFFFFF"},
-        {"", ""} 
+        {"", ""}
     };
 
     /* skip !important suffix for named colors */
