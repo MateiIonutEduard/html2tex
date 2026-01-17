@@ -1078,7 +1078,8 @@ int is_block_element(const char* tag_name) {
         {"th", 't', 2}, {"blockquote", 'b', 10}, {"section", 's', 7}, 
         {"article", 'a', 7}, {"header", 'h', 6}, {"footer", 'f', 6},
         {"nav", 'n', 3}, {"aside", 'a', 5}, {"main", 'm', 4}, 
-        {"figure", 'f', 6}, {"figcaption", 'f', 10}, {NULL, 0, 0}
+        {"figure", 'f', 6}, {"figcaption", 'f', 10}, 
+        {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
     /* length-based tags detection */

@@ -138,7 +138,7 @@ extern "C" {
 	 * @param converter Active conversion context (stateful, non-NULL)
 	 * @param node Root DOM node to convert (inclusive traversal)
 	 */
-	void convert_document(LaTeXConverter* converter, HTMLNode* node);
+	void convert_document(LaTeXConverter* converter, const HTMLNode* node);
 
 	/**
 	 * @brief Configures output directory for downloaded images.

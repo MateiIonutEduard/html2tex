@@ -280,59 +280,88 @@ int convert_caption(LaTeXConverter* converter, const HTMLNode* node) {
         }
 
         char* raw_caption = extract_caption_text(node);
-        const char* style_attr = get_attribute(node->attributes, 
-            "style");
+        const char* style_attr = get_attribute(node->attributes, "style");
 
         if (raw_caption) {
             CSSProperties* caption_css = NULL;
             if (style_attr) caption_css = parse_css_style(style_attr);
 
             if (caption_css) {
-                size_t buffer_size = (size_t)strlen(raw_caption) * 2 + 256;
+                /* calculate maximum required buffer size */
+                const char* color = css_properties_get(caption_css, "color");
+                const char* font_weight = css_properties_get(caption_css, "font-weight");
+
+                size_t color_prefix_len = 0;
+                char* hex_color = NULL;
+
+                if (color) {
+                    hex_color = css_color_to_hex(color);
+                    if (hex_color && strcmp(hex_color, "000000") != 0)
+                        color_prefix_len = 19 + 6 + 2;
+                }
+
+                int has_bold = (font_weight &&
+                    (strcmp(font_weight, "bold") == 0 ||
+                        strcmp(font_weight, "bolder") == 0));
+
+                size_t bold_len = has_bold ? 8 : 0;
+                size_t raw_len = strlen(raw_caption);
+                size_t closing_len = (color_prefix_len ? 1 : 0) + (has_bold ? 1 : 0);
+
+                /* allocate exact size needed */
+                size_t buffer_size = color_prefix_len + bold_len + raw_len + closing_len + 1;
                 char* formatted_caption = (char*)malloc(buffer_size);
 
                 if (formatted_caption) {
-                    formatted_caption[0] = '\0';
-                    const char* color = css_properties_get(caption_css, 
-                        "color");
+                    char* ptr = formatted_caption;
+                    size_t remaining = buffer_size;
 
-                    if (color) {
-                        char* hex_color = css_color_to_hex(color);
-
-                        if (hex_color && strcmp(hex_color, "000000") != 0) {
-                            strcat(formatted_caption, "\\textcolor[HTML]{");
-                            strcat(formatted_caption, hex_color);
-                            strcat(formatted_caption, "}{");
-                            free(hex_color);
+                    /* build formatted caption safely */
+                    if (color_prefix_len && hex_color) {
+                        int written = snprintf(ptr, remaining,
+                            "\\textcolor[HTML]{%s}{", hex_color);
+                        if (written > 0 && (size_t)written < remaining) {
+                            ptr += written;
+                            remaining -= written;
                         }
                     }
 
-                    int has_bold = 0;
-                    const char* font_weight = css_properties_get(caption_css, 
-                        "font-weight");
-
-                    if (font_weight &&
-                        (strcmp(font_weight, "bold") == 0 ||
-                            strcmp(font_weight, "bolder") == 0)) {
-                        strcat(formatted_caption, "\\textbf{");
-                        has_bold = 1;
-                    }
-
-                    strcat(formatted_caption, raw_caption);
-                    if (has_bold) strcat(formatted_caption, "}");
-
-                    if (color) {
-                        char* hex_color = css_color_to_hex(color);
-
-                        if (hex_color && strcmp(hex_color, "000000") != 0) {
-                            strcat(formatted_caption, "}");
-                            free(hex_color);
+                    if (has_bold) {
+                        int written = snprintf(ptr, remaining, "\\textbf{");
+                        if (written > 0 && (size_t)written < remaining) {
+                            ptr += written;
+                            remaining -= written;
                         }
                     }
 
+                    /* copy raw caption */
+                    size_t copy_len = raw_len < remaining 
+                        ? raw_len : remaining - 1;
+
+                    memcpy(ptr, raw_caption, copy_len);
+                    ptr += copy_len;
+                    remaining -= copy_len;
+
+                    /* close formatting in reverse order */
+                    if (has_bold) {
+                        if (remaining > 1) {
+                            *ptr++ = '}';
+                            remaining--;
+                        }
+                    }
+
+                    if (color_prefix_len && hex_color) {
+                        if (remaining > 1) {
+                            *ptr++ = '}';
+                            remaining--;
+                        }
+                    }
+
+                    *ptr = '\0';
                     converter->state.table_caption = formatted_caption;
                 }
 
+                if (hex_color) free(hex_color);
                 css_properties_destroy(caption_css);
             }
             else

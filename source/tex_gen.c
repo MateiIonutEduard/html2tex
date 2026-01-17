@@ -861,7 +861,7 @@ void append_figure_caption(LaTeXConverter* converter, const HTMLNode* table_node
     append_string(converter, "}\n");
 }
 
-void convert_document(LaTeXConverter* converter, HTMLNode* node) {
+void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
     /* clear previous errors */
     html2tex_err_clear();
 
