@@ -950,7 +950,27 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
 }
 
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
-    if (!src || !output_dir) return NULL;
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!src) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Image source is NULL for download.");
+        return NULL;
+    }
+
+    if (!output_dir) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Output directory is NULL for image download.");
+        return NULL;
+    }
+
+    if (image_counter < 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Invalid image counter: %d (must be non-negative).",
+            image_counter);
+        return NULL;
+    }
 
     /* create output directory if it does not exist */
     if (create_directory_if_not_exists(output_dir) != 0)
@@ -960,23 +980,50 @@ char* download_image_src(const char* src, const char* output_dir, int image_coun
     char* safe_filename = generate_unique_filename(output_dir, src, image_counter);
     if (!safe_filename) return NULL;
 
-    /* build full path */
-    char* full_path = malloc(strlen(output_dir) + strlen(safe_filename) + 2);
+    /* build full path with exact length calculation */
+    size_t dir_len = strlen(output_dir);
+    size_t filename_len = strlen(safe_filename);
 
-    if (!full_path) {
+    /* check for overflow in path length calculation */
+    if (dir_len > SIZE_MAX - filename_len - 2) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Path length overflow: dir=%zu, filename=%zu.",
+            dir_len, filename_len);
         free(safe_filename);
         return NULL;
     }
 
-    snprintf(full_path, strlen(output_dir) + strlen(safe_filename) + 2, "%s/%s", output_dir, safe_filename);
+    size_t full_path_len = dir_len + filename_len + 2;
+    char* full_path = (char*)malloc(full_path_len);
+
+    if (!full_path) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for full path.",
+            full_path_len);
+        free(safe_filename);
+        return NULL;
+    }
+
+    int snprintf_result = snprintf(full_path, full_path_len, "%s/%s",
+        output_dir, safe_filename);
+
+    if (snprintf_result < 0 || (size_t)snprintf_result >= full_path_len) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Generated full path exceeds allocated buffer: %s/%s.",
+            output_dir, safe_filename);
+        free(safe_filename);
+        free(full_path);
+        return NULL;
+    }
+
     int success = 0;
 
     /* handle base64 encoded image */
-    if (is_base64_image(src)) 
+    if (is_base64_image(src))
         success = save_base64_image(src, full_path);
-    /* handle normal URL */
-    else success = download_image_url(src, full_path);
-
+    else
+        /* handle normal URL */
+        success = download_image_url(src, full_path);
     free(safe_filename);
 
     if (success)
