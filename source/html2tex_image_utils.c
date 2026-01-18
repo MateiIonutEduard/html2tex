@@ -102,27 +102,96 @@ static char* extract_mime_type(const char* base64_data) {
     return mime_type;
 }
 
-/* Extract base64 data from data URI. */
+/* @brief Extract base64 data from data URI. */
 static char* extract_base64_data(const char* base64_data) {
-    if (!base64_data) return NULL;
-    const char* base64_prefix = "base64,";
+    /* clear any existing error state */
+    html2tex_err_clear();
 
+    if (!base64_data) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Base64 data URI is NULL for "
+            "data extraction.");
+        return NULL;
+    }
+
+    const char* base64_prefix = "base64,";
     const char* data_start = strstr(base64_data, base64_prefix);
-    if (!data_start) return NULL;
+
+    if (!data_start) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Malformed data URI: missing base64 prefix.");
+        return NULL;
+    }
+
     data_start += strlen(base64_prefix);
 
-    /* remove any whitespace from base64 data */
-    size_t len = strlen(data_start);
-    char* clean_data = malloc(len + 1);
+    /* validate we have data after the prefix */
+    if (*data_start == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Empty base64 data after prefix.");
+        return NULL;
+    }
 
-    if (!clean_data) return NULL;
+    /* calculate length and allocate efficiently */
+    size_t len = strlen(data_start);
+    size_t clean_len = 0;
+
+    /* pre-scan to determine exact memory needed */
+    for (const char* src = data_start; *src; src++) {
+        if (!isspace((unsigned char)*src)) {
+            clean_len++;
+        }
+    }
+
+    if (clean_len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Base64 data contains only whitespace.");
+        return NULL;
+    }
+
+    char* clean_data = (char*)malloc(clean_len + 1);
+
+    if (!clean_data) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for base64 data.",
+            clean_len + 1);
+        return NULL;
+    }
+
+    /* copy and clean the data */
     char* dest = clean_data;
 
-    for (const char* src = data_start; *src; src++)
-        if (!isspace(*src))
+    for (const char* src = data_start; *src; src++) {
+        if (!isspace((unsigned char)*src)) {
             *dest++ = *src;
+        }
+    }
 
     *dest = '\0';
+
+    /* validate the cleaned data looks like base64 */
+    if (clean_len % 4 != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Invalid base64 data length: %zu (must be multiple of 4).",
+            clean_len);
+        free(clean_data);
+        return NULL;
+    }
+
+    /* quick sanity check for base64 characters */
+    for (size_t i = 0; i < clean_len; i++) {
+        char c = clean_data[i];
+        if (!((c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c >= '0' && c <= '9') ||
+            c == '+' || c == '/' || c == '=')) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+                "Invalid base64 character '%c' (0x%02X) at position %zu.",
+                (c < 32 || c > 126) ? '?' : c, (unsigned char)c, i);
+            free(clean_data);
+            return NULL;
+        }
+    }
 
     return clean_data;
 }
