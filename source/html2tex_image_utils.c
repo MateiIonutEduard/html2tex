@@ -565,52 +565,114 @@ static int create_directory_if_not_exists(const char* dir_path) {
     return 0;
 }
 
-/* Generate safe filename from URL or base64 data. */
+/* @brief Generate safe filename from URL or base64 data. */
 static char* generate_safe_filename(const char* src, int image_counter) {
-    char* filename = malloc(256);
-    if (!filename) return NULL;
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!src) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Source is NULL for filename generation.");
+        return NULL;
+    }
+
+    if (image_counter < 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Invalid image counter: %d (must be non-negative).",
+            image_counter);
+        return NULL;
+    }
+
+    char* filename = (char*)malloc(256);
+
+    if (!filename) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate 256 bytes for filename buffer.");
+        return NULL;
+    }
 
     if (is_base64_image(src)) {
         char* mime_type = extract_mime_type(src);
-        const char* extension = mime_type ? get_extension_from_mime_type(mime_type) : ".bin";
 
-        snprintf(filename, 256, "image_%d%s", image_counter, extension);
+        /* error already set by extract_mime_type */
+        if (!mime_type) {
+            free(filename);
+            return NULL;
+        }
+
+        const char* extension = get_extension_from_mime_type(mime_type);
+
+        if (!extension) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+                "Failed to get extension for MIME type: %s.", mime_type);
+            free(mime_type);
+            free(filename);
+            return NULL;
+        }
+
+        int result = snprintf(filename, 256, "image_%d%s",
+            image_counter, extension);
         free(mime_type);
+
+        if (result < 0 || result >= 256) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Generated filename exceeds buffer size for counter: %d.",
+                image_counter);
+            free(filename);
+            return NULL;
+        }
     }
     else {
         /* extract filename from URL */
         const char* last_slash = strrchr(src, '/');
         const char* name_start = last_slash ? last_slash + 1 : src;
 
-        /* empty filename in URL ?! */
+        /* empty filename in URL */
         if (!*name_start) {
-            snprintf(filename, 256, "image_%d.jpg", image_counter);
+            int result = snprintf(filename, 256, "image_%d.jpg", image_counter);
+            if (result < 0 || result >= 256) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Default filename exceeds buffer for counter: %d.",
+                    image_counter);
+                free(filename);
+                return NULL;
+            }
+
             return filename;
         }
 
         /* find end of filename, before query or fragment */
         const char* end = name_start;
-
         while (*end && *end != '?' && *end != '#' && *end != ';')
             end++;
 
         size_t name_len = end - name_start;
 
         if (name_len == 0) {
-            snprintf(filename, 256, "image_%d.jpg", image_counter);
+            int result = snprintf(filename, 256, 
+                "image_%d.jpg", image_counter);
+
+            if (result < 0 || result >= 256) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Default filename exceeds buffer for counter: %d.",
+                    image_counter);
+                free(filename);
+                return NULL;
+            }
             return filename;
         }
 
-        /* copy and sanitize filename */
+        /* copy and sanitize the filename */
         char* dest = filename;
-
         const char* src_char = name_start;
         size_t copied = 0;
 
         while (src_char < end && copied < 255) {
             char c = *src_char++;
 
-            if (isalnum((unsigned char)c) || c == '.' || c == '-' || c == '_') {
+            if (isalnum((unsigned char)c) || 
+                c == '.' || c == '-' || 
+                c == '_') {
                 *dest++ = c;
                 copied++;
             }
@@ -625,8 +687,19 @@ static char* generate_safe_filename(const char* src, int image_counter) {
         /* ensure it has an extension */
         char* dot = strrchr(filename, '.');
 
-        if (!dot || dot == filename || (dot - filename) < 2)
-            strncat(filename, ".jpg", 255 - strlen(filename));
+        if (!dot || dot == filename || (dot - filename) < 2) {
+            size_t current_len = strlen(filename);
+            if (current_len > 251) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                    "Filename too long to add .jpg extension: %s.",
+                    filename);
+                free(filename);
+                return NULL;
+            }
+
+            strncat(filename, ".jpg", 
+                255 - current_len);
+        }
     }
 
     return filename;
