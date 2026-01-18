@@ -716,15 +716,50 @@ static unsigned long deterministic_hash(const char* str) {
     return hash;
 }
 
-/* Generate unique filename for the specified image. */
+/* @brief Generate unique filename for the specified image. */
 static char* generate_unique_filename(const char* output_dir, const char* src, int image_counter) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!output_dir) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Output directory is NULL for "
+            "unique filename generation.");
+        return NULL;
+    }
+
+    if (!src) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Source is NULL for unique filename"
+            " generation.");
+        return NULL;
+    }
+
+    if (image_counter < 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Invalid image counter: %d (must "
+            "be non-negative).",
+            image_counter);
+        return NULL;
+    }
+
     char* filename = generate_safe_filename(src, image_counter);
+    /* error already set by generate_safe_filename */
     if (!filename) return NULL;
 
     /* check if file already exists */
     char full_path[1024];
+    int snprintf_result = snprintf(full_path, sizeof(full_path), 
+        "%s/%s", output_dir, filename);
 
-    snprintf(full_path, sizeof(full_path), "%s/%s", output_dir, filename);
+    if (snprintf_result < 0 || snprintf_result >= (int)sizeof(full_path)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Full path exceeds buffer size for: %s/%s.",
+            output_dir, filename);
+        free(filename);
+        return NULL;
+    }
+
     struct stat st;
 
     /* file does not exist, use this filename */
@@ -736,18 +771,50 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
     unsigned long hash = deterministic_hash(src);
 
     char hash_str[9];
-    snprintf(hash_str, sizeof(hash_str), "%08lx", hash);
+    snprintf_result = snprintf(hash_str, sizeof(hash_str),
+        "%08lx", hash);
+
+    if (snprintf_result < 0 || snprintf_result >= (int)sizeof(hash_str)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+            "Hash string formatting failed for hash: %lx.", hash);
+        return NULL;
+    }
 
     if (is_base64_image(src)) {
         char* mime_type = extract_mime_type(src);
-        const char* extension = mime_type ? get_extension_from_mime_type(mime_type) : ".bin";
-        char* unique_name = (char*)malloc(256);
-
-        if (unique_name) {
-            snprintf(unique_name, 256, "image_%d_%s%s", image_counter, hash_str, extension);
+        if (!mime_type) {
+            /* error already set by extract_mime_type */
+            return NULL;
         }
 
+        const char* extension = get_extension_from_mime_type(mime_type);
+        if (!extension) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+                "Failed to get extension for MIME type: %s.", mime_type);
+            free(mime_type);
+            return NULL;
+        }
+
+        char* unique_name = (char*)malloc(256);
+        if (!unique_name) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate 256 bytes for unique filename.");
+            free(mime_type);
+            return NULL;
+        }
+
+        snprintf_result = snprintf(unique_name, 256, "image_%d_%s%s",
+            image_counter, hash_str, extension);
         free(mime_type);
+
+        if (snprintf_result < 0 || snprintf_result >= 256) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Unique filename exceeds buffer for counter: %d, hash: %s.",
+                image_counter, hash_str);
+            free(unique_name);
+            return NULL;
+        }
+
         return unique_name;
     }
 
@@ -758,31 +825,52 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
     /* empty filename */
     if (!*name_start) {
         char* unique_name = (char*)malloc(256);
+        if (!unique_name) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate 256 bytes for"
+                " default unique filename.");
+            return NULL;
+        }
 
-        if (unique_name)
-            snprintf(unique_name, 256, "image_%d_%s.jpg", image_counter, hash_str);
-        
+        snprintf_result = snprintf(unique_name, 256, "image_%d_%s.jpg",
+            image_counter, hash_str);
+        if (snprintf_result < 0 || snprintf_result >= 256) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Default unique filename exceeds buffer"
+                " for counter: %d.", image_counter);
+            free(unique_name);
+            return NULL;
+        }
+
         return unique_name;
     }
 
     /* find filename boundaries */
     const char* end = name_start;
-
-    while (*end && *end != '?' && *end != '#' && *end != ';')
+    while (*end && *end != '?' 
+        && *end != '#' 
+        && *end != ';')
         end++;
 
     /* find last dot in the filename part */
     const char* last_dot = NULL;
 
     for (const char* p = name_start; p < end; p++) {
-        if (*p == '.') last_dot = p;
+        if (*p == '.') 
+            last_dot = p;
     }
 
-    char* unique_name = malloc(256);
-    if (!unique_name) return NULL;
+    char* unique_name = (char*)malloc(256);
+
+    if (!unique_name) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate 256 bytes for"
+            " URL unique filename.");
+        return NULL;
+    }
 
     /* has extension */
-    if (last_dot && last_dot > name_start) { 
+    if (last_dot && last_dot > name_start) {
         size_t name_len = last_dot - name_start;
         size_t ext_len = end - last_dot;
 
@@ -796,7 +884,8 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
 
         while (src_char < last_dot && copied < 100) {
             char c = *src_char++;
-            if (isalnum((unsigned char)c) || c == '-' || c == '_') {
+            if (isalnum((unsigned char)c) 
+                || c == '-' || c == '_') {
                 *dest++ = c;
                 copied++;
             }
@@ -807,8 +896,16 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
         }
 
         /* add hash and extension */
-        snprintf(dest, 256 - (dest - unique_name), "_%s%.*s",
+        size_t remaining = 256 - (dest - unique_name);
+        snprintf_result = snprintf(dest, remaining, "_%s%.*s",
             hash_str, (int)ext_len, last_dot);
+
+        if (snprintf_result < 0 || (size_t)snprintf_result >= remaining) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Filename with extension exceeds buffer: %s.", src);
+            free(unique_name);
+            return NULL;
+        }
     }
     else {
         /* no extension found */
@@ -836,7 +933,17 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
         }
 
         /* add hash and .jpg extension */
-        snprintf(dest, 256 - (dest - unique_name), "_%s.jpg", hash_str);
+        size_t remaining = 256 - (dest - unique_name);
+
+        snprintf_result = snprintf(dest, remaining, 
+            "_%s.jpg", hash_str);
+
+        if (snprintf_result < 0 || (size_t)snprintf_result >= remaining) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+                "Filename without extension exceeds buffer: %s.", src);
+            free(unique_name);
+            return NULL;
+        }
     }
 
     return unique_name;
