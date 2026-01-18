@@ -328,39 +328,84 @@ static unsigned char* base64_decode(const char* data, size_t input_len, size_t* 
     return decoded;
 }
 
-/* Decode base64 data and save to file. */
+/* @brief Decode base64 data and save to file. */
 static int save_base64_image(const char* base64_data, const char* filename) {
-    if (!base64_data || !filename) return 0;
-    char* clean_data = extract_base64_data(base64_data);
+    /* clear any existing error state */
+    html2tex_err_clear();
 
+    if (!base64_data) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Base64 data is NULL for image save.");
+        return 0;
+    }
+
+    if (!filename) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Filename is NULL for base64 image save.");
+        return 0;
+    }
+
+    char* clean_data = extract_base64_data(base64_data);
+    /* error already set by extract_base64_data */
     if (!clean_data) return 0;
     size_t input_len = strlen(clean_data);
 
     if (input_len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Cleaned base64 data is empty.");
         free(clean_data);
         return 0;
     }
 
     size_t output_len = 0;
-    unsigned char* decoded_data = base64_decode(clean_data, input_len, &output_len);
+    unsigned char* decoded_data = base64_decode(
+        clean_data, input_len, &output_len);
     free(clean_data);
 
-    if (!decoded_data || output_len == 0)
-        return 0;
+    /* error already set by base64_decode */
+    if (!decoded_data) return 0;
 
-    /* write to file */
-    FILE* file = fopen(filename, "wb");
-
-    if (!file) {
+    if (output_len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Base64 decoding produced zero-length output.");
         free(decoded_data);
         return 0;
     }
 
-    size_t written = fwrite(decoded_data, 1, output_len, file);
-    fclose(file);
+    /* write to the file */
+    FILE* file = fopen(filename, "wb");
+
+    if (!file) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_FILE_OPEN,
+            "Failed to open file '%s' for writing: %s.",
+            filename, strerror(errno));
+        free(decoded_data);
+        return 0;
+    }
+
+    size_t written = fwrite(decoded_data, 
+        1, output_len, file);
+
+    /* close file before checking write result */
+    if (fclose(file) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_FILE_WRITE,
+            "Failed to close file '%s' after write: %s.",
+            filename, strerror(errno));
+        free(decoded_data);
+        return 0;
+    }
 
     free(decoded_data);
-    return (written == output_len) ? 1 : 0;
+
+    if (written != output_len) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_FILE_WRITE,
+            "Failed to write complete image data to '%s': "
+            "expected %zu bytes, wrote %zu bytes.",
+            filename, output_len, written);
+        return 0;
+    }
+
+    return 1;
 }
 
 /* libcurl write callback */
