@@ -162,7 +162,8 @@ add_library(html2tex_c STATIC
     source/html_parser.c
     source/html_minify.c
     source/html_prettify.c
-    source/html2tex_dom_utils.c
+    source/html2tex_dom_tree.c
+    source/html2tex_errors.c
     source/html2tex_css.c
     source/html2tex_string_buffer.c
     source/html2tex_utils.c
@@ -207,7 +208,7 @@ set_target_properties(html2tex_cpp PROPERTIES
     OUTPUT_NAME "html2tex_cpp"
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    CXX_STANDARD 03
+    CXX_STANDARD 14
     CXX_STANDARD_REQUIRED ON
 )
 
@@ -254,8 +255,10 @@ install(TARGETS html2tex_cpp
 install(FILES
     include/html2tex.h
     include/dom_tree.h
+	include/html2tex_errors.h
     include/string_buffer.h
-    include/data_structures.h
+    include/html2tex_queue.h
+	include/html2tex_stack.h
     include/css_properties.h
     include/image_utils.h
     include/html2tex_processor.h
