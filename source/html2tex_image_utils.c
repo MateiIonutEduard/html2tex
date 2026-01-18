@@ -408,47 +408,86 @@ static int save_base64_image(const char* base64_data, const char* filename) {
     return 1;
 }
 
-/* libcurl write callback */
+/* @brief libcurl write callback */
 static size_t write_data(void* ptr, size_t size, size_t nmemb, FILE* stream) {
     return fwrite(ptr, size, nmemb, stream);
 }
 
-/* Download image from URL using libcurl. */
+/* @brief Download image from URL using libcurl. */
 static int download_image_url(const char* url, const char* filename) {
-    if (!url || !filename) return 0;
-    CURL* curl = NULL;
+    /* clear any existing error state */
+    html2tex_err_clear();
 
+    if (!url) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "URL is NULL for image download.");
+        return 0;
+    }
+
+    if (!filename) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Filename is NULL for image download.");
+        return 0;
+    }
+
+    CURL* curl = NULL;
     FILE* fp = NULL;
     CURLcode res;
-
     int success = 0;
+
     curl = curl_easy_init();
+    if (!curl) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DOWNLOAD,
+            "Failed to initialize libcurl handle.");
+        return 0;
+    }
 
-    if (!curl) return 0;
     fp = fopen(filename, "wb");
-
     if (!fp) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_FILE_OPEN,
+            "Failed to open file '%s' for writing: %s.",
+            filename, strerror(errno));
         curl_easy_cleanup(curl);
         return 0;
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
-
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "html2tex/1.0");
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+
     res = curl_easy_perform(curl);
 
     if (res == CURLE_OK) {
         long response_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        if (response_code == 200) success = 1;
+        curl_easy_getinfo(curl, 
+            CURLINFO_RESPONSE_CODE, 
+            &response_code);
+
+        if (response_code == 200)
+            success = 1;
+        else {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DOWNLOAD,
+                "HTTP request failed with status code: %ld for URL: %s.",
+                response_code, url);
+        }
+    }
+    else {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DOWNLOAD,
+            "libcurl error: %s for URL: %s",
+            curl_easy_strerror(res), url);
     }
 
-    if (fp) fclose(fp);
+    if (fp) {
+        if (fclose(fp) != 0) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_FILE_WRITE,
+                "Failed to close file '%s' after download: %s.",
+                filename, strerror(errno));
+        }
+    }
+
     if (curl) curl_easy_cleanup(curl);
     return success;
 }
