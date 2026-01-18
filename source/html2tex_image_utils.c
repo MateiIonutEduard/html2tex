@@ -196,7 +196,7 @@ static char* extract_base64_data(const char* base64_data) {
     return clean_data;
 }
 
-/* Get file extension from MIME type. */
+/* @brief Get file extension from MIME type. */
 static const char* get_extension_from_mime_type(const char* mime_type) {
     if (!mime_type) return ".bin";
 
@@ -210,45 +210,119 @@ static const char* get_extension_from_mime_type(const char* mime_type) {
     else return ".bin";
 }
 
-/* Robust base64 decoding function. */
+/* @brief Robust base64 decoding function. */
 static unsigned char* base64_decode(const char* data, size_t input_len, size_t* output_len) {
-    if (!data || input_len == 0) return NULL;
+    /* clear any existing error state */
+    html2tex_err_clear();
 
-    /* invalid base64 string */
-    if (input_len % 4 != 0) return NULL;
+    if (!data) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Base64 data is NULL for decoding.");
+        return NULL;
+    }
+
+    if (input_len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Empty base64 data for decoding.");
+        return NULL;
+    }
+
+    /* invalid base64 string length */
+    if (input_len % 4 != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Invalid base64 length: %zu (must be multiple of 4).",
+            input_len);
+        return NULL;
+    }
+
+    /* calculate output length with padding handling */
     *output_len = (input_len * 3) / 4;
 
     if (data[input_len - 1] == '=') (*output_len)--;
     if (data[input_len - 2] == '=') (*output_len)--;
 
-    unsigned char* decoded = malloc(*output_len);
-    if (!decoded) return NULL;
+    if (*output_len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Zero-length output after base64 padding removal.");
+        return NULL;
+    }
+
+    /* validate maximum reasonable output size */
+    const size_t MAX_REASONABLE_SIZE = 16 * 1024 * 1024;
+
+    if (*output_len > MAX_REASONABLE_SIZE) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Decoded base64 size %zu exceeds maximum allowed %zu bytes.",
+            *output_len, MAX_REASONABLE_SIZE);
+        return NULL;
+    }
+
+    unsigned char* decoded = (unsigned char*)malloc(*output_len);
+    if (!decoded) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for decoded base64 data.",
+            *output_len);
+        return NULL;
+    }
 
     const unsigned char* input = (const unsigned char*)data;
     unsigned char* output = decoded;
 
     for (size_t i = 0; i < input_len; ) {
-        unsigned long int sextet_a = input[i] == '=' ? 0 & i++ : base64_table[input[i++]];
-        unsigned long int sextet_b = input[i] == '=' ? 0 & i++ : base64_table[input[i++]];
+        /* decode 4 characters to 3 bytes */
+        unsigned long int sextet_a = (input[i] == '=') ? 
+            0 : base64_table[input[i]];
+        i++;
 
-        unsigned long int sextet_c = input[i] == '=' ? 0 & i++ : base64_table[input[i++]];
-        unsigned long int sextet_d = input[i] == '=' ? 0 & i++ : base64_table[input[i++]];
+        unsigned long int sextet_b = (input[i] == '=') ? 
+            0 : base64_table[input[i]];
+        i++;
 
-        if (sextet_a == 0x80 || sextet_b == 0x80 || sextet_c == 0x80 || sextet_d == 0x80) {
+        unsigned long int sextet_c = (input[i] == '=') ? 
+            0 : base64_table[input[i]];
+        i++;
+
+        unsigned long int sextet_d = (input[i] == '=') ? 
+            0 : base64_table[input[i]];
+        i++;
+
+        /* validate decoded values */
+        if (sextet_a == 0x80 || sextet_b == 0x80 ||
+            sextet_c == 0x80 || sextet_d == 0x80) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+                "Invalid base64 character at position %zu: '%c' (0x%02X).",
+                i - 1, data[i - 1], (unsigned char)data[i - 1]);
             free(decoded);
             return NULL;
         }
 
-        unsigned long int triple = (sextet_a << 3 * 6) + (sextet_b << 2 * 6) + (sextet_c << 1 * 6) + (sextet_d << 0 * 6);
+        /* combine into 24-bit value */
+        unsigned long int triple = (sextet_a << 18) | 
+            (sextet_b << 12) |
+            (sextet_c << 6) | 
+            sextet_d;
 
+        /* extract 3 bytes with bounds checking */
         if (output - decoded < (ptrdiff_t)(*output_len - 2))
-            *output++ = (triple >> 2 * 8) & 0xFF;
+            *output++ = (triple >> 16) & 0xFF;
 
         if (output - decoded < (ptrdiff_t)(*output_len - 1))
-            *output++ = (triple >> 1 * 8) & 0xFF;
+            *output++ = (triple >> 8) & 0xFF;
 
         if (output - decoded < (ptrdiff_t)(*output_len))
-            *output++ = (triple >> 0 * 8) & 0xFF;
+            *output++ = triple & 0xFF;
+    }
+
+    /* verify it wrote the expected amount */
+    size_t bytes_written = (size_t)(output - decoded);
+
+    if (bytes_written != *output_len) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+            "Base64 decoding inconsistency: "
+            "expected %zu bytes, wrote %zu.",
+            *output_len, bytes_written);
+        free(decoded);
+        return NULL;
     }
 
     return decoded;
