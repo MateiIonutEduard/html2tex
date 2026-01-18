@@ -492,19 +492,39 @@ static int download_image_url(const char* url, const char* filename) {
     return success;
 }
 
-/* Create directory if it doesn't exist. */
+/* @brief Create directory if it doesn't exist. */
 static int create_directory_if_not_exists(const char* dir_path) {
-    if (!dir_path) return -1;
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!dir_path) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Directory path is NULL for creation.");
+        return -1;
+    }
+
+    if (dir_path[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "Directory path is empty string.");
+        return -1;
+    }
+
     struct stat st = { 0 };
 
     if (stat(dir_path, &st) == -1) {
         /* create directory recursively */
         char* path_copy = strdup(dir_path);
 
-        if (!path_copy) return -1;
+        if (!path_copy) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate directory path: %s.", dir_path);
+            return -1;
+        }
+
         char* p = path_copy;
 
 #ifdef _WIN32
+        /* skip Windows drive prefix for recursive creation */
         if (strlen(p) > 2 && p[1] == ':')
             p += 2;
 #endif
@@ -516,6 +536,9 @@ static int create_directory_if_not_exists(const char* dir_path) {
 
                 if (stat(path_copy, &st) == -1) {
                     if (mkdir(path_copy) != 0) {
+                        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+                            "Failed to create directory '%s': %s.",
+                            path_copy, strerror(errno));
                         free(path_copy);
                         return -1;
                     }
@@ -529,6 +552,9 @@ static int create_directory_if_not_exists(const char* dir_path) {
 
         /* create the final directory */
         if (mkdir(dir_path) != 0) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+                "Failed to create final directory '%s': %s.",
+                dir_path, strerror(errno));
             free(path_copy);
             return -1;
         }
