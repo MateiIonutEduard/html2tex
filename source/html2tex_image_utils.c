@@ -58,23 +58,47 @@ int is_base64_image(const char* src) {
     return (strncmp(src, "data:image/", 11) == 0);
 }
 
-/* Extract MIME type from base64 data URI. */
+/* @brief Extract MIME type from base64 data URI. */
 static char* extract_mime_type(const char* base64_data) {
-    if (!base64_data) return NULL;
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!base64_data) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Base64 data URI is NULL for "
+            "MIME type extraction.");
+        return NULL;
+    }
 
     const char* prefix = "data:";
     const char* semicolon = strchr(base64_data, ';');
-    if (!semicolon) return NULL;
+
+    if (!semicolon) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Malformed data URI: missing semicolon "
+            "after MIME type.");
+        return NULL;
+    }
 
     size_t len = semicolon - (base64_data + strlen(prefix));
-    if (len == 0) return NULL;
 
-    char* mime_type = malloc(len + 1);
-    if (!mime_type) return NULL;
+    if (len == 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE_DECODE,
+            "Empty MIME type in data URI.");
+        return NULL;
+    }
+
+    char* mime_type = (char*)malloc(len + 1);
+
+    if (!mime_type) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for"
+            " MIME type.", len + 1);
+        return NULL;
+    }
 
     strncpy(mime_type, base64_data + strlen(prefix), len);
     mime_type[len] = '\0';
-
     return mime_type;
 }
 
