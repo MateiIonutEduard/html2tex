@@ -201,6 +201,26 @@ extern "C" {
 	 */
 	void convert_image_table(LaTeXConverter* converter, const HTMLNode* node);
 
+#ifndef MAX_SUPPORTED_BLOCK_LENGTH
+#define MAX_SUPPORTED_BLOCK_LENGTH 10
+#endif
+
+#ifndef MAX_SUPPORTED_INLINE_LENGTH
+#define MAX_SUPPORTED_INLINE_LENGTH 8
+#endif
+
+#ifndef MAX_SUPPORTED_VOID_LENGTH
+#define MAX_SUPPORTED_VOID_LENGTH 6
+#endif
+
+#ifndef MAX_SUPPORTED_ESSENTIAL_LENGTH
+#define MAX_SUPPORTED_ESSENTIAL_LENGTH 5
+#endif
+
+#ifndef MAX_UNSUPPORTED_ELEMENT_LENGTH
+#define MAX_UNSUPPORTED_ELEMENT_LENGTH 10
+#endif
+
 #ifndef HTML_TITLE_MAX_SIZE
 #define HTML_TITLE_MAX_SIZE 256
 #endif

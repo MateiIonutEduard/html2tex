@@ -2,6 +2,12 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+typedef struct TagProperties {
+    const char* tag;
+    unsigned char first_char;
+    const unsigned char length;
+} TagProperties;
+
 char* html2tex_compress_html(const char* html) {
     html2tex_err_clear();
 
@@ -81,9 +87,8 @@ char* html2tex_compress_html(const char* html) {
             while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
 
             if (strncasecmp(tag_start, "script", 6) == 0 ||
-                strncasecmp(tag_start, "style", 5) == 0) {
+                strncasecmp(tag_start, "style", 5) == 0)
                 in_script_style = 0;
-            }
         }
 
         /* preserve all content inside script/style tags */
@@ -1106,14 +1111,38 @@ cleanup_queues:
     queue_cleanup(&cell_queue, &cell_rear);
 }
 
-int is_block_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
+static int tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len) {
+    if (!tag_name || tag_name[0] == '\0') 
+        return 0;
 
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } block_tags[] = {
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        if (++len > max_len) 
+            return 0;
+        p++;
+    }
+
+    /* extract first char in advance */
+    const unsigned char first_char = (unsigned char)tag_name[0];
+
+    for (int i = 0; table[i].tag; i++) {
+        /* fast reject: first character mismatch */
+        if (first_char != table[i].first_char) continue;
+
+        /* reject by length mismatch */
+        if (len != table[i].length) continue;
+
+        /* final verification by exact string match */
+        if (strcmp(tag_name, table[i].tag) == 0) return 1;
+    }
+
+    return 0;
+}
+
+int is_block_element(const char* tag_name) {
+    static const TagProperties block_tags[] = {
         {"div", 'd', 3}, {"p", 'p', 1},
         {"h1", 'h', 2}, {"h2", 'h', 2}, {"h3", 'h', 2},
         {"h4", 'h', 2}, {"h5", 'h', 2}, {"h6", 'h', 2},
@@ -1126,53 +1155,12 @@ int is_block_element(const char* tag_name) {
         {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
-    /* length-based tags detection */
-    size_t len = 0;
-
-    const char* p = tag_name;
-    while (*p) {
-        len++; p++;
-
-        /* tag name is longer then expected, reject it */
-        if (len > 10) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 1:  case 2:  case 3:  case 4:
-    case 5: case 6:  case 7:  case 10:
-        break;
-    default:
-        /* length does not match any block tag */
-        return 0;
-    }
-
-    /* extract first char once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    for (int i = 0; block_tags[i].tag; i++) {
-        /* fast reject: first character mismatch */
-        if (first_char != (unsigned char)block_tags[i].first_char) continue;
-
-        /* medium reject: length mismatch, cheaper than strcmp */
-        if (block_tags[i].length != len) continue;
-
-        /* final verification: exact string match */
-        if (strcmp(tag_name, block_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, block_tags,
+        MAX_SUPPORTED_BLOCK_LENGTH);
 }
 
 int is_inline_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
-
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } inline_tags[] = {
+    static const TagProperties inline_tags[] = {
         {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1},
         {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"cite", 'c', 4},
         {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3},
@@ -1189,158 +1177,30 @@ int is_inline_element(const char* tag_name) {
         {"textarea", 't', 8}, {NULL, 0, 0}
     };
 
-    /* compute the length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unreasonably long tags */
-        if (len > 8) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 1: case 2: case 3: case 4:
-    case 5: case 6: case 8:
-        break;
-    case 7:
-        /* explicitly reject length 7 */
-        return 0;
-    default:
-        /* length doesn't match any known inline tag */
-        return 0;
-    }
-
-    /* extract first character once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; inline_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != inline_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != inline_tags[i].length) continue;
-
-        /* final verification by exact string match */
-        if (strcmp(tag_name, inline_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, inline_tags,
+        MAX_SUPPORTED_INLINE_LENGTH);
 }
 
 int is_void_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') 
-        return 0;
-
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } void_tags[] = { 
+    static const TagProperties void_tags[] = { 
         {"area", 'a', 4}, {"base", 'b', 4}, {"br", 'b', 2}, {"col", 'c', 3}, 
         {"embed", 'e', 5}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
         {"link", 'l', 4}, {"meta", 'm', 4}, {"param", 'p', 5}, {"source", 's', 6}, 
         {"track", 't', 5}, {"wbr", 'w', 3}, {NULL, 0, 0} 
     };
 
-    /* compute the length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unexpected void tags */
-        if (len > 6) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 2: case 3: case 4:
-    case 5: case 6:
-        break;
-    default:
-        /* length doesn't match any known void tag */
-        return 0;
-    }
-
-    /* extract first character */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; void_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != void_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != void_tags[i].length) continue;
-
-        /* final check by using exact string match */
-        if (strcmp(tag_name, void_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, void_tags, 
+        MAX_SUPPORTED_VOID_LENGTH);
 }
 
 int is_essential_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0')
-        return 0;
-
-    static const struct { 
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } essential_tags[] = {
+    static const TagProperties essential_tags[] = {
         {"br", 'b', 2}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
         {"meta", 'm', 4}, {"link", 'l', 4}, {NULL, 0, 0}
     };
 
-    /* length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unexpected essential tags */
-        if (len > 5) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 2: case 3:
-    case 4: case 5:
-        break;
-    default:
-        /* length doesn't match any known element */
-        return 0;
-    }
-
-    /* extract first character */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; essential_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != essential_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != essential_tags[i].length) continue;
-
-        /* exact string match by calling strcmp for few times */
-        if (strcmp(tag_name, essential_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, essential_tags, 
+        MAX_SUPPORTED_ESSENTIAL_LENGTH);
 }
 
 int should_exclude_tag(const char* tag_name) {
