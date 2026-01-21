@@ -92,6 +92,16 @@ extern "C" {
 	char* get_pretty_html(const HTMLNode* root);
 
 	/**
+     * @brief Optimized tag lookup with micro-optimized rejection filtering.
+     * @param tag_name  Null-terminated tag string to lookup (must not be NULL)
+     * @param table Static array of TagProperties terminated with {NULL,0,0}
+     * @param max_len Maximum allowed tag length for bounds checking
+     * @return 1 if tag_name matches an entry in table
+     * @return 0 if tag_name is NULL, empty, exceeds max_len, or no match found
+	*/
+	int html2tex_tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len);
+
+	/**
 	 * @brief Determines if HTML element is block-level.
 	 * @param tag_name Lowercase tag name (e.g., "div", "p")
 	 * @return 1: Block-level element

@@ -1111,24 +1111,7 @@ cleanup_queues:
     queue_cleanup(&cell_queue, &cell_rear);
 }
 
-/**
- * @brief Optimized tag lookup with micro-optimized rejection filtering.
- * @param tag_name  Null-terminated tag string to lookup (must not be NULL)
- * @param table Static array of TagProperties terminated with {NULL,0,0}
- * @param max_len Maximum allowed tag length for bounds checking
- * @return 1 if tag_name matches an entry in table
- * @return 0 if tag_name is NULL, empty, exceeds max_len, or no match found
- * @pre tag_name != NULL (though function handles NULL gracefully)
- * @pre table last element must be {NULL,0,0} sentinel
- * 
- * @remark Uses three-stage filtering: bounds check -> first char -> length -> strcmp
- * @remark Tables should be sorted by first character for cache locality
- * @remark Not thread-safe if table is modified (tables should be static const)
- *
- * @complexity Worst-case O(n), typical O(1) due to early rejection
- * @memory O(1) excluding static table storage
-*/
-static int tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len) {
+int html2tex_tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len) {
     if (!tag_name || tag_name[0] == '\0') 
         return 0;
 
@@ -1172,7 +1155,7 @@ int is_block_element(const char* tag_name) {
         {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
-    return tag_lookup(tag_name, block_tags,
+    return html2tex_tag_lookup(tag_name, block_tags,
         MAX_SUPPORTED_BLOCK_LENGTH);
 }
 
@@ -1194,7 +1177,7 @@ int is_inline_element(const char* tag_name) {
         {"textarea", 't', 8}, {NULL, 0, 0}
     };
 
-    return tag_lookup(tag_name, inline_tags,
+    return html2tex_tag_lookup(tag_name, inline_tags,
         MAX_SUPPORTED_INLINE_LENGTH);
 }
 
@@ -1206,7 +1189,7 @@ int is_void_element(const char* tag_name) {
         {"track", 't', 5}, {"wbr", 'w', 3}, {NULL, 0, 0} 
     };
 
-    return tag_lookup(tag_name, void_tags, 
+    return html2tex_tag_lookup(tag_name, void_tags, 
         MAX_SUPPORTED_VOID_LENGTH);
 }
 
@@ -1216,7 +1199,7 @@ int is_essential_element(const char* tag_name) {
         {"meta", 'm', 4}, {"link", 'l', 4}, {NULL, 0, 0}
     };
 
-    return tag_lookup(tag_name, essential_tags, 
+    return html2tex_tag_lookup(tag_name, essential_tags, 
         MAX_SUPPORTED_ESSENTIAL_LENGTH);
 }
 
@@ -1238,7 +1221,7 @@ int should_exclude_tag(const char* tag_name) {
         {"bdo", 'b', 3}, {NULL, 0, 0}
     };
 
-    return tag_lookup(tag_name, excluded_tags,
+    return html2tex_tag_lookup(tag_name, excluded_tags,
         MAX_UNSUPPORTED_ELEMENT_LENGTH);
 }
 
