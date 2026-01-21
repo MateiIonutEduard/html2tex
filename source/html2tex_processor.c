@@ -61,6 +61,9 @@ static int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* no
 static int convert_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 static int finish_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
+static int convert_inline_span(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_span(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+
 static int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 static int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 static int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
@@ -559,7 +562,7 @@ int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node, co
     } entries[] = {
         {"b", &convert_inline_bold}, {"strong", &convert_inline_bold}, {"i", &convert_inline_italic}, 
         {"em", &convert_inline_italic}, {"u", &convert_inline_underline}, {"hr", &convert_inline_essential}, 
-        {"code", &convert_inline_essential}, {"font", &convert_inline_font}, {"span", NULL}, {"a", &convert_inline_anchor},
+        {"code", &convert_inline_essential}, {"font", &convert_inline_font}, {"span", &convert_inline_span}, {"a", &convert_inline_anchor},
         {"br", &convert_inline_essential}, {"img", &convert_inline_image}, { NULL, NULL }
     };
 
@@ -575,9 +578,7 @@ int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node, co
     }
 
     if (found) {
-        if (i == 8)
-            return 1;
-        else if (entries[i].convert_inline_element != NULL)
+        if (entries[i].convert_inline_element != NULL)
             return entries[i].convert_inline_element(
                 converter, node, props);
     }
@@ -594,7 +595,7 @@ int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node, con
     } entries[] = {
         {"b", &finish_inline_bold}, {"strong", &finish_inline_bold}, {"i", &finish_inline_italic}, 
         {"em", &finish_inline_italic}, {"u", &finish_inline_underline}, {"hr", &finish_inline_essential}, 
-        {"code", &finish_inline_essential}, {"font", &finish_inline_font}, {"span", NULL}, {"a", &finish_inline_anchor},
+        {"code", &finish_inline_essential}, {"font", &finish_inline_font}, {"span", &finish_inline_span}, {"a", &finish_inline_anchor},
         {"br", &finish_inline_essential}, {"img", NULL}, { NULL, NULL }
     };
 
@@ -610,9 +611,7 @@ int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node, con
     }
 
     if (found) {
-        if (i == 8)
-            return 1;
-        else if (entries[i].finish_inline_element != NULL)
+        if (entries[i].finish_inline_element != NULL)
             return entries[i].finish_inline_element(
                 converter, node, props);
     }
@@ -803,6 +802,32 @@ int finish_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CS
 
     if (props && !text_color)
         append_string(converter, "}");
+
+    return 1;
+}
+
+int convert_inline_span(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if (!node->tag || (node->tag &&
+        strcmp(node->tag, "span") != 0))
+        return 0;
+
+    /* apply CSS properties for the element content */
+    if (props && node->tag)
+        css_properties_apply(converter,
+            props, node->tag);
+
+    return 1;
+}
+
+int finish_inline_span(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if (!node->tag || (node->tag &&
+        strcmp(node->tag, "span") != 0))
+        return 0;
+
+    /* ends the CSS properties */
+    if (props && node->tag)
+        css_properties_end(converter,
+            props, node->tag);
 
     return 1;
 }
