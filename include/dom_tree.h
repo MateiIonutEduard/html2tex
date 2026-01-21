@@ -72,7 +72,7 @@ extern "C" {
 	 * @return Success: New minified tree (caller owns)
 	 * @return Failure: NULL with error set
 	 */
-	HTMLNode* html2tex_minify_html(HTMLNode* root);
+	HTMLNode* html2tex_minify_html(const HTMLNode* root);
 
 	/**
 	 * @brief Writes formatted HTML to file with proper indentation.
@@ -81,7 +81,7 @@ extern "C" {
 	 * @return Success: 1
 	 * @return Failure: 0 (check html2tex_has_error())
 	 */
-	int write_pretty_html(HTMLNode* root, const char* filename);
+	int write_pretty_html(const HTMLNode* root, const char* filename);
 
 	/**
 	 * @brief Returns DOM tree as formatted HTML string.

@@ -476,7 +476,7 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
     Queue* dst_rear = NULL;
 
     /* enqueue the root and its parent copy */
-    queue_enqueue(&src_queue, &src_rear, node);
+    queue_enqueue(&src_queue, &src_rear, (void*)node);
     queue_enqueue(&dst_queue, &dst_rear, new_root);
 
     /* process nodes in BFS order */
