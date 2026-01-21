@@ -133,6 +133,12 @@ extern "C" {
 	*/
 	void escape_latex_special(LaTeXConverter* converter, const char* text);
 
+	/**
+	 * @brief Applies color formatting directly to LaTeX output.
+	 * @param converter Active conversion context (must be valid and non-NULL)
+	 * @param color_value CSS color specification to apply (e.g., "#FF0000", "red", "rgb(255,0,0)")
+     * @param is_background Flag indicating background color application
+	*/
 	void apply_color(LaTeXConverter* converter, const char* color_value, int is_background);
 
 	/**

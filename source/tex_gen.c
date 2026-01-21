@@ -1027,7 +1027,7 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
             css_properties_destroy(current_css);
         
         /* check for errors from other operations */
-        if (html2tex_has_error()) goto cleanup;
+        //if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:
