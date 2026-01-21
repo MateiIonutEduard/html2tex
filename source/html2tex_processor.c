@@ -40,6 +40,9 @@ static int finish_essential_block(LaTeXConverter* converter, const HTMLNode* nod
 static int convert_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 static int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
+static int convert_div(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_div(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+
 static int convert_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 static int finish_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
@@ -142,13 +145,37 @@ int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSP
     return 1;
 }
 
+int convert_div(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if(!node->tag || (node->tag && 
+        strcmp(node->tag, "div") != 0))
+        return 0;
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, 
+            props, node->tag);
+    return 1;
+}
+
+int finish_div(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if (!node->tag || (node->tag &&
+        strcmp(node->tag, "div") != 0))
+        return 0;
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, 
+            props, node->tag);
+    return 1;
+}
+
 /* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
 int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     static const struct {
         const char* key;
         int (*process_block)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } blocks[] = {
-        {"p", &convert_paragraph}, {"div", NULL},
+        {"p", &convert_paragraph}, {"div", &convert_div},
         {"h1", &convert_heading}, {"h2", &convert_heading},
         {"h3", &convert_heading}, {"h4", &convert_heading},
         {"h5", &convert_heading}, {"ul", &convert_unordered_list},
@@ -178,7 +205,7 @@ int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node, cons
         const char* key;
         int (*finish_block)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } blocks[] = {
-        {"p", &finish_paragraph}, {"div", NULL},
+        {"p", &finish_paragraph}, {"div", &finish_div},
         {"h1", &finish_heading}, {"h2", &finish_heading},
         {"h3", &finish_heading}, {"h4", &finish_heading},
         {"h5", &finish_heading}, {"ul", &finish_unordered_list}, 
