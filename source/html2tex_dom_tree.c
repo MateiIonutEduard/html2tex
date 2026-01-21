@@ -6,7 +6,8 @@ char* html2tex_compress_html(const char* html) {
     html2tex_err_clear();
 
     if (!html) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML input is NULL for compression.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "HTML input is NULL for compression.");
         return NULL;
     }
 
@@ -17,7 +18,8 @@ char* html2tex_compress_html(const char* html) {
 
         if (!empty) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to allocate empty string for HTML compression.");
+                "Failed to allocate empty string"
+                " for HTML compression.");
         }
 
         return empty;
@@ -27,7 +29,8 @@ char* html2tex_compress_html(const char* html) {
 
     if (!result) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to allocate %zu bytes for HTML compression buffer.", len + 1);
+            "Failed to allocate %zu bytes for"
+            " HTML compression buffer.", len + 1);
         return NULL;
     }
 
@@ -49,9 +52,10 @@ char* html2tex_compress_html(const char* html) {
         if (!in_quotes && !in_tag && !in_script_style) {
             if (c == '<' && strncmp(src, "<!--", 4) == 0)
                 in_comment = 1;
-            else if (c == '-' && in_comment && strncmp(src, "-->", 3) == 0) {
-                in_comment = 0;
-                *dest++ = '-'; *dest++ = '-'; *dest++ = '>';
+            else if (c == '-' && in_comment && 
+                strncmp(src, "-->", 3) == 0) {
+                in_comment = 0; *dest++ = '-'; 
+                *dest++ = '-'; *dest++ = '>';
                 src += 2; goto next_char;
             }
         }
@@ -64,12 +68,12 @@ char* html2tex_compress_html(const char* html) {
         /* detect script/style tags */
         if (!in_quotes && c == '<') {
             const char* tag_start = src + 1;
-            while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
+            while (*tag_start && isspace((unsigned char)*tag_start)) 
+                tag_start++;
 
             if (strncasecmp(tag_start, "script", 6) == 0 ||
-                strncasecmp(tag_start, "style", 5) == 0) {
+                strncasecmp(tag_start, "style", 5) == 0)
                 in_script_style = 1;
-            }
         }
         /* check for closing script/style tags */
         else if (!in_quotes && c == '<' && strncmp(src, "</", 2) == 0) {
@@ -89,11 +93,13 @@ char* html2tex_compress_html(const char* html) {
         }
 
         /* handle quotes in attributes */
-        if (in_tag && !in_quotes && (c == '\'' || c == '"')) {
+        if (in_tag && !in_quotes && 
+            (c == '\'' || c == '"')) {
             in_quotes = 1;
             quote_char = c;
         }
-        else if (in_quotes && c == quote_char)
+        else if (in_quotes && 
+            c == quote_char)
             in_quotes = 0;
 
         /* tag detection */
@@ -110,7 +116,9 @@ char* html2tex_compress_html(const char* html) {
         }
 
         /* whitespace handling */
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v') {
+        if (c == ' ' || c == '\t' || 
+            c == '\n' || c == '\r' || 
+            c == '\f' || c == '\v') {
             if (in_tag || in_quotes)
                 *dest++ = c;
             else if (last_char_was_gt)
@@ -126,11 +134,11 @@ char* html2tex_compress_html(const char* html) {
         }
         else {
             /* non-whitespace character */
-            if (skip_whitespace && !in_tag && !last_char_was_gt && dest > result) {
+            if (skip_whitespace && !in_tag && 
+                !last_char_was_gt && dest > result) {
                 char last = *(dest - 1);
-                if (last != ' ' && last != '>' && last != '<') {
+                if (last != ' ' && last != '>' && last != '<')
                     *dest++ = ' ';
-                }
             }
 
             *dest++ = c;
@@ -150,7 +158,8 @@ char* html2tex_compress_html(const char* html) {
 
     if (!final_result) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to reallocate HTML compression buffer to %zu bytes.",
+            "Failed to reallocate HTML compression"
+            " buffer to %zu bytes.",
             final_len + 1);
 
         return result;
@@ -163,12 +172,15 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
     html2tex_err_clear();
 
     if (!root) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML root node is NULL for tree search.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "HTML root node is NULL for tree search.");
         return NULL;
     }
 
     if (!predicate) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Predicate function is NULL for tree search.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Predicate function is NULL for"
+            " tree search.");
         return NULL;
     }
 
@@ -180,7 +192,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
     if (!stack_push(&node_stack, (void*)root) ||
         !stack_push(&css_stack, (void*)inherited_props)) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to push initial nodes onto stack for tree search.");
+            "Failed to push initial nodes onto"
+            " stack for tree search.");
         goto cleanup;
     }
 
@@ -233,7 +246,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
                     "Failed to allocate HTMLElement structure.");
 
-                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                if (merged_css && merged_css != current_css &&
+                    merged_css != inherited_props)
                     css_properties_destroy(merged_css);
                 
                 if (current_css && current_css != inherited_props)
@@ -255,7 +269,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 free(result);
                 result = NULL;
 
-                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                if (merged_css && merged_css != current_css &&
+                    merged_css != inherited_props)
                     css_properties_destroy(merged_css);
                 
                 if (current_css && current_css != inherited_props) 
@@ -265,7 +280,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
             }
 
             /* clean up current node's CSS props */
-            if (merged_css && merged_css != current_css && merged_css != inherited_props)
+            if (merged_css && merged_css != current_css &&
+                merged_css != inherited_props)
                 css_properties_destroy(merged_css);
             
             if (current_css && current_css != inherited_props)
@@ -287,7 +303,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 if (child_css && child_css != inherited_props) {
                     child_css = css_properties_copy(merged_css);
                     if (!child_css || html2tex_has_error()) {
-                        if (merged_css && merged_css != current_css && merged_css != inherited_props) 
+                        if (merged_css && merged_css != current_css 
+                            && merged_css != inherited_props) 
                             css_properties_destroy(merged_css);
                         
                         if (current_css && current_css != inherited_props) 
@@ -298,7 +315,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 }
 
                 /* push child onto stack */
-                if (!stack_push(&node_stack, (void*)child) || !stack_push(&css_stack, (void*)child_css)) {
+                if (!stack_push(&node_stack, (void*)child) || 
+                    !stack_push(&css_stack, (void*)child_css)) {
                     if (child_css && child_css != merged_css && child_css != inherited_props)
                         css_properties_destroy(child_css);
 
@@ -372,17 +390,20 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     html2tex_err_clear();
 
     if (!attrs) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute list is NULL.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Attribute list is NULL.");
         return NULL;
     }
 
     if (!key) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute key is NULL.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Attribute key is NULL.");
         return NULL;
     }
 
     if (key[0] == '\0') {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, "Attribute key is empty.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, 
+            "Attribute key is empty.");
         return NULL;
     }
 
@@ -431,7 +452,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
     html2tex_err_clear();
 
     if (!root) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Root node is NULL for title extraction.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Root node is NULL for title extraction.");
         return NULL;
     }
 
@@ -445,7 +467,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue child node for BFS title search.");
+                "Failed to enqueue child node for"
+                " BFS title search.");
             goto cleanup;
         }
         child = child->next;
@@ -467,7 +490,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
 
                 if (!buffer) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to allocate %zu bytes for title buffer.", capacity);
+                        "Failed to allocate %zu bytes for"
+                        " title buffer.", capacity);
                     goto cleanup;
                 }
 
@@ -481,7 +505,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
                 if (!queue_enqueue(&title_front, &title_rear, current)) {
                     free(buffer);
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to initialize BFS for title content extraction.");
+                        "Failed to initialize BFS for title"
+                        " content extraction.");
                     goto cleanup;
                 }
 
@@ -532,7 +557,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
                             if (!new_buffer) {
                                 free(buffer);
                                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                    "Failed to reallocate title buffer from %zu to %zu bytes.",
+                                    "Failed to reallocate title buffer"
+                                    " from %zu to %zu bytes.",
                                     capacity, new_capacity);
                                 queue_cleanup(&title_front, &title_rear);
                                 goto cleanup;
@@ -590,8 +616,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
 
                         if (!title_text) {
                             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                "Failed to allocate %zu bytes for trimmed title.",
-                                trimmed_len + 1);
+                                "Failed to allocate %zu bytes for"
+                                " trimmed title.", trimmed_len + 1);
                             free(buffer);
                             goto cleanup;
                         }
@@ -629,7 +655,8 @@ char* html2tex_extract_title(const HTMLNode* root) {
         while (current_child) {
             if (!queue_enqueue(&front, &rear, current_child)) {
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                    "Failed to enqueue child node during BFS title search.");
+                    "Failed to enqueue child node during"
+                    " BFS title search.");
                 goto cleanup;
             }
             current_child = current_child->next;
@@ -654,7 +681,8 @@ int should_skip_nested_table(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for nested table check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for nested table check.");
         return -1;
     }
 
@@ -673,7 +701,8 @@ int should_skip_nested_table(const HTMLNode* node) {
         while (child) {
             if (!queue_enqueue(&front, &rear, child)) {
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                    "Failed to enqueue child for nested table BFS.");
+                    "Failed to enqueue child for nested"
+                    " table BFS.");
                 goto cleanup;
             }
 
@@ -690,10 +719,12 @@ int should_skip_nested_table(const HTMLNode* node) {
 
             /* enqueue children for further search */
             HTMLNode* grandchild = current->children;
+
             while (grandchild) {
                 if (!queue_enqueue(&front, &rear, grandchild)) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to enqueue grandchild for nested table BFS.");
+                        "Failed to enqueue grandchild for"
+                        " nested table BFS.");
                     goto cleanup;
                 }
                 grandchild = grandchild->next;
@@ -716,7 +747,8 @@ int should_skip_nested_table(const HTMLNode* node) {
             while (sibling) {
                 if (sibling != node && !queue_enqueue(&front, &rear, sibling)) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to enqueue sibling for parent table BFS.");
+                        "Failed to enqueue sibling for "
+                        "parent table BFS.");
                     goto cleanup;
                 }
 
@@ -764,13 +796,15 @@ int table_contains_only_images(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table image check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for table image check.");
         return -1;
     }
 
     if (!node->tag || strcmp(node->tag, "table") != 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
-            "Node is not a table element for image-only check.");
+            "Node is not a table element for"
+            " image-only check.");
         return -1;
     }
 
@@ -783,7 +817,8 @@ int table_contains_only_images(const HTMLNode* node) {
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue table child for BFS traversal.");
+                "Failed to enqueue table child "
+                "for BFS traversal.");
             goto cleanup;
         }
         child = child->next;
@@ -840,7 +875,8 @@ int table_contains_only_images(const HTMLNode* node) {
                 while (inner_child) {
                     if (!queue_enqueue(&front, &rear, inner_child)) {
                         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                            "Failed to enqueue inner child during table BFS.");
+                            "Failed to enqueue inner child "
+                            "during table BFS.");
                         has_images = 0;
                         goto cleanup;
                     }
@@ -877,12 +913,16 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for image table conversion.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is NULL for image "
+            "table conversion.");
         return;
     }
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Table node is NULL for image table conversion.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Table node is NULL for image "
+            "table conversion.");
         return;
     }
 
@@ -899,7 +939,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
 
     if (columns <= 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE_STRUCTURE,
-            "Invalid column count (%d) for image table.", columns);
+            "Invalid column count (%d) for image table.", 
+            columns);
         return;
     }
 
@@ -926,7 +967,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
     while (child) {
         if (!queue_enqueue(&queue, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue table child for BFS traversal.");
+                "Failed to enqueue table child "
+                "for BFS traversal.");
             goto cleanup_queues;
         }
 
@@ -974,7 +1016,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
                         while (cell_child) {
                             if (!queue_enqueue(&cell_queue, &cell_rear, cell_child)) {
                                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                    "Failed to enqueue cell child for image search.");
+                                    "Failed to enqueue cell child for"
+                                    " image search.");
                                 goto cleanup_queues;
                             }
 
@@ -1007,7 +1050,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
                                 while (grandchild) {
                                     if (!queue_enqueue(&cell_queue, &cell_rear, grandchild)) {
                                         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                            "Failed to enqueue grandchild for image search.");
+                                            "Failed to enqueue grandchild for"
+                                            " image search.");
                                         queue_cleanup(&cell_queue, &cell_rear);
                                         goto cleanup_queues;
                                     }
@@ -1384,7 +1428,9 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
 
     /* validate inputs with appropriate error messages */
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for table cell check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is NULL for table cell"
+            " check.");
         return -1;
     }
 
@@ -1411,7 +1457,8 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
 
 int is_inside_table(const HTMLNode* node) {
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for table check.");
         return -1;
     }
 
