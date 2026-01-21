@@ -42,7 +42,7 @@ extern "C" {
 	 * @return Not found: NULL (no error set)
 	 * @return Error: NULL with error set
 	 */
-	char* html2tex_extract_title(HTMLNode* root);
+	char* html2tex_extract_title(const HTMLNode* root);
 
 	/**
 	 * @brief Parses and minifies HTML in a single pass.
@@ -58,7 +58,7 @@ extern "C" {
 	 * @return Success: Independent DOM copy (caller owns)
 	 * @return Failure: NULL with error set
 	 */
-	HTMLNode* dom_tree_copy(HTMLNode* node);
+	HTMLNode* dom_tree_copy(const HTMLNode* node);
 
 	/**
 	 * @brief Recursively frees DOM tree and all contained data.
@@ -72,7 +72,7 @@ extern "C" {
 	 * @return Success: New minified tree (caller owns)
 	 * @return Failure: NULL with error set
 	 */
-	HTMLNode* html2tex_minify_html(HTMLNode* root);
+	HTMLNode* html2tex_minify_html(const HTMLNode* root);
 
 	/**
 	 * @brief Writes formatted HTML to file with proper indentation.
@@ -81,7 +81,7 @@ extern "C" {
 	 * @return Success: 1
 	 * @return Failure: 0 (check html2tex_has_error())
 	 */
-	int write_pretty_html(HTMLNode* root, const char* filename);
+	int write_pretty_html(const HTMLNode* root, const char* filename);
 
 	/**
 	 * @brief Returns DOM tree as formatted HTML string.
@@ -89,7 +89,7 @@ extern "C" {
 	 * @return Success: Formatted HTML (caller must free)
 	 * @return Failure: NULL with error set
 	 */
-	char* get_pretty_html(HTMLNode* root);
+	char* get_pretty_html(const HTMLNode* root);
 
 	/**
 	 * @brief Determines if HTML element is block-level.
@@ -146,7 +146,7 @@ extern "C" {
 	 * @return 0: No nested table
 	 * @return -1: Error (check html2tex_has_error())
 	 */
-	int should_skip_nested_table(HTMLNode* node);
+	int should_skip_nested_table(const HTMLNode* node);
 
 	/**
 	 * @brief Checks if node is within a table context.
@@ -200,6 +200,26 @@ extern "C" {
 	 * @param node Table element containing only images
 	 */
 	void convert_image_table(LaTeXConverter* converter, const HTMLNode* node);
+
+#ifndef MAX_SUPPORTED_BLOCK_LENGTH
+#define MAX_SUPPORTED_BLOCK_LENGTH 10
+#endif
+
+#ifndef MAX_SUPPORTED_INLINE_LENGTH
+#define MAX_SUPPORTED_INLINE_LENGTH 8
+#endif
+
+#ifndef MAX_SUPPORTED_VOID_LENGTH
+#define MAX_SUPPORTED_VOID_LENGTH 6
+#endif
+
+#ifndef MAX_SUPPORTED_ESSENTIAL_LENGTH
+#define MAX_SUPPORTED_ESSENTIAL_LENGTH 5
+#endif
+
+#ifndef MAX_UNSUPPORTED_ELEMENT_LENGTH
+#define MAX_UNSUPPORTED_ELEMENT_LENGTH 10
+#endif
 
 #ifndef HTML_TITLE_MAX_SIZE
 #define HTML_TITLE_MAX_SIZE 256

@@ -2,11 +2,18 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+typedef struct TagProperties {
+    const char* tag;
+    unsigned char first_char;
+    const unsigned char length;
+} TagProperties;
+
 char* html2tex_compress_html(const char* html) {
     html2tex_err_clear();
 
     if (!html) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML input is NULL for compression.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "HTML input is NULL for compression.");
         return NULL;
     }
 
@@ -17,7 +24,8 @@ char* html2tex_compress_html(const char* html) {
 
         if (!empty) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to allocate empty string for HTML compression.");
+                "Failed to allocate empty string"
+                " for HTML compression.");
         }
 
         return empty;
@@ -27,7 +35,8 @@ char* html2tex_compress_html(const char* html) {
 
     if (!result) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to allocate %zu bytes for HTML compression buffer.", len + 1);
+            "Failed to allocate %zu bytes for"
+            " HTML compression buffer.", len + 1);
         return NULL;
     }
 
@@ -49,9 +58,10 @@ char* html2tex_compress_html(const char* html) {
         if (!in_quotes && !in_tag && !in_script_style) {
             if (c == '<' && strncmp(src, "<!--", 4) == 0)
                 in_comment = 1;
-            else if (c == '-' && in_comment && strncmp(src, "-->", 3) == 0) {
-                in_comment = 0;
-                *dest++ = '-'; *dest++ = '-'; *dest++ = '>';
+            else if (c == '-' && in_comment && 
+                strncmp(src, "-->", 3) == 0) {
+                in_comment = 0; *dest++ = '-'; 
+                *dest++ = '-'; *dest++ = '>';
                 src += 2; goto next_char;
             }
         }
@@ -64,12 +74,12 @@ char* html2tex_compress_html(const char* html) {
         /* detect script/style tags */
         if (!in_quotes && c == '<') {
             const char* tag_start = src + 1;
-            while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
+            while (*tag_start && isspace((unsigned char)*tag_start)) 
+                tag_start++;
 
             if (strncasecmp(tag_start, "script", 6) == 0 ||
-                strncasecmp(tag_start, "style", 5) == 0) {
+                strncasecmp(tag_start, "style", 5) == 0)
                 in_script_style = 1;
-            }
         }
         /* check for closing script/style tags */
         else if (!in_quotes && c == '<' && strncmp(src, "</", 2) == 0) {
@@ -77,9 +87,8 @@ char* html2tex_compress_html(const char* html) {
             while (*tag_start && isspace((unsigned char)*tag_start)) tag_start++;
 
             if (strncasecmp(tag_start, "script", 6) == 0 ||
-                strncasecmp(tag_start, "style", 5) == 0) {
+                strncasecmp(tag_start, "style", 5) == 0)
                 in_script_style = 0;
-            }
         }
 
         /* preserve all content inside script/style tags */
@@ -89,11 +98,13 @@ char* html2tex_compress_html(const char* html) {
         }
 
         /* handle quotes in attributes */
-        if (in_tag && !in_quotes && (c == '\'' || c == '"')) {
+        if (in_tag && !in_quotes && 
+            (c == '\'' || c == '"')) {
             in_quotes = 1;
             quote_char = c;
         }
-        else if (in_quotes && c == quote_char)
+        else if (in_quotes && 
+            c == quote_char)
             in_quotes = 0;
 
         /* tag detection */
@@ -110,7 +121,9 @@ char* html2tex_compress_html(const char* html) {
         }
 
         /* whitespace handling */
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v') {
+        if (c == ' ' || c == '\t' || 
+            c == '\n' || c == '\r' || 
+            c == '\f' || c == '\v') {
             if (in_tag || in_quotes)
                 *dest++ = c;
             else if (last_char_was_gt)
@@ -126,11 +139,11 @@ char* html2tex_compress_html(const char* html) {
         }
         else {
             /* non-whitespace character */
-            if (skip_whitespace && !in_tag && !last_char_was_gt && dest > result) {
+            if (skip_whitespace && !in_tag && 
+                !last_char_was_gt && dest > result) {
                 char last = *(dest - 1);
-                if (last != ' ' && last != '>' && last != '<') {
+                if (last != ' ' && last != '>' && last != '<')
                     *dest++ = ' ';
-                }
             }
 
             *dest++ = c;
@@ -150,7 +163,8 @@ char* html2tex_compress_html(const char* html) {
 
     if (!final_result) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to reallocate HTML compression buffer to %zu bytes.",
+            "Failed to reallocate HTML compression"
+            " buffer to %zu bytes.",
             final_len + 1);
 
         return result;
@@ -163,12 +177,15 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
     html2tex_err_clear();
 
     if (!root) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "HTML root node is NULL for tree search.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "HTML root node is NULL for tree search.");
         return NULL;
     }
 
     if (!predicate) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Predicate function is NULL for tree search.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Predicate function is NULL for"
+            " tree search.");
         return NULL;
     }
 
@@ -180,7 +197,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
     if (!stack_push(&node_stack, (void*)root) ||
         !stack_push(&css_stack, (void*)inherited_props)) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-            "Failed to push initial nodes onto stack for tree search.");
+            "Failed to push initial nodes onto"
+            " stack for tree search.");
         goto cleanup;
     }
 
@@ -233,7 +251,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
                     "Failed to allocate HTMLElement structure.");
 
-                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                if (merged_css && merged_css != current_css &&
+                    merged_css != inherited_props)
                     css_properties_destroy(merged_css);
                 
                 if (current_css && current_css != inherited_props)
@@ -255,7 +274,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 free(result);
                 result = NULL;
 
-                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                if (merged_css && merged_css != current_css &&
+                    merged_css != inherited_props)
                     css_properties_destroy(merged_css);
                 
                 if (current_css && current_css != inherited_props) 
@@ -265,7 +285,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
             }
 
             /* clean up current node's CSS props */
-            if (merged_css && merged_css != current_css && merged_css != inherited_props)
+            if (merged_css && merged_css != current_css &&
+                merged_css != inherited_props)
                 css_properties_destroy(merged_css);
             
             if (current_css && current_css != inherited_props)
@@ -287,7 +308,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 if (child_css && child_css != inherited_props) {
                     child_css = css_properties_copy(merged_css);
                     if (!child_css || html2tex_has_error()) {
-                        if (merged_css && merged_css != current_css && merged_css != inherited_props) 
+                        if (merged_css && merged_css != current_css 
+                            && merged_css != inherited_props) 
                             css_properties_destroy(merged_css);
                         
                         if (current_css && current_css != inherited_props) 
@@ -298,7 +320,8 @@ HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), voi
                 }
 
                 /* push child onto stack */
-                if (!stack_push(&node_stack, (void*)child) || !stack_push(&css_stack, (void*)child_css)) {
+                if (!stack_push(&node_stack, (void*)child) || 
+                    !stack_push(&css_stack, (void*)child_css)) {
                     if (child_css && child_css != merged_css && child_css != inherited_props)
                         css_properties_destroy(child_css);
 
@@ -372,17 +395,20 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     html2tex_err_clear();
 
     if (!attrs) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute list is NULL.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Attribute list is NULL.");
         return NULL;
     }
 
     if (!key) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Attribute key is NULL.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Attribute key is NULL.");
         return NULL;
     }
 
     if (key[0] == '\0') {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, "Attribute key is empty.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL, 
+            "Attribute key is empty.");
         return NULL;
     }
 
@@ -427,11 +453,12 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     return NULL;
 }
 
-char* html2tex_extract_title(HTMLNode* root) {
+char* html2tex_extract_title(const HTMLNode* root) {
     html2tex_err_clear();
 
     if (!root) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Root node is NULL for title extraction.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Root node is NULL for title extraction.");
         return NULL;
     }
 
@@ -445,7 +472,8 @@ char* html2tex_extract_title(HTMLNode* root) {
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue child node for BFS title search.");
+                "Failed to enqueue child node for"
+                " BFS title search.");
             goto cleanup;
         }
         child = child->next;
@@ -467,7 +495,8 @@ char* html2tex_extract_title(HTMLNode* root) {
 
                 if (!buffer) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to allocate %zu bytes for title buffer.", capacity);
+                        "Failed to allocate %zu bytes for"
+                        " title buffer.", capacity);
                     goto cleanup;
                 }
 
@@ -481,7 +510,8 @@ char* html2tex_extract_title(HTMLNode* root) {
                 if (!queue_enqueue(&title_front, &title_rear, current)) {
                     free(buffer);
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to initialize BFS for title content extraction.");
+                        "Failed to initialize BFS for title"
+                        " content extraction.");
                     goto cleanup;
                 }
 
@@ -532,7 +562,8 @@ char* html2tex_extract_title(HTMLNode* root) {
                             if (!new_buffer) {
                                 free(buffer);
                                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                    "Failed to reallocate title buffer from %zu to %zu bytes.",
+                                    "Failed to reallocate title buffer"
+                                    " from %zu to %zu bytes.",
                                     capacity, new_capacity);
                                 queue_cleanup(&title_front, &title_rear);
                                 goto cleanup;
@@ -590,8 +621,8 @@ char* html2tex_extract_title(HTMLNode* root) {
 
                         if (!title_text) {
                             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                "Failed to allocate %zu bytes for trimmed title.",
-                                trimmed_len + 1);
+                                "Failed to allocate %zu bytes for"
+                                " trimmed title.", trimmed_len + 1);
                             free(buffer);
                             goto cleanup;
                         }
@@ -629,7 +660,8 @@ char* html2tex_extract_title(HTMLNode* root) {
         while (current_child) {
             if (!queue_enqueue(&front, &rear, current_child)) {
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                    "Failed to enqueue child node during BFS title search.");
+                    "Failed to enqueue child node during"
+                    " BFS title search.");
                 goto cleanup;
             }
             current_child = current_child->next;
@@ -650,11 +682,12 @@ cleanup:
     return title_text;
 }
 
-int should_skip_nested_table(HTMLNode* node) {
+int should_skip_nested_table(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for nested table check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for nested table check.");
         return -1;
     }
 
@@ -673,7 +706,8 @@ int should_skip_nested_table(HTMLNode* node) {
         while (child) {
             if (!queue_enqueue(&front, &rear, child)) {
                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                    "Failed to enqueue child for nested table BFS.");
+                    "Failed to enqueue child for nested"
+                    " table BFS.");
                 goto cleanup;
             }
 
@@ -690,10 +724,12 @@ int should_skip_nested_table(HTMLNode* node) {
 
             /* enqueue children for further search */
             HTMLNode* grandchild = current->children;
+
             while (grandchild) {
                 if (!queue_enqueue(&front, &rear, grandchild)) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to enqueue grandchild for nested table BFS.");
+                        "Failed to enqueue grandchild for"
+                        " nested table BFS.");
                     goto cleanup;
                 }
                 grandchild = grandchild->next;
@@ -716,7 +752,8 @@ int should_skip_nested_table(HTMLNode* node) {
             while (sibling) {
                 if (sibling != node && !queue_enqueue(&front, &rear, sibling)) {
                     HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                        "Failed to enqueue sibling for parent table BFS.");
+                        "Failed to enqueue sibling for "
+                        "parent table BFS.");
                     goto cleanup;
                 }
 
@@ -764,13 +801,15 @@ int table_contains_only_images(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table image check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for table image check.");
         return -1;
     }
 
     if (!node->tag || strcmp(node->tag, "table") != 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
-            "Node is not a table element for image-only check.");
+            "Node is not a table element for"
+            " image-only check.");
         return -1;
     }
 
@@ -783,7 +822,8 @@ int table_contains_only_images(const HTMLNode* node) {
     while (child) {
         if (!queue_enqueue(&front, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue table child for BFS traversal.");
+                "Failed to enqueue table child "
+                "for BFS traversal.");
             goto cleanup;
         }
         child = child->next;
@@ -840,7 +880,8 @@ int table_contains_only_images(const HTMLNode* node) {
                 while (inner_child) {
                     if (!queue_enqueue(&front, &rear, inner_child)) {
                         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                            "Failed to enqueue inner child during table BFS.");
+                            "Failed to enqueue inner child "
+                            "during table BFS.");
                         has_images = 0;
                         goto cleanup;
                     }
@@ -877,12 +918,16 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for image table conversion.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is NULL for image "
+            "table conversion.");
         return;
     }
 
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Table node is NULL for image table conversion.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Table node is NULL for image "
+            "table conversion.");
         return;
     }
 
@@ -899,7 +944,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
 
     if (columns <= 0) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_TABLE_STRUCTURE,
-            "Invalid column count (%d) for image table.", columns);
+            "Invalid column count (%d) for image table.", 
+            columns);
         return;
     }
 
@@ -926,7 +972,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
     while (child) {
         if (!queue_enqueue(&queue, &rear, child)) {
             HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to enqueue table child for BFS traversal.");
+                "Failed to enqueue table child "
+                "for BFS traversal.");
             goto cleanup_queues;
         }
 
@@ -974,7 +1021,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
                         while (cell_child) {
                             if (!queue_enqueue(&cell_queue, &cell_rear, cell_child)) {
                                 HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                    "Failed to enqueue cell child for image search.");
+                                    "Failed to enqueue cell child for"
+                                    " image search.");
                                 goto cleanup_queues;
                             }
 
@@ -1007,7 +1055,8 @@ void convert_image_table(LaTeXConverter* converter, const HTMLNode* node) {
                                 while (grandchild) {
                                     if (!queue_enqueue(&cell_queue, &cell_rear, grandchild)) {
                                         HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                                            "Failed to enqueue grandchild for image search.");
+                                            "Failed to enqueue grandchild for"
+                                            " image search.");
                                         queue_cleanup(&cell_queue, &cell_rear);
                                         goto cleanup_queues;
                                     }
@@ -1062,14 +1111,55 @@ cleanup_queues:
     queue_cleanup(&cell_queue, &cell_rear);
 }
 
-int is_block_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
+/**
+ * @brief Optimized tag lookup with micro-optimized rejection filtering.
+ * @param tag_name  Null-terminated tag string to lookup (must not be NULL)
+ * @param table Static array of TagProperties terminated with {NULL,0,0}
+ * @param max_len Maximum allowed tag length for bounds checking
+ * @return 1 if tag_name matches an entry in table
+ * @return 0 if tag_name is NULL, empty, exceeds max_len, or no match found
+ * @pre tag_name != NULL (though function handles NULL gracefully)
+ * @pre table last element must be {NULL,0,0} sentinel
+ * 
+ * @remark Uses three-stage filtering: bounds check -> first char -> length -> strcmp
+ * @remark Tables should be sorted by first character for cache locality
+ * @remark Not thread-safe if table is modified (tables should be static const)
+ *
+ * @complexity Worst-case O(n), typical O(1) due to early rejection
+ * @memory O(1) excluding static table storage
+*/
+static int tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len) {
+    if (!tag_name || tag_name[0] == '\0') 
+        return 0;
 
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } block_tags[] = {
+    size_t len = 0;
+    const char* p = tag_name;
+
+    while (*p) {
+        if (++len > max_len) 
+            return 0;
+        p++;
+    }
+
+    /* extract first char in advance */
+    const unsigned char first_char = (unsigned char)tag_name[0];
+
+    for (int i = 0; table[i].tag; i++) {
+        /* fast reject: first character mismatch */
+        if (first_char != table[i].first_char) continue;
+
+        /* reject by length mismatch */
+        if (len != table[i].length) continue;
+
+        /* final verification by exact string match */
+        if (strcmp(tag_name, table[i].tag) == 0) return 1;
+    }
+
+    return 0;
+}
+
+int is_block_element(const char* tag_name) {
+    static const TagProperties block_tags[] = {
         {"div", 'd', 3}, {"p", 'p', 1},
         {"h1", 'h', 2}, {"h2", 'h', 2}, {"h3", 'h', 2},
         {"h4", 'h', 2}, {"h5", 'h', 2}, {"h6", 'h', 2},
@@ -1082,53 +1172,12 @@ int is_block_element(const char* tag_name) {
         {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
-    /* length-based tags detection */
-    size_t len = 0;
-
-    const char* p = tag_name;
-    while (*p) {
-        len++; p++;
-
-        /* tag name is longer then expected, reject it */
-        if (len > 10) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 1:  case 2:  case 3:  case 4:
-    case 5: case 6:  case 7:  case 10:
-        break;
-    default:
-        /* length does not match any block tag */
-        return 0;
-    }
-
-    /* extract first char once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    for (int i = 0; block_tags[i].tag; i++) {
-        /* fast reject: first character mismatch */
-        if (first_char != (unsigned char)block_tags[i].first_char) continue;
-
-        /* medium reject: length mismatch, cheaper than strcmp */
-        if (block_tags[i].length != len) continue;
-
-        /* final verification: exact string match */
-        if (strcmp(tag_name, block_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, block_tags,
+        MAX_SUPPORTED_BLOCK_LENGTH);
 }
 
 int is_inline_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
-
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } inline_tags[] = {
+    static const TagProperties inline_tags[] = {
         {"a", 'a', 1}, {"abbr", 'a', 4}, {"b", 'b', 1},
         {"bdi", 'b', 3}, {"bdo", 'b', 3}, {"cite", 'c', 4},
         {"code", 'c', 4}, {"data", 'd', 4}, {"dfn", 'd', 3},
@@ -1145,221 +1194,52 @@ int is_inline_element(const char* tag_name) {
         {"textarea", 't', 8}, {NULL, 0, 0}
     };
 
-    /* compute the length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unreasonably long tags */
-        if (len > 8) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 1: case 2: case 3: case 4:
-    case 5: case 6: case 8:
-        break;
-    case 7:
-        /* explicitly reject length 7 */
-        return 0;
-    default:
-        /* length doesn't match any known inline tag */
-        return 0;
-    }
-
-    /* extract first character once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; inline_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != inline_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != inline_tags[i].length) continue;
-
-        /* final verification by exact string match */
-        if (strcmp(tag_name, inline_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, inline_tags,
+        MAX_SUPPORTED_INLINE_LENGTH);
 }
 
 int is_void_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') 
-        return 0;
-
-    static const struct {
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } void_tags[] = { 
+    static const TagProperties void_tags[] = { 
         {"area", 'a', 4}, {"base", 'b', 4}, {"br", 'b', 2}, {"col", 'c', 3}, 
         {"embed", 'e', 5}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
         {"link", 'l', 4}, {"meta", 'm', 4}, {"param", 'p', 5}, {"source", 's', 6}, 
         {"track", 't', 5}, {"wbr", 'w', 3}, {NULL, 0, 0} 
     };
 
-    /* compute the length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unexpected void tags */
-        if (len > 6) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 2: case 3: case 4:
-    case 5: case 6:
-        break;
-    default:
-        /* length doesn't match any known void tag */
-        return 0;
-    }
-
-    /* extract first character */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; void_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != void_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != void_tags[i].length) continue;
-
-        /* final check by using exact string match */
-        if (strcmp(tag_name, void_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, void_tags, 
+        MAX_SUPPORTED_VOID_LENGTH);
 }
 
 int is_essential_element(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0')
-        return 0;
-
-    static const struct { 
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } essential_tags[] = {
+    static const TagProperties essential_tags[] = {
         {"br", 'b', 2}, {"hr", 'h', 2}, {"img", 'i', 3}, {"input", 'i', 5}, 
         {"meta", 'm', 4}, {"link", 'l', 4}, {NULL, 0, 0}
     };
 
-    /* length with early bounds check */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        len++;
-        p++;
-
-        /* early exit for unexpected essential tags */
-        if (len > 5) return 0;
-    }
-
-    /* length-based fast rejection */
-    switch (len) {
-    case 2: case 3:
-    case 4: case 5:
-        break;
-    default:
-        /* length doesn't match any known element */
-        return 0;
-    }
-
-    /* extract first character */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* optimized linear search with metadata filtering */
-    for (int i = 0; essential_tags[i].tag; i++) {
-        /* fast reject for first character mismatch */
-        if (first_char != essential_tags[i].first_char) continue;
-
-        /* reject by length mismatch */
-        if (len != essential_tags[i].length) continue;
-
-        /* exact string match by calling strcmp for few times */
-        if (strcmp(tag_name, essential_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, essential_tags, 
+        MAX_SUPPORTED_ESSENTIAL_LENGTH);
 }
 
 int should_exclude_tag(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
-    static const struct {
-        const char* const tag;
-        const size_t len;
-        const unsigned char first;
-    } excluded_tags[] = {
-        {"script", 6, 's'}, {"style", 5, 's'}, {"link", 4, 'l'},
-        {"meta", 4, 'm'}, {"head", 4, 'h'}, {"noscript", 8, 'n'},
-        {"template", 8, 't'}, {"iframe", 6, 'i'}, {"form", 4, 'f'},
-        {"input", 5, 'i'}, {"label", 5, 'l'}, {"canvas", 6, 'c'},
-        {"svg", 3, 's'}, {"video", 5, 'v'}, {"source", 6, 's'},
-        {"audio", 5, 'a'}, {"object", 6, 'o'}, {"button", 6, 'b'},
-        {"map", 3, 'm'}, {"area", 4, 'a'}, {"frame", 5, 'f'},
-        {"frameset", 8, 'f'}, {"noframes", 8, 'n'}, {"nav", 3, 'n'},
-        {"picture", 7, 'p'}, {"progress", 8, 'p'}, {"select", 6, 's'},
-        {"option", 6, 'o'}, {"param", 5, 'p'}, {"search", 6, 's'},
-        {"samp", 4, 's'}, {"track", 5, 't'}, {"var", 3, 'v'},
-        {"wbr", 3, 'w'}, {"mark", 4, 'm'}, {"meter", 5, 'm'},
-        {"optgroup", 8, 'o'}, {"q", 1, 'q'}, {"blockquote", 10, 'b'},
-        {"bdo", 3, 'b'}, {NULL, 0, 0}
+    static const TagProperties excluded_tags[] = {
+        {"script", 's', 6}, {"style", 's', 5}, {"link", 'l', 4},
+        {"meta", 'm', 4}, {"head", 'h', 4}, {"noscript", 'n', 8},
+        {"template", 't', 8}, {"iframe", 'i', 6}, {"form", 'f', 4},
+        {"input", 'i', 5}, {"label", 'l', 5}, {"canvas", 'c', 6},
+        {"svg", 's', 3}, {"video", 'v', 5}, {"source", 's', 6},
+        {"audio", 'a', 5}, {"object", 'o', 6}, {"button", 'b', 6},
+        {"map", 'm', 3}, {"area", 'a', 4}, {"frame", 'f', 5},
+        {"frameset", 'f', 8}, {"noframes", 'n', 8}, {"nav", 'n', 3},
+        {"picture", 'p', 7}, {"progress", 'p', 8}, {"select", 's', 6},
+        {"option", 'o', 6}, {"param", 'p', 5}, {"search", 's', 6},
+        {"samp", 's', 4}, {"track", 't', 5}, {"var", 'v', 3},
+        {"wbr", 'w', 3}, {"mark", 'm', 4}, {"meter", 'm', 5},
+        {"optgroup", 'o', 8}, {"q", 'q', 1}, {"blockquote", 'b', 10},
+        {"bdo", 'b', 3}, {NULL, 0, 0}
     };
 
-    /* compute the length with bounds checking */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        if (++len > 10) return 0;
-        p++;
-    }
-
-    /* optimized length rejection */
-    switch (len) {
-    case 1: case 3: case 4: case 5:
-    case 6: case 7: case 8: case 10:
-        break;
-    case 2: case 9:
-        /* no excluded tags of these lengths */
-        return 0;
-    default:
-        return 0;
-    }
-
-    /* extract first char once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* perform an optimized search */
-    for (int i = 0; excluded_tags[i].tag; i++) {
-        /* first char mismatch */
-        if (excluded_tags[i].first != first_char) continue;
-
-        /* length mismatch */
-        if (excluded_tags[i].len != len) continue;
-
-        /* final verification */
-        if (strcmp(tag_name, excluded_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, excluded_tags,
+        MAX_UNSUPPORTED_ELEMENT_LENGTH);
 }
 
 int is_whitespace_only(const char* text) {
@@ -1384,7 +1264,9 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
 
     /* validate inputs with appropriate error messages */
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is NULL for table cell check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is NULL for table cell"
+            " check.");
         return -1;
     }
 
@@ -1398,7 +1280,8 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
     while (current) {
         if (current->tag) {
             if (current->tag[0] == 't') {
-                if (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0)
+                if (strcmp(current->tag, "td") == 0 || 
+                    strcmp(current->tag, "th") == 0)
                     return 1;
             }
         }
@@ -1411,14 +1294,16 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
 
 int is_inside_table(const HTMLNode* node) {
     if (!node) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Node is NULL for table check.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Node is NULL for table check.");
         return -1;
     }
 
     HTMLNode* current = node->parent;
 
     while (current) {
-        if (current->tag && strcmp(current->tag, "table") == 0)
+        if (current->tag && 
+            strcmp(current->tag, "table") == 0)
             return 1;
 
         current = current->parent;

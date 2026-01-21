@@ -180,8 +180,7 @@ static void end_environment(LaTeXConverter* converter, const char* env) {
     append_string(converter, "}\n");
 }
 
-/* Handle color application with proper nesting. */
-static void apply_color(LaTeXConverter* converter, const char* color_value, int is_background) {
+void apply_color(LaTeXConverter* converter, const char* color_value, int is_background) {
     if (!converter || !color_value || !converter->buffer) return;
     char* hex_color = css_color_to_hex(color_value);
 
@@ -936,10 +935,6 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
         }
 
         if (!already_processed) {
-            /* apply CSS and open element */
-            if (merged_css && current_node->tag)
-                css_properties_apply(converter, merged_css, current_node->tag);
-
             /* handle text nodes */
             if (!current_node->tag && current_node->content) {
                 if (current_node->parent && strcmp(current_node->parent->tag, "caption") != 0) {
@@ -960,7 +955,7 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
                 continue;
             }
             else if (is_supported_element(current_node))
-                convert_element(converter, current_node, true);
+                convert_element(converter, current_node, merged_css, true);
 
             /* push node again for second pass (closing) */
             if (current_node->children || (current_node->tag && !is_void_element(current_node->tag))) {
@@ -976,11 +971,7 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
         else {
             /* close the element in second pass */
             if (is_supported_element(current_node))
-                convert_element(converter, current_node, false);
-
-            /* close CSS properties for this element */
-            if (current_css && current_node->tag)
-                css_properties_end(converter, current_css, current_node->tag);
+                convert_element(converter, current_node, merged_css, false);
         }
 
         /* push children in reverse order (first pass only) */

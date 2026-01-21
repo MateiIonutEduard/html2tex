@@ -63,13 +63,35 @@ void portable_itoa(int value, char* buffer, int radix) {
 }
 
 char* html2tex_strdup(const char* str) {
-    if (!str) return NULL;
+    /* clear the error context */
+    html2tex_err_clear();
 
-    size_t len = strlen(str) + 1;
-    char* copy = (char*)malloc(len);
+    if (!str) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Input string is NULL for duplication.");
+        return NULL;
+    }
 
-    if (copy)
-        memcpy(copy, str, len);
+    size_t len = strlen(str);
 
+    /* check for overflow in length computation */
+    if (len == SIZE_MAX) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "String length exceeds maximum allocatable size.");
+        return NULL;
+    }
+
+    char* copy = (char*)malloc(len + 1);
+
+    if (!copy) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for "
+            "string duplication.", len + 1);
+        return NULL;
+    }
+
+    /* safe copy with null termination */
+    memcpy(copy, str, len);
+    copy[len] = '\0';
     return copy;
 }

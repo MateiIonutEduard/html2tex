@@ -286,7 +286,7 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
     return new_node;
 }
 
-HTMLNode* html2tex_minify_html(HTMLNode* root) {
+HTMLNode* html2tex_minify_html(const HTMLNode* root) {
     if (!root) return NULL;
 
     /* create a new minified tree */
