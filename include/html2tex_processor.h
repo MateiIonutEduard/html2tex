@@ -28,7 +28,7 @@ extern "C" {
 	 * @return 1: Successful conversion operation (LaTeX output generated)
 	 * @return 2: Self-closing element processed (e.g., br, hr)
 	 */
-	int convert_element(LaTeXConverter* converter, const HTMLNode* node, bool is_starting);
+	int convert_element(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props, bool is_starting);
 
 #ifdef __cplusplus
 }

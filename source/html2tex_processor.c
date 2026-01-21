@@ -31,56 +31,59 @@ int is_supported_element(const HTMLNode* node) {
     return 0;
 }
 
-static int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_paragraph(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_heading(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_heading(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_bold(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_inline_bold(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_bold(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_bold(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_italic(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_inline_italic(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_italic(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_italic(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_underline(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_inline_underline(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_underline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_underline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_anchor(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_anchor(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node);
-static int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_item_list(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_item_list(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_table(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_table(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_item_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_item_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_caption(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_caption(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_table(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_table(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_table_header(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_table_header(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_caption(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_caption(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-static int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node);
-static int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node);
+static int convert_table_header(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_table_header(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
 
-int convert_element(LaTeXConverter* converter, const HTMLNode* node, bool is_starting) {
+static int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+static int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
+
+int convert_element(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props, bool is_starting) {
     if (!converter) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
             "NULL converter in convert_element().");
@@ -99,40 +102,48 @@ int convert_element(LaTeXConverter* converter, const HTMLNode* node, bool is_sta
 
     if (is_starting) {
         if (is_block_element(node->tag))
-            return convert_essential_block(converter, node);
-        return convert_essential_inline(converter, node);
+            return convert_essential_block(converter, node, props);
+        return convert_essential_inline(converter, node, props);
     }
     
     if (is_block_element(node->tag))
-        return finish_essential_block(converter, node);
-    return finish_essential_inline(converter, node);
+        return finish_essential_block(converter, node, props);
+    return finish_essential_inline(converter, node, props);
 }
 
-int convert_paragraph(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     /* definitely, not a paragraph */
     if (node->tag[0] != 'p')
         return 0;
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     /* is a block element, so write only newline */
     append_string(converter, "\n");
     return 1;
 }
 
-int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_paragraph(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     /* definitely, not a paragraph */
     if (node->tag[0] != 'p')
         return 0;
 
     /* is a block element, so write only newline */
     append_string(converter, "\n\n");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
 /* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
-int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     static const struct {
         const char* key;
-        int (*process_block)(LaTeXConverter*, const HTMLNode*);
+        int (*process_block)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } blocks[] = {
         {"p", &convert_paragraph}, {"div", NULL},
         {"h1", &convert_heading}, {"h2", &convert_heading},
@@ -150,7 +161,7 @@ int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     for (i = 0; blocks[i].key != NULL; i++) {
         if (strcmp(node->tag, blocks[i].key) == 0) {
             if (blocks[i].process_block != NULL)
-                return blocks[i].process_block(converter, node);
+                return blocks[i].process_block(converter, node, props);
         }
     }
 
@@ -159,10 +170,10 @@ int convert_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
 }
 
 /* @brief Ends the conversion of essential HTML inline elements into corresponding LaTeX code. */
-int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     static const struct {
         const char* key;
-        int (*finish_block)(LaTeXConverter*, const HTMLNode*);
+        int (*finish_block)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } blocks[] = {
         {"p", &finish_paragraph}, {"div", NULL},
         {"h1", &finish_heading}, {"h2", &finish_heading},
@@ -180,7 +191,7 @@ int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     for (i = 0; blocks[i].key != NULL; i++) {
         if (strcmp(node->tag, blocks[i].key) == 0) {
             if (blocks[i].finish_block != NULL)
-                return blocks[i].finish_block(converter, node);
+                return blocks[i].finish_block(converter, node, props);
         }
     }
 
@@ -188,7 +199,7 @@ int finish_essential_block(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int convert_heading(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (node->tag[0] != 'h')
         return -1;
 
@@ -197,6 +208,10 @@ int convert_heading(LaTeXConverter* converter, const HTMLNode* node) {
         "\\chapter{", "\\section{", "\\subsection{",
         "\\subsubsection{", "\\paragraph{"
     };
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     if (level >= 1 && level <= 5) {
         append_string(converter, heading_type[level - 1]);
@@ -207,31 +222,43 @@ int convert_heading(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "ul") != 0)
         return 0;
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     append_string(converter, "\\begin{itemize}\n");
     return 1;
 }
 
-int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_ordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "ol") != 0)
         return 0;
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     append_string(converter, "\\begin{enumerate}\n");
     return 1;
 }
 
-int convert_item_list(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_item_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "li") != 0)
         return 0;
+
+    /* apply CSS and open element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     append_string(converter, "\\item ");
     return 1;
 }
 
-int convert_table(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_table(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "table") != 0)
         return 0;
 
@@ -247,7 +274,7 @@ int convert_table(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int finish_table(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_table(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "table") != 0)
         return 0;
 
@@ -269,7 +296,7 @@ int finish_table(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int convert_caption(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_caption(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "caption") != 0)
         return 0;
 
@@ -372,12 +399,12 @@ int convert_caption(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int finish_caption(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_caption(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     return strcmp(node->tag, "caption") != 0
         ? 0 : 1;
 }
 
-int convert_table_header(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_table_header(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "tr") != 0)
         return 0;
 
@@ -387,7 +414,7 @@ int convert_table_header(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int finish_table_header(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_table_header(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "tr") != 0)
         return 0;
 
@@ -395,7 +422,7 @@ int finish_table_header(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "td") != 0
         && strcmp(node->tag, "th") != 0)
         return 0;
@@ -427,7 +454,7 @@ int convert_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "td") != 0
         && strcmp(node->tag, "th") != 0)
         return 0;
@@ -469,7 +496,7 @@ int finish_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
     return 1;
 }
 
-int finish_heading(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_heading(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (node->tag[0] != 'h')
         return -1;
 
@@ -477,6 +504,10 @@ int finish_heading(LaTeXConverter* converter, const HTMLNode* node) {
 
     if (level >= 1 && level <= 5) {
         append_string(converter, "}\n\n");
+
+        /* close CSS properties for this element */
+        if (props && node->tag)
+            css_properties_end(converter, props, node->tag);
         return 1;
     }
 
@@ -484,39 +515,51 @@ int finish_heading(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_unordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "ul") != 0)
         return 0;
 
     append_string(converter, "\\end{itemize}\n");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
-int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_ordered_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "ol") != 0)
         return 0;
 
     append_string(converter, "\\end{enumerate}\n");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
-int finish_item_list(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_item_list(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "li") != 0)
         return 0;
 
     append_string(converter, "\n");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
 /* @brief Converts the essential HTML inline elements into corresponding LaTeX code. */
-int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     static const struct {
         const char* key;
-        int (*convert_inline_element)(LaTeXConverter*, const HTMLNode*);
+        int (*convert_inline_element)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } entries[] = {
         {"b", &convert_inline_bold}, {"strong", &convert_inline_bold}, {"i", &convert_inline_italic}, 
         {"em", &convert_inline_italic}, {"u", &convert_inline_underline}, {"hr", &convert_inline_essential}, 
-        {"code", &convert_inline_essential}, {"font", NULL}, {"span", NULL}, {"a", &convert_inline_anchor}, 
+        {"code", &convert_inline_essential}, {"font", &convert_inline_font}, {"span", NULL}, {"a", &convert_inline_anchor},
         {"br", &convert_inline_essential}, {"img", &convert_inline_image}, { NULL, NULL }
     };
 
@@ -532,11 +575,11 @@ int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
     }
 
     if (found) {
-        if (i >= 7 && i < 9)
+        if (i == 8)
             return 1;
         else if (entries[i].convert_inline_element != NULL)
             return entries[i].convert_inline_element(
-                converter, node);
+                converter, node, props);
     }
 
     /* not found */
@@ -544,14 +587,14 @@ int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
 }
 
 /* @brief Ends the conversion of essential HTML inline elements into corresponding LaTeX code. */
-int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     static const struct {
         const char* key;
-        int (*finish_inline_element)(LaTeXConverter*, const HTMLNode*);
+        int (*finish_inline_element)(LaTeXConverter*, const HTMLNode*, const CSSProperties*);
     } entries[] = {
         {"b", &finish_inline_bold}, {"strong", &finish_inline_bold}, {"i", &finish_inline_italic}, 
         {"em", &finish_inline_italic}, {"u", &finish_inline_underline}, {"hr", &finish_inline_essential}, 
-        {"code", &finish_inline_essential}, {"font", NULL}, {"span", NULL}, {"a", &finish_inline_anchor}, 
+        {"code", &finish_inline_essential}, {"font", &finish_inline_font}, {"span", NULL}, {"a", &finish_inline_anchor},
         {"br", &finish_inline_essential}, {"img", NULL}, { NULL, NULL }
     };
 
@@ -567,18 +610,22 @@ int finish_essential_inline(LaTeXConverter* converter, const HTMLNode* node) {
     }
 
     if (found) {
-        if (i >= 7 && i < 9)
+        if (i == 8)
             return 1;
         else if (entries[i].finish_inline_element != NULL)
             return entries[i].finish_inline_element(
-                converter, node);
+                converter, node, props);
     }
 
     /* not found */
     return 0;
 }
 
-int convert_inline_bold(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_bold(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
+
     if (!(converter->state.applied_props & CSS_BOLD)) {
         append_string(converter, "\\textbf{");
         converter->state.applied_props |= CSS_BOLD;
@@ -589,12 +636,20 @@ int convert_inline_bold(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_inline_bold(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_inline_bold(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     append_string(converter, "}");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
-int convert_inline_italic(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_italic(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
+
     if (!(converter->state.applied_props & CSS_ITALIC)) {
         append_string(converter, "\\textit{");
         converter->state.applied_props |= CSS_ITALIC;
@@ -604,12 +659,20 @@ int convert_inline_italic(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_inline_italic(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_inline_italic(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     append_string(converter, "}");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
-int convert_inline_underline(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_underline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
+
     if (!(converter->state.applied_props & CSS_UNDERLINE)) {
         append_string(converter, "\\underline{");
         converter->state.applied_props |= CSS_UNDERLINE;
@@ -619,13 +682,21 @@ int convert_inline_underline(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_inline_underline(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_inline_underline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     append_string(converter, "}");
+
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, props, node->tag);
     return 1;
 }
 
-int convert_inline_anchor(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_anchor(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     const char* href = get_attribute(node->attributes, "href");
+
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter, props, node->tag);
 
     if (href) {
         append_string(converter, "\\href{");
@@ -637,18 +708,30 @@ int convert_inline_anchor(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_inline_anchor(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     const char* href = get_attribute(node->attributes, "href");
 
     if (href) {
         append_string(converter, "}");
+
+        /* close CSS properties for this element */
+        if (props && node->tag)
+            css_properties_end(converter, props, node->tag);
         return 1;
     }
 
     return 0;
 }
 
-int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter, 
+            props, node->tag);
+
+    if (!node->tag)
+        return 0;
+
     if (strcmp(node->tag, "hr") == 0) {
         append_string(converter, "\\hrulefill\n\n");
         return 2;
@@ -665,7 +748,15 @@ int convert_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
+int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter, 
+            props, node->tag);
+
+    if (!node->tag)
+        return 0;
+
     if (strcmp(node->tag, "br") == 0 || strcmp(node->tag, "hr") == 0)
         return 2;
     else if (strcmp(node->tag, "code") == 0) {
@@ -676,7 +767,47 @@ int finish_inline_essential(LaTeXConverter* converter, const HTMLNode* node) {
     return 0;
 }
 
-int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node) {
+int convert_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if(!node->tag || (node->tag && 
+        strcmp(node->tag, "font") != 0))
+        return 0;
+    
+    /* apply CSS properties for this element */
+    if (props && node->tag)
+        css_properties_apply(converter,
+            props, node->tag);
+
+    const char* color_attr = get_attribute(node->attributes, "color");
+    const char* text_color = css_properties_get(props, "color");
+
+    if (props && !text_color) {
+        if (color_attr && !(props->mask & CSS_COLOR))
+            apply_color(converter, color_attr, 0);
+    }
+
+    return 1;
+}
+
+int finish_inline_font(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
+    if (!node->tag || (node->tag &&
+        strcmp(node->tag, "font") != 0))
+        return 0;
+    
+    /* close CSS properties for this element */
+    if (props && node->tag)
+        css_properties_end(converter,
+            props, node->tag);
+
+    const char* color_attr = get_attribute(node->attributes, "color");
+    const char* text_color = css_properties_get(props, "color");
+
+    if (props && !text_color)
+        append_string(converter, "}");
+
+    return 1;
+}
+
+int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props) {
     if (strcmp(node->tag, "img") != 0)
         return 0;
     if (is_inside_table(node)) {

@@ -133,6 +133,8 @@ extern "C" {
 	*/
 	void escape_latex_special(LaTeXConverter* converter, const char* text);
 
+	void apply_color(LaTeXConverter* converter, const char* color_value, int is_background);
+
 	/**
 	 * @brief Converts an HTML DOM subtree to LaTeX using iterative DFS with full CSS inheritance.
 	 * @param converter Active conversion context (stateful, non-NULL)
