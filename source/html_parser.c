@@ -430,7 +430,7 @@ HTMLNode* html2tex_parse_minified(const char* html) {
     return minified;
 }
 
-HTMLNode* dom_tree_copy(HTMLNode* node) {
+HTMLNode* dom_tree_copy(const HTMLNode* node) {
     if (!node) return NULL;
 
     /* create root copy */

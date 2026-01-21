@@ -234,7 +234,7 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
     }
 }
 
-int write_pretty_html(HTMLNode* root, const char* filename) {
+int write_pretty_html(const HTMLNode* root, const char* filename) {
     if (!root || !filename) return 0;
     FILE* file = fopen(filename, "w");
 
@@ -276,7 +276,7 @@ int write_pretty_html(HTMLNode* root, const char* filename) {
     return 1;
 }
 
-char* get_pretty_html(HTMLNode* root) {
+char* get_pretty_html(const HTMLNode* root) {
     if (!root) return NULL;
 
 #ifndef _WIN32

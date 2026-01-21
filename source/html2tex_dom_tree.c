@@ -427,7 +427,7 @@ const char* get_attribute(HTMLAttribute* attrs, const char* key) {
     return NULL;
 }
 
-char* html2tex_extract_title(HTMLNode* root) {
+char* html2tex_extract_title(const HTMLNode* root) {
     html2tex_err_clear();
 
     if (!root) {
@@ -650,7 +650,7 @@ cleanup:
     return title_text;
 }
 
-int should_skip_nested_table(HTMLNode* node) {
+int should_skip_nested_table(const HTMLNode* node) {
     html2tex_err_clear();
 
     if (!node) {
