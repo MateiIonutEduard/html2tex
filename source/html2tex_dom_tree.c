@@ -1111,6 +1111,23 @@ cleanup_queues:
     queue_cleanup(&cell_queue, &cell_rear);
 }
 
+/**
+ * @brief Optimized tag lookup with micro-optimized rejection filtering.
+ * @param tag_name  Null-terminated tag string to lookup (must not be NULL)
+ * @param table Static array of TagProperties terminated with {NULL,0,0}
+ * @param max_len Maximum allowed tag length for bounds checking
+ * @return 1 if tag_name matches an entry in table
+ * @return 0 if tag_name is NULL, empty, exceeds max_len, or no match found
+ * @pre tag_name != NULL (though function handles NULL gracefully)
+ * @pre table last element must be {NULL,0,0} sentinel
+ * 
+ * @remark Uses three-stage filtering: bounds check -> first char -> length -> strcmp
+ * @remark Tables should be sorted by first character for cache locality
+ * @remark Not thread-safe if table is modified (tables should be static const)
+ *
+ * @complexity Worst-case O(n), typical O(1) due to early rejection
+ * @memory O(1) excluding static table storage
+*/
 static int tag_lookup(const char* tag_name, const TagProperties* table, size_t max_len) {
     if (!tag_name || tag_name[0] == '\0') 
         return 0;
@@ -1204,66 +1221,25 @@ int is_essential_element(const char* tag_name) {
 }
 
 int should_exclude_tag(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
-    static const struct {
-        const char* const tag;
-        const size_t len;
-        const unsigned char first;
-    } excluded_tags[] = {
-        {"script", 6, 's'}, {"style", 5, 's'}, {"link", 4, 'l'},
-        {"meta", 4, 'm'}, {"head", 4, 'h'}, {"noscript", 8, 'n'},
-        {"template", 8, 't'}, {"iframe", 6, 'i'}, {"form", 4, 'f'},
-        {"input", 5, 'i'}, {"label", 5, 'l'}, {"canvas", 6, 'c'},
-        {"svg", 3, 's'}, {"video", 5, 'v'}, {"source", 6, 's'},
-        {"audio", 5, 'a'}, {"object", 6, 'o'}, {"button", 6, 'b'},
-        {"map", 3, 'm'}, {"area", 4, 'a'}, {"frame", 5, 'f'},
-        {"frameset", 8, 'f'}, {"noframes", 8, 'n'}, {"nav", 3, 'n'},
-        {"picture", 7, 'p'}, {"progress", 8, 'p'}, {"select", 6, 's'},
-        {"option", 6, 'o'}, {"param", 5, 'p'}, {"search", 6, 's'},
-        {"samp", 4, 's'}, {"track", 5, 't'}, {"var", 3, 'v'},
-        {"wbr", 3, 'w'}, {"mark", 4, 'm'}, {"meter", 5, 'm'},
-        {"optgroup", 8, 'o'}, {"q", 1, 'q'}, {"blockquote", 10, 'b'},
-        {"bdo", 3, 'b'}, {NULL, 0, 0}
+    static const TagProperties excluded_tags[] = {
+        {"script", 's', 6}, {"style", 's', 5}, {"link", 'l', 4},
+        {"meta", 'm', 4}, {"head", 'h', 4}, {"noscript", 'n', 8},
+        {"template", 't', 8}, {"iframe", 'i', 6}, {"form", 'f', 4},
+        {"input", 'i', 5}, {"label", 'l', 5}, {"canvas", 'c', 6},
+        {"svg", 's', 3}, {"video", 'v', 5}, {"source", 's', 6},
+        {"audio", 'a', 5}, {"object", 'o', 6}, {"button", 'b', 6},
+        {"map", 'm', 3}, {"area", 'a', 4}, {"frame", 'f', 5},
+        {"frameset", 'f', 8}, {"noframes", 'n', 8}, {"nav", 'n', 3},
+        {"picture", 'p', 7}, {"progress", 'p', 8}, {"select", 's', 6},
+        {"option", 'o', 6}, {"param", 'p', 5}, {"search", 's', 6},
+        {"samp", 's', 4}, {"track", 't', 5}, {"var", 'v', 3},
+        {"wbr", 'w', 3}, {"mark", 'm', 4}, {"meter", 'm', 5},
+        {"optgroup", 'o', 8}, {"q", 'q', 1}, {"blockquote", 'b', 10},
+        {"bdo", 'b', 3}, {NULL, 0, 0}
     };
 
-    /* compute the length with bounds checking */
-    size_t len = 0;
-    const char* p = tag_name;
-
-    while (*p) {
-        if (++len > 10) return 0;
-        p++;
-    }
-
-    /* optimized length rejection */
-    switch (len) {
-    case 1: case 3: case 4: case 5:
-    case 6: case 7: case 8: case 10:
-        break;
-    case 2: case 9:
-        /* no excluded tags of these lengths */
-        return 0;
-    default:
-        return 0;
-    }
-
-    /* extract first char once */
-    const unsigned char first_char = (unsigned char)tag_name[0];
-
-    /* perform an optimized search */
-    for (int i = 0; excluded_tags[i].tag; i++) {
-        /* first char mismatch */
-        if (excluded_tags[i].first != first_char) continue;
-
-        /* length mismatch */
-        if (excluded_tags[i].len != len) continue;
-
-        /* final verification */
-        if (strcmp(tag_name, excluded_tags[i].tag) == 0)
-            return 1;
-    }
-
-    return 0;
+    return tag_lookup(tag_name, excluded_tags,
+        MAX_UNSUPPORTED_ELEMENT_LENGTH);
 }
 
 int is_whitespace_only(const char* text) {
@@ -1304,7 +1280,8 @@ int is_inside_table_cell(LaTeXConverter* converter, const HTMLNode* node) {
     while (current) {
         if (current->tag) {
             if (current->tag[0] == 't') {
-                if (strcmp(current->tag, "td") == 0 || strcmp(current->tag, "th") == 0)
+                if (strcmp(current->tag, "td") == 0 || 
+                    strcmp(current->tag, "th") == 0)
                     return 1;
             }
         }
@@ -1325,7 +1302,8 @@ int is_inside_table(const HTMLNode* node) {
     HTMLNode* current = node->parent;
 
     while (current) {
-        if (current->tag && strcmp(current->tag, "table") == 0)
+        if (current->tag && 
+            strcmp(current->tag, "table") == 0)
             return 1;
 
         current = current->parent;
