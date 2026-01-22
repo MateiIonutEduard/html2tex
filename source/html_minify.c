@@ -4,50 +4,21 @@
 #include <ctype.h>
 #include "html2tex.h"
 
+#ifndef MAX_SPECIAL_TAG_LENGTH
+#define MAX_SPECIAL_TAG_LENGTH 8
+#endif
+
 /* Check whether a tag is safe to minify by removing surrounding whitespace. */
 static int is_safe_to_minify_tag(const char* tag_name) {
-    if (!tag_name || tag_name[0] == '\0') return 0;
-
     /* read-only tags where whitespace is significant */
-    static const struct { 
-        const char* tag;
-        unsigned char first_char;
-        const unsigned char length;
-    } preserve_whitespace_tags[] = {
+    static const TagProperties preserve_whitespace_tags[] = {
         {"pre", 'p', 3}, {"code", 'c', 4}, {"textarea", 't', 8},
         {"script", 's', 6}, {"style", 's', 5}, {NULL, 0, 0}
     };
 
-    /* compute length once, because the most tags will fail this check */
-    size_t len = 0;
-
-    const char* p = tag_name;
-    while (*p) { len++; p++; }
-
-    /* quick length-based rejection */
-    switch (len) {
-    case 3: case 4: case 5: case 6: case 8:
-        break;
-    default:
-        return 1;
-    }
-
-    /* check first character before strcmp */
-    unsigned char first_char = (unsigned char)tag_name[0];
-
-    for (int i = 0; preserve_whitespace_tags[i].tag; i++) {
-        /* fast rejection before expensive strcmp function call */
-        if (preserve_whitespace_tags[i].first_char != first_char) continue;
-
-        /* reject by length mismatch */
-        if (preserve_whitespace_tags[i].length != len) continue;
-
-        /* apply strcmp function only for the few cases */
-        if (strcmp(tag_name, preserve_whitespace_tags[i].tag) == 0)
-            return 0;
-    }
-
-    return 1;
+    return !html2tex_tag_lookup(tag_name,
+        preserve_whitespace_tags,
+        MAX_SPECIAL_TAG_LENGTH);
 }
 
 /* Remove the unnecessary whitespace from text content. */
