@@ -2,33 +2,32 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#ifndef MAX_ALLOWED_TAG_LENGTH
+#define MAX_ALLOWED_TAG_LENGTH 7
+#endif
+
 static inline bool is_valid_element(const HTMLNode* node) {
     return (node && node->tag
         && node->tag[0] != '\0');
 }
 
 int is_supported_element(const HTMLNode* node) {
-    if (!is_valid_element(node)) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_UNSUPPORTED,
-            "HTML element is unsupported.");
-        return 0;
-    }
-
-    static const char* const support[] = {
-        "p", "div", "h1", "h2", "h3", "h4", "h5",
-        "b", "strong", "i", "em", "u", "code",
-        "font", "span", "a", "ul", "li", "ol",
-        "br", "hr", "img", "table", "th", "td",
-        "caption", "thead", "tbody", "tfoot", 
-        "tr", NULL
+    static const TagProperties supported_tags[] = {
+        {"p", 'p', 1}, {"b", 'b', 1}, {"i", 'i', 1},
+        {"u", 'u', 1}, {"a", 'a', 1}, { "h1", 'h', 1 }, 
+        {"h2", 'h', 1}, {"h3", 'h', 1}, {"h4", 'h', 1}, 
+        {"h5", 'h', 1}, {"em", 'e', 2}, {"ul", 'u', 2},
+        {"li", 'l', 2}, {"ol", 'o', 2}, {"br", 'b', 2},
+        {"hr", 'h', 2}, {"th", 't', 2}, {"td", 't', 2},
+        {"tr", 't', 2}, {"div", 'd', 3}, {"img", 'i', 3},
+        {"code", 'c', 4}, {"font", 'f', 4}, {"span", 's', 4},
+        {"table", 't', 5}, {"tbody", 't', 5}, {"tfoot", 't', 5},
+        {"thead", 't', 5}, {"strong", 's', 6}, 
+        {"caption", 'c', 7}, {NULL, 0, 0}
     };
 
-    for (int i = 0; support[i]; i++) {
-        if (strcmp(node->tag, support[i]) == 0)
-            return 1;
-    }
-
-    return 0;
+    return html2tex_tag_lookup(node->tag,
+        supported_tags, MAX_ALLOWED_TAG_LENGTH);
 }
 
 static int convert_essential_inline(LaTeXConverter* converter, const HTMLNode* node, const CSSProperties* props);
