@@ -2,12 +2,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-typedef struct TagProperties {
-    const char* tag;
-    unsigned char first_char;
-    const unsigned char length;
-} TagProperties;
-
 char* html2tex_compress_html(const char* html) {
     html2tex_err_clear();
 

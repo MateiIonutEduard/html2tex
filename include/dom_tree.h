@@ -9,6 +9,7 @@ extern "C" {
 	typedef struct HTMLNode HTMLNode;
 	typedef struct HTMLAttribute HTMLAttribute;
 	typedef struct LaTeXConverter LaTeXConverter;
+	typedef struct TagProperties TagProperties;
 
 	/* HTML node structure */
 	struct HTMLNode {
@@ -25,6 +26,12 @@ extern "C" {
 		char* key;
 		char* value;
 		HTMLAttribute* next;
+	};
+
+	struct TagProperties {
+		const char* tag;
+		unsigned char first_char;
+		const unsigned char length;
 	};
 
 	/**
