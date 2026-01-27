@@ -159,17 +159,34 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 
 /* Minify the attribute value by removing unnecessary quotes when possible. */
 static char* minify_attribute_value(const char* value) {
+    /* clear any previous error state */
+    html2tex_err_clear();
     if (!value) return NULL;
 
     /* empty string */
     if (*value == '\0') {
         char* r = (char*)malloc(3);
-        if (r) { r[0] = '"'; r[1] = '"'; r[2] = '\0'; }
+        if (!r) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate empty attribute"
+                " value buffer.");
+            return NULL;
+        }
+
+        r[0] = '"'; r[1] = '"';
+        r[2] = '\0';
         return r;
     }
 
     /* return the exact copy */
-    return strdup(value);
+    char* result = strdup(value);
+
+    if (!result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate attribute "
+            "value string.");
+    }
+    return result;
 }
 
 /* Fast minification function of HTML's DOM tree. */
