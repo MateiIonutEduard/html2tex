@@ -29,7 +29,11 @@ static int is_inline_element_for_formatting(const char* tag_name) {
 
 /* This helper function is used to escape HTML special characters. */
 static char* escape_html(const char* text) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     if (!text) return NULL;
+
     const char* p = text;
     size_t extra = 0;
 
@@ -52,13 +56,26 @@ static char* escape_html(const char* text) {
     }
 
     /* no escaping needed, return copy */
-    if (extra == 0) return strdup(text);
+    if (extra == 0) {
+        char* result = strdup(text);
+        if (!result) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate plain text"
+                " for HTML escaping.");
+        }
+        return result;
+    }
 
     /* allocate once */
     size_t len = p - text;
-
     char* escaped = (char*)malloc(len + extra + 1);
-    if (!escaped) return NULL;
+
+    if (!escaped) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate escaped HTML"
+            " text buffer.");
+        return NULL;
+    }
 
     /* copy with escaping */
     char* dest = escaped;
