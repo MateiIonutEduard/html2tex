@@ -122,7 +122,16 @@ static char* escape_html(const char* text) {
 
 /* Recursive function to write the prettified HTML code. */
 static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
-    if (!node || !file) return;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!node || !file) {
+        if (!node) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+                "HTML node is NULL for pretty printing.");
+        }
+        return;
+    }
 
     /* create indentation */
     for (int i = 0; i < indent_level; i++)
@@ -139,13 +148,14 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         while (attr) {
             if (attr->value) {
                 char* escaped_value = escape_html(attr->value);
-                fputs(" ", file); fputs(attr->key, file); fputs("=\"", file);
 
-                fputs(escaped_value ? escaped_value : attr->value, file);
-                fputs("\"", file);
-
-                if (escaped_value) 
-                    free(escaped_value);
+                if (escaped_value) {
+                    fputs(" ", file); fputs(attr->key, file); 
+                    fputs("=\"", file); fputs(escaped_value, file); 
+                    fputs("\"", file); free(escaped_value);
+                }
+                else if (html2tex_has_error())
+                    return;
             }
             else {
                 fputs(" ", file);
@@ -172,6 +182,8 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                     fputs(escaped_content, file);
                     free(escaped_content);
                 }
+                else if (html2tex_has_error())
+                    return;
             }
 
             /* write children with proper indentation */
@@ -181,6 +193,9 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 
                 while (child) {
                     write_pretty_node(file, child, indent_level + 1);
+
+                    /* propagate any error from recursive call */
+                    if (html2tex_has_error()) return;
                     child = child->next;
                 }
 
@@ -200,15 +215,17 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         if (node->content) {
             char* escaped_content = escape_html(node->content);
 
+            /* check if this is mostly whitespace */
             if (escaped_content) {
-                /* check if this is mostly whitespace */
                 int all_whitespace = 1;
+                char* p = escaped_content;
 
-                for (char* p = escaped_content; *p; p++) {
-                    if (!isspace(*p)) {
+                while (*p) {
+                    if (!isspace((unsigned char)*p)) {
                         all_whitespace = 0;
                         break;
                     }
+                    p++;
                 }
 
                 if (!all_whitespace) {
@@ -216,11 +233,11 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                     fputs("\n", file);
                 }
                 else
-                    /* for whitespace-only nodes, just output a newline */
                     fputs("\n", file);
-
                 free(escaped_content);
             }
+            else if (html2tex_has_error())
+                return;
         }
     }
 }
