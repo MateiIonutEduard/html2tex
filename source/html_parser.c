@@ -218,9 +218,20 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
 }
 
 static char* parse_text_content(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* input = state->input;
     size_t pos = state->position;
     const size_t length = state->length;
+
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " text content.");
+        return NULL;
+    }
+
     const char* start_ptr = input + pos;
     const char* current = start_ptr;
     const char* const end = input + length;
@@ -231,13 +242,16 @@ static char* parse_text_content(ParserState* state) {
 
     size_t text_len = (size_t)(current - start_ptr);
     if (text_len == 0) return NULL;
-
     char* text = (char*)malloc(text_len + 1);
-    if (!text) return NULL;
+
+    if (!text) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate text content buffer.");
+        return NULL;
+    }
 
     memcpy(text, start_ptr, text_len);
     text[text_len] = '\0';
-
     state->position = (size_t)(current - input);
     return text;
 }
