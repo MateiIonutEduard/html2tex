@@ -4,8 +4,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define BUFFER_SIZE 4096
-
 typedef struct {
     const char* input;
     size_t position;
@@ -78,40 +76,59 @@ static char* parse_tag_name(ParserState* state) {
 }
 
 static char* parse_quoted_string(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* input = state->input;
     size_t pos = state->position;
 
     /* check bounds and quote type */
     const size_t length = state->length;
-    if (pos >= length) return NULL;
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " quoted string.");
+        return NULL;
+    }
 
     char quote = input[pos];
-    if (quote != '"' && quote != '\'') return NULL;
+    if (quote != '"' && quote != '\'') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Expected quote character, found '%c'.",
+            input[pos]);
+        return NULL;
+    }
 
     /* skip opening quote */
     const size_t start = ++pos;
 
     /* scan for closing quote */
-    while (pos < length && input[pos] != quote) {
+    while (pos < length && input[pos] != quote)
         pos++;
-    }
 
     /* validate we found the quote */
-    if (pos >= length) return NULL;
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unterminated quoted string.");
+        return NULL;
+    }
 
     /* allocate and copy */
     const size_t str_len = pos - start;
     char* str = (char*)malloc(str_len + 1);
 
-    if (str) {
-        if (str_len > 0)
-            memcpy(str, input + start, str_len);
-        
-        /* skip closing quote */
-        str[str_len] = '\0';
-        state->position = pos + 1;
+    if (!str) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate quoted string buffer.");
+        return NULL;
     }
 
+    if (str_len > 0)
+        memcpy(str, input + start, str_len);
+
+    /* skip closing quote */
+    str[str_len] = '\0';
+    state->position = pos + 1;
     return str;
 }
 
