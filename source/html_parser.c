@@ -292,16 +292,27 @@ static HTMLNode* parse_node(ParserState* state) {
 }
 
 static HTMLNode* parse_element(ParserState* state) {
-    if (state->input[state->position] != '<') return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (state->input[state->position] != '<') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Expected '<' character while parsing"
+            " element.");
+        return NULL;
+    }
+
     state->position++;
 
     /* check for closing tag */
-    if (state->position < state->length && state->input[state->position] == '/') {
+    if (state->position < state->length &&
+        state->input[state->position] == '/') {
         state->position++;
         char* tag_name = parse_tag_name(state);
         skip_whitespace(state);
 
-        if (state->position < state->length && state->input[state->position] == '>')
+        if (state->position < state->length &&
+            state->input[state->position] == '>')
             state->position++;
 
         /* closing tags do not create nodes */
@@ -312,24 +323,30 @@ static HTMLNode* parse_element(ParserState* state) {
     /* parse opening tag */
     char* tag_name = parse_tag_name(state);
     if (!tag_name) return NULL;
+
     HTMLAttribute* attributes = parse_attributes(state);
 
     /* check for self-closing tag */
     int self_closing = 0;
 
-    if (state->position < state->length && state->input[state->position] == '/') {
+    if (state->position < state->length && 
+        state->input[state->position] == '/') {
         self_closing = 1;
         state->position++;
     }
 
-    if (state->position < state->length && state->input[state->position] == '>')
+    if (state->position < state->length && 
+        state->input[state->position] == '>')
         state->position++;
 
     HTMLNode* node = (HTMLNode*)malloc(sizeof(HTMLNode));
 
     if (!node) {
-        free(tag_name);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate HTMLNode "
+            "structure for element.");
 
+        free(tag_name);
         while (attributes) {
             HTMLAttribute* next = attributes->next;
             free(attributes->key);
@@ -362,20 +379,28 @@ static HTMLNode* parse_element(ParserState* state) {
                 /* optimized whitespace skipping inline */
                 size_t saved_pos = *pos;
 
-                while (*pos < length && (unsigned char)input[*pos] <= ' ' && input[*pos])
+                while (*pos < length && 
+                    (unsigned char)input[*pos] <= ' ' 
+                    && input[*pos])
                     (*pos)++;
 
                 /* check for closing tag */
-                if (*pos < length - 1 && input[*pos] == '<' && input[*pos + 1] == '/') {
+                if (*pos < length - 1 && 
+                    input[*pos] == '<' && 
+                    input[*pos + 1] == '/') {
                     /* found potential closing tag */
                     size_t check_pos = *pos;
 
                     /* skip whitespace before checking tag name */
-                    while (check_pos < length && (unsigned char)input[check_pos] <= ' ' && input[check_pos])
+                    while (check_pos < length && 
+                        (unsigned char)input[check_pos] <= ' ' 
+                        && input[check_pos])
                         check_pos++;
 
                     /* if we still have the closing tag after skipping whitespace */
-                    if (check_pos < length - 1 && input[check_pos] == '<' && input[check_pos + 1] == '/') {
+                    if (check_pos < length - 1 && 
+                        input[check_pos] == '<' && 
+                        input[check_pos + 1] == '/') {
                         size_t parse_pos = check_pos + 2;
 
                         /* parse closing tag name */
@@ -385,9 +410,10 @@ static HTMLNode* parse_element(ParserState* state) {
                             size_t start = parse_pos;
 
                             while (parse_pos < length &&
-                                (isalnum((unsigned char)input[parse_pos]) || input[parse_pos] == '-')) {
+                                (isalnum((unsigned char)input[parse_pos]) || 
+                                    input[parse_pos] == '-'))
                                 parse_pos++;
-                            }
+
                             if (parse_pos > start) {
                                 size_t tag_len = parse_pos - start;
                                 closing_tag = (char*)malloc(tag_len + 1);
@@ -402,7 +428,9 @@ static HTMLNode* parse_element(ParserState* state) {
                         }
 
                         /* skip whitespace after tag name */
-                        while (parse_pos < length && (unsigned char)input[parse_pos] <= ' ' && input[parse_pos])
+                        while (parse_pos < length && 
+                            (unsigned char)input[parse_pos] <= ' ' &&
+                            input[parse_pos])
                             parse_pos++;
 
                         /* only break if this is the correct closing tag */
@@ -422,7 +450,7 @@ static HTMLNode* parse_element(ParserState* state) {
                         *pos = saved_pos;
                 }
 
-                /* parse child node */
+                /* parse the child node */
                 HTMLNode* child = parse_node(state);
 
                 if (child) {
@@ -431,7 +459,6 @@ static HTMLNode* parse_element(ParserState* state) {
                     current_child = &child->next;
                 }
                 else
-                    /* if no child was parsed, we might be at the end */
                     break;
             }
         }
