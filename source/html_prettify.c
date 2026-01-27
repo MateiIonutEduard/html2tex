@@ -315,12 +315,19 @@ int write_pretty_html(const HTMLNode* root, const char* filename) {
 }
 
 char* get_pretty_html(const HTMLNode* root) {
-    if (!root) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Root node is NULL for HTML "
+            "string generation.");
+        return NULL;
+    }
 
 #ifndef _WIN32
     /* use open_memstream for fastest, no disk I/O */
     char* buffer = NULL;
-
     size_t size = 0;
     FILE* stream = open_memstream(&buffer, &size);
 
@@ -329,8 +336,14 @@ char* get_pretty_html(const HTMLNode* root) {
         fputs("<html>\n<head>\n", stream);
         fputs("  <meta charset=\"UTF-8\">\n", stream);
         char* html_title = html2tex_extract_title(root);
-        fputs("  <title>", stream);
 
+        if (html2tex_has_error()) {
+            fclose(stream);
+            free(buffer);
+            return NULL;
+        }
+
+        fputs("  <title>", stream);
         if (!html_title)
             fputs("Parsed HTML Output", stream);
         else {
@@ -346,23 +359,51 @@ char* get_pretty_html(const HTMLNode* root) {
 
         while (child) {
             write_pretty_node(stream, child, 1);
+
+            if (html2tex_has_error()) {
+                fclose(stream);
+                free(buffer);
+                return NULL;
+            }
+
             child = child->next;
         }
 
         fputs("</body>\n</html>\n", stream);
-        fclose(stream);
+
+        if (fclose(stream) != 0) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+                "Failed to close memory stream"
+                " for HTML generation.");
+            free(buffer);
+            return NULL;
+        }
+
         return buffer;
     }
 #endif
+
+    /* fallback to temporary file */
     FILE* temp_file = tmpfile();
-    if (!temp_file) return NULL;
+
+    if (!temp_file) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to create temporary"
+            " file for HTML generation.");
+        return NULL;
+    }
 
     /* write to temp file */
     fputs("<html>\n<head>\n", temp_file);
     fputs("  <meta charset=\"UTF-8\">\n", temp_file);
     char* html_title = html2tex_extract_title(root);
-    fputs("  <title>", temp_file);
 
+    if (html2tex_has_error()) {
+        fclose(temp_file);
+        return NULL;
+    }
+
+    fputs("  <title>", temp_file);
     if (!html_title)
         fputs("Parsed HTML Output", temp_file);
     else {
@@ -376,6 +417,12 @@ char* get_pretty_html(const HTMLNode* root) {
 
     while (child) {
         write_pretty_node(temp_file, child, 1);
+
+        if (html2tex_has_error()) {
+            fclose(temp_file);
+            return NULL;
+        }
+
         child = child->next;
     }
 
@@ -383,25 +430,45 @@ char* get_pretty_html(const HTMLNode* root) {
 
     /* get the file size and read back */
     if (fseek(temp_file, 0, SEEK_END) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to seek to end of "
+            "temporary file.");
         fclose(temp_file);
         return NULL;
     }
 
     long file_size = ftell(temp_file);
-
-    if (file_size <= 0) {
+    if (file_size < 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to get temporary file size.");
         fclose(temp_file);
-        return strdup("");
+        return NULL;
+    }
+
+    if (file_size == 0) {
+        fclose(temp_file);
+        char* empty_string = strdup("");
+        if (!empty_string) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate empty string"
+                " for HTML output.");
+        }
+        return empty_string;
     }
 
     if (fseek(temp_file, 0, SEEK_SET) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to seek to beginning"
+            " of temporary file.");
         fclose(temp_file);
         return NULL;
     }
 
     char* html_string = (char*)malloc(file_size + 1);
-
     if (!html_string) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %ld bytes for"
+            " HTML string.", file_size + 1);
         fclose(temp_file);
         return NULL;
     }
@@ -409,6 +476,23 @@ char* get_pretty_html(const HTMLNode* root) {
     size_t bytes_read = fread(html_string, 1, file_size, temp_file);
     html_string[bytes_read] = '\0';
 
-    fclose(temp_file);
+    if (bytes_read != (size_t)file_size) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to read complete temporary"
+            " file (%zu of %ld bytes).",
+            bytes_read, file_size);
+        free(html_string);
+        fclose(temp_file);
+        return NULL;
+    }
+
+    if (fclose(temp_file) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to close temporary file"
+            " after reading.");
+        free(html_string);
+        return NULL;
+    }
+
     return html_string;
 }
