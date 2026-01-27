@@ -158,7 +158,7 @@ endif()
 # Create C static library
 add_library(html2tex_c STATIC
     source/html2tex.c
-    source/tex_gen.c
+    source/html2tex_generator.c
     source/html_parser.c
     source/html_minify.c
     source/html_prettify.c
@@ -337,7 +337,7 @@ message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
 message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/ (2 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
-message(STATUS "  Core: html2tex.c, tex_gen.c")
+message(STATUS "  Core: html2tex.c, html2tex_generator.c")
 message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_utils.c")
 message(STATUS "  CSS: html2tex_css.c")
 message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c")
