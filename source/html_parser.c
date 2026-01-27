@@ -259,8 +259,15 @@ static char* parse_text_content(ParserState* state) {
 static HTMLNode* parse_element(ParserState* state);
 
 static HTMLNode* parse_node(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     /* quick bounds check */
-    if (state->position >= state->length) return NULL;
+    if (state->position >= state->length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing node.");
+        return NULL;
+    }
 
     /* element node */
     if (state->input[state->position] == '<')
@@ -268,7 +275,11 @@ static HTMLNode* parse_node(ParserState* state) {
 
     /* text node */
     HTMLNode* node = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!node) return NULL;
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate HTMLNode structure.");
+        return NULL;
+    }
 
     /* initialize all fields */
     node->tag = NULL;
@@ -277,7 +288,6 @@ static HTMLNode* parse_node(ParserState* state) {
     node->children = NULL;
     node->next = NULL;
     node->parent = NULL;
-
     return node;
 }
 
