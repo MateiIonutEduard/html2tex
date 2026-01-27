@@ -243,13 +243,25 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 }
 
 int write_pretty_html(const HTMLNode* root, const char* filename) {
-    if (!root || !filename) return 0;
-    FILE* file = fopen(filename, "w");
+    /* clear any previous error state */
+    html2tex_err_clear();
 
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Root node is NULL for HTML file writing.");
+        return 0;
+    }
+
+    if (!filename) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Filename is NULL for HTML file writing.");
+        return 0;
+    }
+
+    FILE* file = fopen(filename, "w");
     if (!file) {
-        fputs("Error: Could not open file ", stderr);
-        fputs(filename, stderr);
-        fputs(" for writing.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to open file '%s' for writing.", filename);
         return 0;
     }
 
@@ -257,10 +269,14 @@ int write_pretty_html(const HTMLNode* root, const char* filename) {
     fputs("<html>\n<head>\n", file);
     fputs("  <meta charset=\"UTF-8\">\n", file);
     char* html_title = html2tex_extract_title(root);
-    int default_title = !html_title ? 1 : 0;
-    fputs("  <title>", file);
 
-    if (!html_title)
+    if (html2tex_has_error()) {
+        fclose(file);
+        return 0;
+    }
+
+    fputs("  <title>", file);
+    if (!html_title) 
         fputs("Parsed HTML Output", file);
     else {
         fputs(html_title, file);
@@ -275,12 +291,26 @@ int write_pretty_html(const HTMLNode* root, const char* filename) {
 
     while (child) {
         write_pretty_node(file, child, 1);
+
+        /* check for errors from write_pretty_node function */
+        if (html2tex_has_error()) {
+            fclose(file);
+            return 0;
+        }
+
         child = child->next;
     }
 
     /* write HTML footer and close the stream */
     fputs("</body>\n</html>\n", file);
-    fclose(file);
+
+    if (fclose(file) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to close file '%s' "
+            "after writing.", filename);
+        return 0;
+    }
+
     return 1;
 }
 
