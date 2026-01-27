@@ -537,15 +537,9 @@ HTMLNode* html2tex_parse_minified(const char* html) {
 
     HTMLNode* parsed = html2tex_parse(html);
     if (!parsed) return NULL;
-    HTMLNode* minified = html2tex_minify_html(parsed);
 
-    if (!minified) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
-            "HTML minification failed after "
-            "successful parsing.");
-        html2tex_free_node(parsed);
-        return NULL;
-    }
+    HTMLNode* minified = html2tex_minify_html(parsed);
+    if (!minified) return NULL;
 
     /* free parsed since minify should create new tree */
     html2tex_free_node(parsed);

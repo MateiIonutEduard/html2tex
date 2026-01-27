@@ -333,23 +333,31 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
 }
 
 HTMLNode* html2tex_minify_html(const HTMLNode* root) {
-    if (!root) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Root node is NULL for HTML minification.");
+        return NULL;
+    }
 
     /* create a new minified tree */
     HTMLNode* minified_root = (HTMLNode*)malloc(sizeof(HTMLNode));
+    if (!minified_root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate minified root HTMLNode.");
+        return NULL;
+    }
 
-    if (!minified_root) return NULL;
     minified_root->tag = NULL;
-
     minified_root->content = NULL;
     minified_root->attributes = NULL;
-
     minified_root->parent = NULL;
     minified_root->next = NULL;
 
     /* minify children */
     HTMLNode* new_children = NULL;
-
     HTMLNode** current_child = &new_children;
     HTMLNode* old_child = root->children;
 
@@ -360,6 +368,13 @@ HTMLNode* html2tex_minify_html(const HTMLNode* root) {
             minified_child->parent = minified_root;
             *current_child = minified_child;
             current_child = &minified_child->next;
+        }
+        else {
+            /* propagate error from minify_node call */
+            if (html2tex_has_error()) {
+                html2tex_free_node(minified_root);
+                return NULL;
+            }
         }
 
         old_child = old_child->next;
