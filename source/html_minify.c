@@ -23,11 +23,22 @@ static int is_safe_to_minify_tag(const char* tag_name) {
 
 /* Remove the unnecessary whitespace from text content. */
 static char* minify_text_content(const char* text, int is_in_preformatted) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     /* quick null check */
     if (!text) return NULL;
 
     /* preformatted content (copy as-is) */
-    if (is_in_preformatted) return strdup(text);
+    if (is_in_preformatted) {
+        char* result = strdup(text);
+        if (!result) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate preformatted text.");
+        }
+        return result;
+    }
+
     const unsigned char* src = (const unsigned char*)text;
 
     /* empty string */
@@ -44,12 +55,14 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 
         /* non-whitespace single char found */
         char* result = (char*)malloc(2);
-
-        if (result) {
-            result[0] = c;
-            result[1] = '\0';
+        if (!result) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate single character buffer.");
+            return NULL;
         }
 
+        result[0] = c;
+        result[1] = '\0';
         return result;
     }
 
@@ -91,7 +104,11 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
     if (final_size == (size_t)(scan - src)) {
         /* just copy the string */
         char* result = (char*)malloc(final_size + 1);
-        if (!result) return NULL;
+        if (!result) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate text copy buffer.");
+            return NULL;
+        }
 
         memcpy(result, text, final_size);
         result[final_size] = '\0';
@@ -100,7 +117,13 @@ static char* minify_text_content(const char* text, int is_in_preformatted) {
 
     /* alloc exact size needed */
     char* result = (char*)malloc(final_size + 1);
-    if (!result) return NULL;
+
+    if (!result) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate minified text"
+            " buffer.");
+        return NULL;
+    }
 
     /* build minified string */
     char* dest = result;
