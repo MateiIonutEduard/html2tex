@@ -525,11 +525,27 @@ HTMLNode* html2tex_parse(const char* html) {
 }
 
 HTMLNode* html2tex_parse_minified(const char* html) {
-    if (!html) return NULL;
-    HTMLNode* parsed = html2tex_parse(html);
+    /* clear any previous error state */
+    html2tex_err_clear();
 
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML input string is NULL for "
+            "minified parsing.");
+        return NULL;
+    }
+
+    HTMLNode* parsed = html2tex_parse(html);
     if (!parsed) return NULL;
     HTMLNode* minified = html2tex_minify_html(parsed);
+
+    if (!minified) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_PARSE,
+            "HTML minification failed after "
+            "successful parsing.");
+        html2tex_free_node(parsed);
+        return NULL;
+    }
 
     /* free parsed since minify should create new tree */
     html2tex_free_node(parsed);
