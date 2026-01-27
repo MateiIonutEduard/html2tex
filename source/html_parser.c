@@ -27,13 +27,21 @@ static void skip_whitespace(ParserState* state) {
 }
 
 static char* parse_tag_name(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* const input = state->input;
     const size_t length = state->length;
-
     size_t pos = state->position;
-    if (pos >= length) return NULL;
 
-    /* find end of tag name */
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " tag name.");
+        return NULL;
+    }
+
+    /* find the end of tag name */
     size_t start = pos;
 
     while (pos < length) {
@@ -42,11 +50,20 @@ static char* parse_tag_name(ParserState* state) {
         pos++;
     }
 
-    if (pos == start) return NULL;
+    if (pos == start) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Empty or invalid tag name.");
+        return NULL;
+    }
+
     size_t tag_len = pos - start;
 
     char* name = (char*)malloc(tag_len + 1);
-    if (!name) return NULL;
+    if (!name) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate tag name buffer.");
+        return NULL;
+    }
 
     /* copy and lowercase */
     const char* src = input + start;
@@ -57,7 +74,6 @@ static char* parse_tag_name(ParserState* state) {
 
     dest[tag_len] = '\0';
     state->position = pos;
-
     return name;
 }
 
