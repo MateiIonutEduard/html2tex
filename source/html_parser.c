@@ -555,11 +555,24 @@ HTMLNode* html2tex_parse_minified(const char* html) {
 }
 
 HTMLNode* dom_tree_copy(const HTMLNode* node) {
-    if (!node) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Source node is NULL for DOM "
+            "tree copy.");
+        return NULL;
+    }
 
     /* create root copy */
     HTMLNode* new_root = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!new_root) return NULL;
+    if (!new_root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate root HTMLNode"
+            " for copy.");
+        return NULL;
+    }
 
     /* copy root data */
     new_root->tag = node->tag ? strdup(node->tag) : NULL;
@@ -567,6 +580,21 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
     new_root->parent = NULL;
     new_root->next = NULL;
     new_root->children = NULL;
+
+    /* Validate string duplications */
+    if (node->tag && !new_root->tag) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate tag string.");
+        free(new_root);
+        return NULL;
+    }
+    if (node->content && !new_root->content) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate content string.");
+        free(new_root->tag);
+        free(new_root);
+        return NULL;
+    }
 
     /* copy root attributes */
     HTMLAttribute* new_attrs = NULL;
@@ -577,12 +605,25 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
         HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
         if (!new_attr) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate HTMLAttribute structure.");
             html2tex_free_node(new_root);
             return NULL;
         }
 
         new_attr->key = strdup(old_attr->key);
         new_attr->value = old_attr->value ? strdup(old_attr->value) : NULL;
+
+        /* validate attribute string duplications */
+        if (!new_attr->key || (old_attr->value && !new_attr->value)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate attribute string.");
+            free(new_attr->key);
+            free(new_attr->value);
+            free(new_attr);
+            html2tex_free_node(new_root);
+            return NULL;
+        }
 
         new_attr->next = NULL;
         *current_attr = new_attr;
@@ -600,8 +641,14 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
     Queue* dst_rear = NULL;
 
     /* enqueue the root and its parent copy */
-    queue_enqueue(&src_queue, &src_rear, (void*)node);
-    queue_enqueue(&dst_queue, &dst_rear, new_root);
+    if (!queue_enqueue(&src_queue, &src_rear, (void*)node) ||
+        !queue_enqueue(&dst_queue, &dst_rear, new_root)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to initialize BFS queues"
+            " for tree copy.");
+        html2tex_free_node(new_root);
+        return NULL;
+    }
 
     /* process nodes in BFS order */
     while (src_queue) {
@@ -617,6 +664,8 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             HTMLNode* new_child = (HTMLNode*)malloc(sizeof(HTMLNode));
 
             if (!new_child) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate child HTMLNode for copy.");
                 html2tex_free_node(new_root);
                 queue_cleanup(&src_queue, &src_rear);
                 queue_cleanup(&dst_queue, &dst_rear);
@@ -630,6 +679,20 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             new_child->next = NULL;
             new_child->children = NULL;
 
+            /* Validate child string duplications */
+            if ((src_child->tag && !new_child->tag) ||
+                (src_child->content && !new_child->content)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to duplicate child node string.");
+                free(new_child->tag);
+                free(new_child->content);
+                free(new_child);
+                html2tex_free_node(new_root);
+                queue_cleanup(&src_queue, &src_rear);
+                queue_cleanup(&dst_queue, &dst_rear);
+                return NULL;
+            }
+
             /* copy child attributes */
             HTMLAttribute* child_attrs = NULL;
             HTMLAttribute** child_attr_ptr = &child_attrs;
@@ -639,6 +702,9 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
                 HTMLAttribute* new_child_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
                 if (!new_child_attr) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to allocate child "
+                        "HTMLAttribute for copy.");
                     html2tex_free_node(new_child);
                     html2tex_free_node(new_root);
                     queue_cleanup(&src_queue, &src_rear);
@@ -648,6 +714,21 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
 
                 new_child_attr->key = strdup(src_child_attr->key);
                 new_child_attr->value = src_child_attr->value ? strdup(src_child_attr->value) : NULL;
+
+                /* validate child attribute string duplications */
+                if (!new_child_attr->key || (src_child_attr->value && !new_child_attr->value)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to duplicate child "
+                        "attribute string.");
+                    free(new_child_attr->key);
+                    free(new_child_attr->value);
+                    free(new_child_attr);
+                    html2tex_free_node(new_child);
+                    html2tex_free_node(new_root);
+                    queue_cleanup(&src_queue, &src_rear);
+                    queue_cleanup(&dst_queue, &dst_rear);
+                    return NULL;
+                }
 
                 new_child_attr->next = NULL;
                 *child_attr_ptr = new_child_attr;
@@ -661,9 +742,19 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             *dst_child_ptr = new_child;
             dst_child_ptr = &new_child->next;
 
-            /* enqueue child for further processing (its children will be copied later) */
-            queue_enqueue(&src_queue, &src_rear, src_child);
-            queue_enqueue(&dst_queue, &dst_rear, new_child);
+            /* enqueue child for further processing */
+            if (!queue_enqueue(&src_queue, &src_rear, src_child) ||
+                !queue_enqueue(&dst_queue, &dst_rear, new_child)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child nodes "
+                    "for BFS processing.");
+                html2tex_free_node(new_child);
+                html2tex_free_node(new_root);
+                queue_cleanup(&src_queue, &src_rear);
+                queue_cleanup(&dst_queue, &dst_rear);
+                return NULL;
+            }
+
             src_child = src_child->next;
         }
     }
@@ -676,7 +767,6 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
 
 void html2tex_free_node(HTMLNode* node) {
     if (!node) return;
-
     Queue* q_front = NULL;
     Queue* q_rear = NULL;
 
