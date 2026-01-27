@@ -468,15 +468,27 @@ static HTMLNode* parse_element(ParserState* state) {
 }
 
 HTMLNode* html2tex_parse(const char* html) {
-    if (!html) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML input string is NULL.");
+        return NULL;
+    }
+
     ParserState state;
     state.input = html;
-
     state.position = 0;
     state.length = strlen(html);
 
     HTMLNode* root = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!root) return NULL;
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate root HTMLNode"
+            " structure.");
+        return NULL;
+    }
 
     root->tag = NULL;
     root->content = NULL;
@@ -495,6 +507,12 @@ HTMLNode* html2tex_parse(const char* html) {
             current = &node->next;
         }
         else {
+            /* if parsing failed due to error, propagate it */
+            if (html2tex_has_error()) {
+                html2tex_free_node(root);
+                return NULL;
+            }
+
             /* skip one character if parsing fails to avoid infinite loop */
             if (state.position < state.length)
                 state.position++;
