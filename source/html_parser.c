@@ -133,6 +133,9 @@ static char* parse_quoted_string(ParserState* state) {
 }
 
 static HTMLAttribute* parse_attributes(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     HTMLAttribute* head = NULL;
     HTMLAttribute** tail = &head;
 
@@ -194,6 +197,9 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
         HTMLAttribute* attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
         if (!attr) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate HTMLAttribute"
+                " structure.");
             free(key);
             if (value) free(value);
             break;
