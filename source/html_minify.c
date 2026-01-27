@@ -191,34 +191,49 @@ static char* minify_attribute_value(const char* value) {
 
 /* Fast minification function of HTML's DOM tree. */
 static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
+    /* clear any previous error state */
+    html2tex_err_clear();
     if (!node) return NULL;
-
     HTMLNode* new_node = malloc(sizeof(HTMLNode));
-    if (!new_node) return NULL;
+
+    if (!new_node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate HTMLNode for"
+            " minification.");
+        return NULL;
+    }
 
     /* copy the DOM structure */
     new_node->tag = node->tag ? strdup(node->tag) : NULL;
     new_node->parent = NULL;
-
     new_node->next = NULL;
     new_node->children = NULL;
 
+    /* validate tag duplication */
+    if (node->tag && !new_node->tag) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate tag string "
+            "during minification.");
+        free(new_node);
+        return NULL;
+    }
+
     /* handle preformatted context */
     int current_preformatted = in_preformatted;
-
     if (node->tag && !is_safe_to_minify_tag(node->tag))
         current_preformatted = 1;
 
     /* minify the attributes */
     HTMLAttribute* new_attrs = NULL;
-
     HTMLAttribute** current_attr = &new_attrs;
     HTMLAttribute* old_attr = node->attributes;
 
     while (old_attr) {
         HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
-
         if (!new_attr) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate HTMLAttribute"
+                " for minification.");
             html2tex_free_node(new_node);
             return NULL;
         }
@@ -227,9 +242,18 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
         if (old_attr->value) new_attr->value = minify_attribute_value(old_attr->value);
         else new_attr->value = NULL;
 
+        /* validate attribute string duplication */
+        if (!new_attr->key) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate attribute "
+                "key during minification.");
+            free(new_attr);
+            html2tex_free_node(new_node);
+            return NULL;
+        }
+
         new_attr->next = NULL;
         *current_attr = new_attr;
-
         current_attr = &new_attr->next;
         old_attr = old_attr->next;
     }
@@ -238,13 +262,16 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
 
     /* minify content */
     if (node->content) {
-        if (is_whitespace_only(node->content) && !current_preformatted)
-            /* remove whitespace-only text nodes outside preformatted blocks */
+        if (is_whitespace_only(node->content) 
+            && !current_preformatted)
             new_node->content = NULL;
         else
-            new_node->content = minify_text_content(node->content, current_preformatted);
+            new_node->content = minify_text_content(node->content, 
+                current_preformatted);
     }
-    else new_node->content = NULL;
+    else {
+        new_node->content = NULL;
+    }
 
     /* recursively minify children */
     HTMLNode* new_children = NULL;
@@ -252,15 +279,17 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
     HTMLNode** current_child = &new_children;
     HTMLNode* old_child = node->children;
 
-    int safe_to_minify = node->tag ?
+    int safe_to_minify = node->tag ? 
         is_safe_to_minify_tag(node->tag) : 1;
 
     while (old_child) {
-        HTMLNode* minified_child = minify_node(old_child, current_preformatted);
+        HTMLNode* minified_child = minify_node(old_child, 
+            current_preformatted);
 
         if (minified_child) {
             /* remove empty text nodes between elements (except in preformatted) */
-            if (!minified_child->tag && !minified_child->content)
+            if (!minified_child->tag &&
+                !minified_child->content)
                 html2tex_free_node(minified_child);
             else {
                 /* remove whitespace between block elements */
@@ -268,9 +297,8 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
                     if (minified_child->tag && is_block_element(minified_child->tag)) {
                         /* skip whitespace before block elements */
                         HTMLNode* next = old_child->next;
-
-                        /* skip the whitespace node */
-                        if (next && !next->tag && is_whitespace_only(next->content))
+                        if (next && !next->tag && 
+                            is_whitespace_only(next->content))
                             old_child = next;
                     }
                 }
@@ -278,6 +306,13 @@ static HTMLNode* minify_node(HTMLNode* node, int in_preformatted) {
                 minified_child->parent = new_node;
                 *current_child = minified_child;
                 current_child = &minified_child->next;
+            }
+        }
+        else {
+            /* propagate error from recursive minify_node call */
+            if (html2tex_has_error()) {
+                html2tex_free_node(new_node);
+                return NULL;
             }
         }
 
