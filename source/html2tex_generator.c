@@ -1025,9 +1025,6 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
         if (current_css && current_css != inherit_props 
             && (already_processed || !current_node->children))
             css_properties_destroy(current_css);
-        
-        /* check for errors from other operations */
-        if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:
