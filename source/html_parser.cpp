@@ -313,7 +313,12 @@ HtmlParser HtmlParser::fromStream(std::ifstream& input) noexcept {
     /* parse final content */
     if (!content.empty()) {
         HTMLNode* raw_node = html2tex_parse(content.c_str());
-        if (raw_node) return HtmlParser(raw_node);
+
+        if (raw_node) {
+            HtmlParser res = HtmlParser(raw_node);
+            html2tex_free_node(raw_node);
+            return res;
+        }
     }
 
     return HtmlParser();
