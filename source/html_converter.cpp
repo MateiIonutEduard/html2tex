@@ -19,7 +19,7 @@ HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), va
     }
 }
 
-HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other) noexcept
+HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other)
 : converter(nullptr, &html2tex_destroy), valid(false) {
     if (other.converter && other.valid) {
         LaTeXConverter* clone = html2tex_copy(other.converter.get());
@@ -327,11 +327,11 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, std::ofstream& ou
 }
 
 bool HtmlTeXConverter::hasError() const {
-    return converter && html2tex_get_error() != 0;
+    return html2tex_get_error() != HTML2TEX_OK;
 }
 
 int HtmlTeXConverter::getErrorCode() const {
-    return converter ? html2tex_get_error() : -1;
+    return html2tex_get_error();
 }
 
 std::string HtmlTeXConverter::getErrorMessage() const {
@@ -341,7 +341,7 @@ std::string HtmlTeXConverter::getErrorMessage() const {
 
 bool HtmlTeXConverter::isValid() const { return valid; }
 
-HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) noexcept {
+HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) {
     if (this != &other) {
         std::unique_ptr<LaTeXConverter, decltype(&html2tex_destroy)> temp(nullptr, &html2tex_destroy);
         bool new_valid = false;
@@ -353,6 +353,12 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) no
             if (clone) {
                 temp.reset(clone);
                 new_valid = true;
+            }
+            else {
+                if (hasError())
+                    throw std::runtime_error(
+                        getErrorMessage()
+                    );
             }
         }
 

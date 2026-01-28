@@ -12,7 +12,7 @@ HtmlParser::HtmlParser() : node(nullptr, &html2tex_free_node), minify(0)
 
 HtmlParser::HtmlParser(const std::string& html) : HtmlParser(html, 0) { }
 
-HtmlParser::HtmlParser(const std::string& html, int minify_flag) noexcept
+HtmlParser::HtmlParser(const std::string& html, int minify_flag)
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
     /* empty parser, but valid state */
     if (html.empty()) return;
@@ -22,25 +22,46 @@ HtmlParser::HtmlParser(const std::string& html, int minify_flag) noexcept
 
     /* if parsing fails, node remains nullptr */
     if (raw_node) node.reset(raw_node);
+    else {
+        /* error found, throw it */
+        if (html2tex_has_error())
+            throw std::runtime_error(
+                html2tex_get_error_message()
+            );
+    }
 }
 
-HtmlParser::HtmlParser(HTMLNode* raw_node) : HtmlParser(raw_node, 0)
+HtmlParser::HtmlParser(const HTMLNode* raw_node) : HtmlParser(raw_node, 0)
 { }
 
-HtmlParser::HtmlParser(HTMLNode* raw_node, int minify_flag) noexcept
+HtmlParser::HtmlParser(const HTMLNode* raw_node, int minify_flag)
     : node(nullptr, &html2tex_free_node), minify(minify_flag) {
     /* object is in empty but valid state */
     if (!raw_node) return;
 
     HTMLNode* copied_node = dom_tree_copy(raw_node);
     if (copied_node) node.reset(copied_node);
+    else {
+        /* throw the HTML DOM copy error */
+        if (html2tex_has_error())
+            throw std::runtime_error(
+                html2tex_get_error_message()
+            );
+    }
 }
 
-HtmlParser::HtmlParser(const HtmlParser& other) noexcept
+HtmlParser::HtmlParser(const HtmlParser& other)
     : node(nullptr, &html2tex_free_node), minify(other.minify) {
     if (other.node) {
         HTMLNode* copied_node = dom_tree_copy(other.node.get());
         if (copied_node) node.reset(copied_node);
+        else {
+            /* HTML DOM tree copy error */
+            if (html2tex_has_error())
+                throw std::runtime_error(
+                    html2tex_get_error_message()
+                );
+        }
     }
 }
 
@@ -58,6 +79,13 @@ HtmlParser& HtmlParser::operator =(const HtmlParser& other) {
         if (other.node) {
             HTMLNode* copied_node = dom_tree_copy(other.node.get());
             if (copied_node) temp.reset(copied_node);
+            else {
+                /* throw the existing error */
+                if (html2tex_has_error())
+                    throw std::runtime_error(
+                        html2tex_get_error_message()
+                    );
+            }
         }
 
         /* commit changes */
@@ -363,11 +391,14 @@ bool HtmlParser::hasContent() const noexcept {
 void HtmlParser::writeTo(const std::string& filePath) const {
     /* validate the state */
     if (!hasContent()) 
-        throw std::logic_error("Parser contains no HTML content.");
+        throw std::logic_error(
+            "Parser contains no"
+            " HTML content.");
 
     /* check if the input path is not empty */
     if (filePath.empty()) 
-        throw std::invalid_argument("File path cannot be empty.");
+        throw std::invalid_argument(
+            "File path cannot be empty.");
     
     /* detect whether any errors occurred */
     const bool write_success = write_pretty_html(node.get(), filePath.c_str());
@@ -375,12 +406,13 @@ void HtmlParser::writeTo(const std::string& filePath) const {
     /* build a generic error message if function failed */
     if (!write_success) {
         throw std::runtime_error(
-            "Failed to write HTML content to '" +
+            "Failed to write HTML"
+            " content to '" +
             filePath + "'.");
     }
 }
 
-std::string HtmlParser::toString() const noexcept {
+std::string HtmlParser::toString() const {
     /* quick exit for common case */
     if (!node)
         return "";
@@ -392,9 +424,14 @@ std::string HtmlParser::toString() const noexcept {
     const auto deleter = [](char* p) noexcept { std::free(p); };
     std::unique_ptr<char[], decltype(deleter)> output_guard(raw_output, deleter);
 
-    /* now check for valid output */
-    if (!raw_output || raw_output[0] == '\0')
+    /* error thrown, invalid output */
+    if (!raw_output) {
+        if (html2tex_has_error())
+            throw std::runtime_error(
+                html2tex_get_error_message()
+            );
         return "";
+    }
     
     /* return output string */
     return std::string(raw_output);
