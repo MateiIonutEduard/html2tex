@@ -25,9 +25,7 @@ HtmlParser::HtmlParser(const std::string& html, int minify_flag)
     else {
         /* error found, throw it */
         if (html2tex_has_error())
-            throw std::runtime_error(
-                html2tex_get_error_message()
-            );
+            throw HtmlRuntimeException::fromHtmlError();
     }
 }
 
@@ -44,9 +42,7 @@ HtmlParser::HtmlParser(const HTMLNode* raw_node, int minify_flag)
     else {
         /* throw the HTML DOM copy error */
         if (html2tex_has_error())
-            throw std::runtime_error(
-                html2tex_get_error_message()
-            );
+            throw HtmlRuntimeException::fromHtmlError();
     }
 }
 
@@ -58,9 +54,7 @@ HtmlParser::HtmlParser(const HtmlParser& other)
         else {
             /* HTML DOM tree copy error */
             if (html2tex_has_error())
-                throw std::runtime_error(
-                    html2tex_get_error_message()
-                );
+                throw HtmlRuntimeException::fromHtmlError();
         }
     }
 }
@@ -82,9 +76,7 @@ HtmlParser& HtmlParser::operator =(const HtmlParser& other) {
             else {
                 /* throw the existing error */
                 if (html2tex_has_error())
-                    throw std::runtime_error(
-                        html2tex_get_error_message()
-                    );
+                    throw HtmlRuntimeException::fromHtmlError();
             }
         }
 
@@ -427,9 +419,7 @@ std::string HtmlParser::toString() const {
     /* error thrown, invalid output */
     if (!raw_output) {
         if (html2tex_has_error())
-            throw std::runtime_error(
-                html2tex_get_error_message()
-            );
+            throw HtmlRuntimeException::fromHtmlError();
         return "";
     }
     

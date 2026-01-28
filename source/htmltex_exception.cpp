@@ -15,8 +15,8 @@ namespace {
         std::time_t now = std::time(nullptr);
         char buf[64];
 
-        std::strftime(buf, sizeof(buf), 
-            "%Y-%m-%d %H:%M:%S", 
+        std::strftime(buf, sizeof(buf),
+            "%Y-%m-%d %H:%M:%S",
             std::localtime(&now));
 
         return buf;
@@ -31,7 +31,7 @@ namespace {
 
 }
 
-struct RuntimeException::Impl {
+struct RuntimeExceptionImpl {
     std::string message;
     int code;
     std::string file;
@@ -39,7 +39,7 @@ struct RuntimeException::Impl {
     std::exception_ptr nested;
     std::string timestamp;
 
-    Impl(std::string message, int code, std::string file, int line)
+    RuntimeExceptionImpl(std::string message, int code, std::string file, int line)
         : message(std::move(message))
         , code(code)
         , file(std::move(file))
@@ -48,7 +48,7 @@ struct RuntimeException::Impl {
         , timestamp(getCurrentTimestamp()) {
     }
 
-    Impl(const Impl& other)
+    RuntimeExceptionImpl(const RuntimeExceptionImpl& other)
         : message(other.message)
         , code(other.code)
         , file(other.file)
@@ -58,21 +58,23 @@ struct RuntimeException::Impl {
     }
 };
 
+RuntimeException::~RuntimeException() noexcept = default;
+
 RuntimeException::RuntimeException(const std::string& message) noexcept
-    : impl(std::make_unique<Impl>(message, 0, "", 0)) {
+    : impl(std::make_unique<RuntimeExceptionImpl>(message, 0, "", 0)) {
 }
 
 RuntimeException::RuntimeException(const std::string& message, int code) noexcept
-    : impl(std::make_unique<Impl>(message, code, "", 0)) {
+    : impl(std::make_unique<RuntimeExceptionImpl>(message, code, "", 0)) {
 }
 
 RuntimeException::RuntimeException(const std::string& message, int code,
     const char* file, int line) noexcept
-    : impl(std::make_unique<Impl>(message, code, safeStrdup(file), line)) {
+    : impl(std::make_unique<RuntimeExceptionImpl>(message, code, safeStrdup(file), line)) {
 }
 
 RuntimeException::RuntimeException(const RuntimeException& other) noexcept
-    : impl(std::make_unique<Impl>(*other.impl)) {
+    : impl(std::make_unique<RuntimeExceptionImpl>(*other.impl)) {
 }
 
 RuntimeException::RuntimeException(RuntimeException&& other) noexcept
@@ -81,7 +83,7 @@ RuntimeException::RuntimeException(RuntimeException&& other) noexcept
 
 RuntimeException& RuntimeException::operator=(const RuntimeException& other) noexcept {
     if (this != &other)
-        impl = std::make_unique<Impl>(*other.impl);
+        impl = std::make_unique<RuntimeExceptionImpl>(*other.impl);
     return *this;
 }
 
@@ -104,7 +106,7 @@ int RuntimeException::code() const noexcept {
 }
 
 const char* RuntimeException::file() const noexcept {
-    return impl->file.empty() ? 
+    return impl->file.empty() ?
         nullptr : impl->file.c_str();
 }
 
@@ -165,7 +167,7 @@ std::string RuntimeException::toString() const noexcept {
 [[noreturn]]
 void RuntimeException::throwWithContext(const std::string& message, int code,
     const char* file, int line) {
-    throw RuntimeException(message, 
+    throw RuntimeException(message,
         code, file, line);
 }
 
@@ -175,10 +177,10 @@ RuntimeException RuntimeException::fromCurrent(const std::string& defaultMessage
 
     if (error_code != 0 && error_msg && error_msg[0] != '\0')
         return RuntimeException(
-            error_msg, 
+            error_msg,
             error_code);
 
-    return RuntimeException(defaultMessage, 
+    return RuntimeException(defaultMessage,
         error_code);
 }
 
@@ -190,7 +192,7 @@ RuntimeException::ErrorGuard::ErrorGuard() noexcept
     html2tex_err_clear();
 }
 
-RuntimeException::ErrorGuard::~ErrorGuard() noexcept 
+RuntimeException::ErrorGuard::~ErrorGuard() noexcept
 { }
 
 HtmlRuntimeException::HtmlRuntimeException(const std::string& message) noexcept

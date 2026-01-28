@@ -14,8 +14,7 @@ HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), va
     else {
         /* propagates existing error */
         if (html2tex_has_error())
-            throw std::runtime_error(
-                getErrorMessage());
+            throw LaTeXRuntimeException::fromLaTeXError();
     }
 }
 
@@ -31,8 +30,7 @@ HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other)
         else {
             /* throws the existing error */
             if (html2tex_has_error())
-                throw std::runtime_error(
-                    getErrorMessage());
+                throw LaTeXRuntimeException::fromLaTeXError();
         }
     }
 }
@@ -54,9 +52,8 @@ bool HtmlTeXConverter::setDirectory(const std::string& fullPath) const noexcept 
 std::string HtmlTeXConverter::convert(const std::string& html) const {
     /* fast and optimized precondition checks */
     if (!converter || !valid)
-        throw std::runtime_error(
-            "HtmlTeXConverter: Converter"
-            " not initialized.");
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter: Converter not initialized.", -1);
 
     /* early return for empty input to avoid unnecessary allocations */
     if (html.empty()) return "";
@@ -69,12 +66,8 @@ std::string HtmlTeXConverter::convert(const std::string& html) const {
     /* handle nullptr result */
     if (!raw_result) {
         /* distinguish between error and empty conversion */
-        if (hasError()) {
-            const std::string error_msg = getErrorMessage();
-            throw std::runtime_error(
-                "HTML to LaTeX conversion"
-                " failed: " + error_msg);
-        }
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
 
         /* empty result */
         return "";
@@ -98,8 +91,8 @@ std::string HtmlTeXConverter::convert(const std::string& html) const {
 bool HtmlTeXConverter::convertToFile(const std::string& html, const std::string& filePath) const {
     /* validate converter and HTML code */
     if (!isValid()) 
-        throw std::runtime_error(
-            "Converter not initialized.");
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter: Converter not initialized.", -1);
 
     if (html.empty()) 
         return false;
@@ -140,9 +133,8 @@ bool HtmlTeXConverter::convertToFile(const std::string& html, const std::string&
 std::string HtmlTeXConverter::convert(const HtmlParser& parser) const {
     /* precondition validation */
     if (!isValid())
-        throw std::runtime_error(
-            "HtmlTeXConverter in"
-            " invalid state.");
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter in invalid state.", -1);
 
     /* get HTML content - one serialization only */
     std::string html = parser.toString();
@@ -161,12 +153,8 @@ std::string HtmlTeXConverter::convert(const HtmlParser& parser) const {
 
     /* error analysis */
     if (!raw_result) {
-        if (hasError()) {
-            throw std::runtime_error(
-                "HTML to LaTeX conversion"
-                " failed: " + 
-                getErrorMessage());
-        }
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
 
         /* valid empty result */
         return "";
@@ -179,9 +167,8 @@ std::string HtmlTeXConverter::convert(const HtmlParser& parser) const {
 bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, const std::string& filePath) const {
     /* fast precondition validation */
     if (!converter || !valid)
-        throw std::runtime_error(
-            "HtmlTeXConverter in"
-            " invalid state.");
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter in invalid state.", -1);
 
     /* early exit for empty parser */
     if (!parser.hasContent())
@@ -208,12 +195,8 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, const std::string
 
     /* check for conversion errors */
     if (!raw_result) {
-        if (hasError()) {
-            throw std::runtime_error(
-                "HTML to LaTeX conversion"
-                " failed: " + 
-                getErrorMessage());
-        }
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
 
         /* valid empty conversion */
         return false;
@@ -261,9 +244,8 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, const std::string
 bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, std::ofstream& output) const {
     /* fast precondition validation */
     if (!converter || !valid)
-        throw std::runtime_error(
-            "HtmlTeXConverter: "
-            "Converter not initialized.");
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter: Converter not initialized.", -1);
 
     /* early exit for empty parser */
     if (!parser.hasContent())
@@ -291,12 +273,8 @@ bool HtmlTeXConverter::convertToFile(const HtmlParser& parser, std::ofstream& ou
 
     /* check for conversion errors */
     if (!raw_result) {
-        if (hasError()) {
-            throw std::runtime_error(
-                std::string("HTML to "
-                    "LaTeX conversion failed: ") 
-                + getErrorMessage());
-        }
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
 
         /* valid empty conversion */
         return false;
@@ -355,10 +333,8 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) {
                 new_valid = true;
             }
             else {
-                if (hasError())
-                    throw std::runtime_error(
-                        getErrorMessage()
-                    );
+                if (html2tex_has_error())
+                    throw LaTeXRuntimeException::fromLaTeXError();
             }
         }
 

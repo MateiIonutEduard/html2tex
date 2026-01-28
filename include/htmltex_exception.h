@@ -9,10 +9,13 @@
 #include <cstddef>
 #include <utility>
 
+struct RuntimeExceptionImpl;
+
 /**
  * @brief Base runtime exception class with error code and message support.
  *
  * Provides rich error information including error codes, messages,
+ * 
  * file/line context, and chained exception support.
  */
 class RuntimeException : public std::exception {
@@ -53,7 +56,7 @@ public:
     /**
      * @brief Destructor.
      */
-    virtual ~RuntimeException() noexcept override = default;
+    virtual ~RuntimeException() noexcept;
 
     /**
      * @brief Copy assignment operator.
@@ -160,8 +163,7 @@ protected:
     virtual void format(std::ostream& stream) const;
 
 private:
-    struct Impl;
-    std::unique_ptr<Impl> impl;
+    std::unique_ptr<RuntimeExceptionImpl> impl;
 };
 
 /**
