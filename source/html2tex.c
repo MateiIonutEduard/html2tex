@@ -245,7 +245,7 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     }
 
     /* convert the content */
-    convert_document(converter, root);
+    html2tex_convert_document(converter, root);
     html2tex_free_node(root);
 
     /* check for conversion errors */
