@@ -4,8 +4,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define BUFFER_SIZE 4096
-
 typedef struct {
     const char* input;
     size_t position;
@@ -27,13 +25,21 @@ static void skip_whitespace(ParserState* state) {
 }
 
 static char* parse_tag_name(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* const input = state->input;
     const size_t length = state->length;
-
     size_t pos = state->position;
-    if (pos >= length) return NULL;
 
-    /* find end of tag name */
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " tag name.");
+        return NULL;
+    }
+
+    /* find the end of tag name */
     size_t start = pos;
 
     while (pos < length) {
@@ -42,11 +48,20 @@ static char* parse_tag_name(ParserState* state) {
         pos++;
     }
 
-    if (pos == start) return NULL;
+    if (pos == start) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Empty or invalid tag name.");
+        return NULL;
+    }
+
     size_t tag_len = pos - start;
 
     char* name = (char*)malloc(tag_len + 1);
-    if (!name) return NULL;
+    if (!name) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate tag name buffer.");
+        return NULL;
+    }
 
     /* copy and lowercase */
     const char* src = input + start;
@@ -57,49 +72,70 @@ static char* parse_tag_name(ParserState* state) {
 
     dest[tag_len] = '\0';
     state->position = pos;
-
     return name;
 }
 
 static char* parse_quoted_string(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* input = state->input;
     size_t pos = state->position;
 
     /* check bounds and quote type */
     const size_t length = state->length;
-    if (pos >= length) return NULL;
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " quoted string.");
+        return NULL;
+    }
 
     char quote = input[pos];
-    if (quote != '"' && quote != '\'') return NULL;
+    if (quote != '"' && quote != '\'') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Expected quote character, found '%c'.",
+            input[pos]);
+        return NULL;
+    }
 
     /* skip opening quote */
     const size_t start = ++pos;
 
     /* scan for closing quote */
-    while (pos < length && input[pos] != quote) {
+    while (pos < length && input[pos] != quote)
         pos++;
-    }
 
     /* validate we found the quote */
-    if (pos >= length) return NULL;
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unterminated quoted string.");
+        return NULL;
+    }
 
     /* allocate and copy */
     const size_t str_len = pos - start;
     char* str = (char*)malloc(str_len + 1);
 
-    if (str) {
-        if (str_len > 0)
-            memcpy(str, input + start, str_len);
-        
-        /* skip closing quote */
-        str[str_len] = '\0';
-        state->position = pos + 1;
+    if (!str) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate quoted string buffer.");
+        return NULL;
     }
 
+    if (str_len > 0)
+        memcpy(str, input + start, str_len);
+
+    /* skip closing quote */
+    str[str_len] = '\0';
+    state->position = pos + 1;
     return str;
 }
 
 static HTMLAttribute* parse_attributes(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     HTMLAttribute* head = NULL;
     HTMLAttribute** tail = &head;
 
@@ -161,6 +197,9 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
         HTMLAttribute* attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
         if (!attr) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate HTMLAttribute"
+                " structure.");
             free(key);
             if (value) free(value);
             break;
@@ -179,9 +218,20 @@ static HTMLAttribute* parse_attributes(ParserState* state) {
 }
 
 static char* parse_text_content(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     const char* input = state->input;
     size_t pos = state->position;
     const size_t length = state->length;
+
+    if (pos >= length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing"
+            " text content.");
+        return NULL;
+    }
+
     const char* start_ptr = input + pos;
     const char* current = start_ptr;
     const char* const end = input + length;
@@ -192,13 +242,16 @@ static char* parse_text_content(ParserState* state) {
 
     size_t text_len = (size_t)(current - start_ptr);
     if (text_len == 0) return NULL;
-
     char* text = (char*)malloc(text_len + 1);
-    if (!text) return NULL;
+
+    if (!text) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate text content buffer.");
+        return NULL;
+    }
 
     memcpy(text, start_ptr, text_len);
     text[text_len] = '\0';
-
     state->position = (size_t)(current - input);
     return text;
 }
@@ -206,8 +259,15 @@ static char* parse_text_content(ParserState* state) {
 static HTMLNode* parse_element(ParserState* state);
 
 static HTMLNode* parse_node(ParserState* state) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     /* quick bounds check */
-    if (state->position >= state->length) return NULL;
+    if (state->position >= state->length) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Unexpected end of input while parsing node.");
+        return NULL;
+    }
 
     /* element node */
     if (state->input[state->position] == '<')
@@ -215,7 +275,11 @@ static HTMLNode* parse_node(ParserState* state) {
 
     /* text node */
     HTMLNode* node = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!node) return NULL;
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate HTMLNode structure.");
+        return NULL;
+    }
 
     /* initialize all fields */
     node->tag = NULL;
@@ -224,21 +288,31 @@ static HTMLNode* parse_node(ParserState* state) {
     node->children = NULL;
     node->next = NULL;
     node->parent = NULL;
-
     return node;
 }
 
 static HTMLNode* parse_element(ParserState* state) {
-    if (state->input[state->position] != '<') return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (state->input[state->position] != '<') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_HTML_SYNTAX,
+            "Expected '<' character while parsing"
+            " element.");
+        return NULL;
+    }
+
     state->position++;
 
     /* check for closing tag */
-    if (state->position < state->length && state->input[state->position] == '/') {
+    if (state->position < state->length &&
+        state->input[state->position] == '/') {
         state->position++;
         char* tag_name = parse_tag_name(state);
         skip_whitespace(state);
 
-        if (state->position < state->length && state->input[state->position] == '>')
+        if (state->position < state->length &&
+            state->input[state->position] == '>')
             state->position++;
 
         /* closing tags do not create nodes */
@@ -249,24 +323,30 @@ static HTMLNode* parse_element(ParserState* state) {
     /* parse opening tag */
     char* tag_name = parse_tag_name(state);
     if (!tag_name) return NULL;
+
     HTMLAttribute* attributes = parse_attributes(state);
 
     /* check for self-closing tag */
     int self_closing = 0;
 
-    if (state->position < state->length && state->input[state->position] == '/') {
+    if (state->position < state->length && 
+        state->input[state->position] == '/') {
         self_closing = 1;
         state->position++;
     }
 
-    if (state->position < state->length && state->input[state->position] == '>')
+    if (state->position < state->length && 
+        state->input[state->position] == '>')
         state->position++;
 
     HTMLNode* node = (HTMLNode*)malloc(sizeof(HTMLNode));
 
     if (!node) {
-        free(tag_name);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate HTMLNode "
+            "structure for element.");
 
+        free(tag_name);
         while (attributes) {
             HTMLAttribute* next = attributes->next;
             free(attributes->key);
@@ -299,20 +379,28 @@ static HTMLNode* parse_element(ParserState* state) {
                 /* optimized whitespace skipping inline */
                 size_t saved_pos = *pos;
 
-                while (*pos < length && (unsigned char)input[*pos] <= ' ' && input[*pos])
+                while (*pos < length && 
+                    (unsigned char)input[*pos] <= ' ' 
+                    && input[*pos])
                     (*pos)++;
 
                 /* check for closing tag */
-                if (*pos < length - 1 && input[*pos] == '<' && input[*pos + 1] == '/') {
+                if (*pos < length - 1 && 
+                    input[*pos] == '<' && 
+                    input[*pos + 1] == '/') {
                     /* found potential closing tag */
                     size_t check_pos = *pos;
 
                     /* skip whitespace before checking tag name */
-                    while (check_pos < length && (unsigned char)input[check_pos] <= ' ' && input[check_pos])
+                    while (check_pos < length && 
+                        (unsigned char)input[check_pos] <= ' ' 
+                        && input[check_pos])
                         check_pos++;
 
                     /* if we still have the closing tag after skipping whitespace */
-                    if (check_pos < length - 1 && input[check_pos] == '<' && input[check_pos + 1] == '/') {
+                    if (check_pos < length - 1 && 
+                        input[check_pos] == '<' && 
+                        input[check_pos + 1] == '/') {
                         size_t parse_pos = check_pos + 2;
 
                         /* parse closing tag name */
@@ -322,9 +410,10 @@ static HTMLNode* parse_element(ParserState* state) {
                             size_t start = parse_pos;
 
                             while (parse_pos < length &&
-                                (isalnum((unsigned char)input[parse_pos]) || input[parse_pos] == '-')) {
+                                (isalnum((unsigned char)input[parse_pos]) || 
+                                    input[parse_pos] == '-'))
                                 parse_pos++;
-                            }
+
                             if (parse_pos > start) {
                                 size_t tag_len = parse_pos - start;
                                 closing_tag = (char*)malloc(tag_len + 1);
@@ -339,7 +428,9 @@ static HTMLNode* parse_element(ParserState* state) {
                         }
 
                         /* skip whitespace after tag name */
-                        while (parse_pos < length && (unsigned char)input[parse_pos] <= ' ' && input[parse_pos])
+                        while (parse_pos < length && 
+                            (unsigned char)input[parse_pos] <= ' ' &&
+                            input[parse_pos])
                             parse_pos++;
 
                         /* only break if this is the correct closing tag */
@@ -359,7 +450,7 @@ static HTMLNode* parse_element(ParserState* state) {
                         *pos = saved_pos;
                 }
 
-                /* parse child node */
+                /* parse the child node */
                 HTMLNode* child = parse_node(state);
 
                 if (child) {
@@ -368,7 +459,6 @@ static HTMLNode* parse_element(ParserState* state) {
                     current_child = &child->next;
                 }
                 else
-                    /* if no child was parsed, we might be at the end */
                     break;
             }
         }
@@ -378,15 +468,27 @@ static HTMLNode* parse_element(ParserState* state) {
 }
 
 HTMLNode* html2tex_parse(const char* html) {
-    if (!html) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML input string is NULL.");
+        return NULL;
+    }
+
     ParserState state;
     state.input = html;
-
     state.position = 0;
     state.length = strlen(html);
 
     HTMLNode* root = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!root) return NULL;
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate root HTMLNode"
+            " structure.");
+        return NULL;
+    }
 
     root->tag = NULL;
     root->content = NULL;
@@ -405,6 +507,12 @@ HTMLNode* html2tex_parse(const char* html) {
             current = &node->next;
         }
         else {
+            /* if parsing failed due to error, propagate it */
+            if (html2tex_has_error()) {
+                html2tex_free_node(root);
+                return NULL;
+            }
+
             /* skip one character if parsing fails to avoid infinite loop */
             if (state.position < state.length)
                 state.position++;
@@ -417,11 +525,21 @@ HTMLNode* html2tex_parse(const char* html) {
 }
 
 HTMLNode* html2tex_parse_minified(const char* html) {
-    if (!html) return NULL;
-    HTMLNode* parsed = html2tex_parse(html);
+    /* clear any previous error state */
+    html2tex_err_clear();
 
+    if (!html) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "HTML input string is NULL for "
+            "minified parsing.");
+        return NULL;
+    }
+
+    HTMLNode* parsed = html2tex_parse(html);
     if (!parsed) return NULL;
+
     HTMLNode* minified = html2tex_minify_html(parsed);
+    if (!minified) return NULL;
 
     /* free parsed since minify should create new tree */
     html2tex_free_node(parsed);
@@ -431,11 +549,24 @@ HTMLNode* html2tex_parse_minified(const char* html) {
 }
 
 HTMLNode* dom_tree_copy(const HTMLNode* node) {
-    if (!node) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!node) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Source node is NULL for DOM "
+            "tree copy.");
+        return NULL;
+    }
 
     /* create root copy */
     HTMLNode* new_root = (HTMLNode*)malloc(sizeof(HTMLNode));
-    if (!new_root) return NULL;
+    if (!new_root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate root HTMLNode"
+            " for copy.");
+        return NULL;
+    }
 
     /* copy root data */
     new_root->tag = node->tag ? strdup(node->tag) : NULL;
@@ -443,6 +574,21 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
     new_root->parent = NULL;
     new_root->next = NULL;
     new_root->children = NULL;
+
+    /* Validate string duplications */
+    if (node->tag && !new_root->tag) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate tag string.");
+        free(new_root);
+        return NULL;
+    }
+    if (node->content && !new_root->content) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate content string.");
+        free(new_root->tag);
+        free(new_root);
+        return NULL;
+    }
 
     /* copy root attributes */
     HTMLAttribute* new_attrs = NULL;
@@ -453,12 +599,25 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
         HTMLAttribute* new_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
         if (!new_attr) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate HTMLAttribute structure.");
             html2tex_free_node(new_root);
             return NULL;
         }
 
         new_attr->key = strdup(old_attr->key);
         new_attr->value = old_attr->value ? strdup(old_attr->value) : NULL;
+
+        /* validate attribute string duplications */
+        if (!new_attr->key || (old_attr->value && !new_attr->value)) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate attribute string.");
+            free(new_attr->key);
+            free(new_attr->value);
+            free(new_attr);
+            html2tex_free_node(new_root);
+            return NULL;
+        }
 
         new_attr->next = NULL;
         *current_attr = new_attr;
@@ -476,8 +635,14 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
     Queue* dst_rear = NULL;
 
     /* enqueue the root and its parent copy */
-    queue_enqueue(&src_queue, &src_rear, (void*)node);
-    queue_enqueue(&dst_queue, &dst_rear, new_root);
+    if (!queue_enqueue(&src_queue, &src_rear, (void*)node) ||
+        !queue_enqueue(&dst_queue, &dst_rear, new_root)) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to initialize BFS queues"
+            " for tree copy.");
+        html2tex_free_node(new_root);
+        return NULL;
+    }
 
     /* process nodes in BFS order */
     while (src_queue) {
@@ -493,6 +658,8 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             HTMLNode* new_child = (HTMLNode*)malloc(sizeof(HTMLNode));
 
             if (!new_child) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate child HTMLNode for copy.");
                 html2tex_free_node(new_root);
                 queue_cleanup(&src_queue, &src_rear);
                 queue_cleanup(&dst_queue, &dst_rear);
@@ -506,6 +673,20 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             new_child->next = NULL;
             new_child->children = NULL;
 
+            /* Validate child string duplications */
+            if ((src_child->tag && !new_child->tag) ||
+                (src_child->content && !new_child->content)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to duplicate child node string.");
+                free(new_child->tag);
+                free(new_child->content);
+                free(new_child);
+                html2tex_free_node(new_root);
+                queue_cleanup(&src_queue, &src_rear);
+                queue_cleanup(&dst_queue, &dst_rear);
+                return NULL;
+            }
+
             /* copy child attributes */
             HTMLAttribute* child_attrs = NULL;
             HTMLAttribute** child_attr_ptr = &child_attrs;
@@ -515,6 +696,9 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
                 HTMLAttribute* new_child_attr = (HTMLAttribute*)malloc(sizeof(HTMLAttribute));
 
                 if (!new_child_attr) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to allocate child "
+                        "HTMLAttribute for copy.");
                     html2tex_free_node(new_child);
                     html2tex_free_node(new_root);
                     queue_cleanup(&src_queue, &src_rear);
@@ -524,6 +708,21 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
 
                 new_child_attr->key = strdup(src_child_attr->key);
                 new_child_attr->value = src_child_attr->value ? strdup(src_child_attr->value) : NULL;
+
+                /* validate child attribute string duplications */
+                if (!new_child_attr->key || (src_child_attr->value && !new_child_attr->value)) {
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to duplicate child "
+                        "attribute string.");
+                    free(new_child_attr->key);
+                    free(new_child_attr->value);
+                    free(new_child_attr);
+                    html2tex_free_node(new_child);
+                    html2tex_free_node(new_root);
+                    queue_cleanup(&src_queue, &src_rear);
+                    queue_cleanup(&dst_queue, &dst_rear);
+                    return NULL;
+                }
 
                 new_child_attr->next = NULL;
                 *child_attr_ptr = new_child_attr;
@@ -537,9 +736,19 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
             *dst_child_ptr = new_child;
             dst_child_ptr = &new_child->next;
 
-            /* enqueue child for further processing (its children will be copied later) */
-            queue_enqueue(&src_queue, &src_rear, src_child);
-            queue_enqueue(&dst_queue, &dst_rear, new_child);
+            /* enqueue child for further processing */
+            if (!queue_enqueue(&src_queue, &src_rear, src_child) ||
+                !queue_enqueue(&dst_queue, &dst_rear, new_child)) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to enqueue child nodes "
+                    "for BFS processing.");
+                html2tex_free_node(new_child);
+                html2tex_free_node(new_root);
+                queue_cleanup(&src_queue, &src_rear);
+                queue_cleanup(&dst_queue, &dst_rear);
+                return NULL;
+            }
+
             src_child = src_child->next;
         }
     }
@@ -552,7 +761,6 @@ HTMLNode* dom_tree_copy(const HTMLNode* node) {
 
 void html2tex_free_node(HTMLNode* node) {
     if (!node) return;
-
     Queue* q_front = NULL;
     Queue* q_rear = NULL;
 

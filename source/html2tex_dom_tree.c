@@ -167,7 +167,7 @@ char* html2tex_compress_html(const char* html) {
     return final_result;
 }
 
-HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props) {
+HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate, const void* data, const CSSProperties* inherited_props) {
     html2tex_err_clear();
 
     if (!root) {
@@ -370,14 +370,14 @@ cleanup:
 
     /* if error occurred but result was allocated, free it */
     if (html2tex_has_error() && result) {
-        html_element_destroy(result);
+        html2tex_element_destroy(result);
         result = NULL;
     }
 
     return result;
 }
 
-void html_element_destroy(HTMLElement* elem) {
+void html2tex_element_destroy(HTMLElement* elem) {
     if (elem) {
         if (elem->css_props)
             css_properties_destroy(elem->css_props);

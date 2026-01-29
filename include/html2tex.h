@@ -18,6 +18,7 @@ extern "C" {
 	typedef struct ConverterState ConverterState;
 	typedef struct LaTeXConverter LaTeXConverter;
 	typedef struct HTMLElement HTMLElement;
+	typedef int (*DOMTreeVisitor)(const HTMLNode*, const void*);
 
 	struct HTMLElement {
 		HTMLNode* node;
@@ -146,7 +147,7 @@ extern "C" {
 	 * @param converter Active conversion context (stateful, non-NULL)
 	 * @param node Root DOM node to convert (inclusive traversal)
 	 */
-	void convert_document(LaTeXConverter* converter, const HTMLNode* node);
+	void html2tex_convert_document(LaTeXConverter* converter, const HTMLNode* node);
 
 	/**
 	 * @brief Configures output directory for downloaded images.
@@ -236,20 +237,20 @@ extern "C" {
 
 	/**
 	 * @brief Finds first DOM node matching predicate with computed CSS inheritance.
-	 * @param root Starting node for BFS search
+	 * @param root Starting node for DFS search
 	 * @param predicate Matching function (returns non-zero for match)
 	 * @param data User context passed to predicate
 	 * @param inherited_props Base CSS properties for inheritance chain
 	 * @return Success: HTMLElement with node + computed CSS (caller owns)
 	 * @return Failure: NULL with error set
 	 */
-	HTMLElement* search_tree(HTMLNode* root, int (*predicate)(HTMLNode*, void*), void* data, CSSProperties* inherited_props);
+	HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate, const void* data, const CSSProperties* inherited_props);
 
 	/**
-	 * @brief Safely deallocates HTMLElement structure from search_tree().
+	 * @brief Safely deallocates HTMLElement structure from html2tex_search_tree().
 	 * @param elem Element to destroy (NULL-safe)
 	 */
-	void html_element_destroy(HTMLElement* elem);
+	void html2tex_element_destroy(HTMLElement* elem);
 
 #ifdef _MSC_VER
 #define strdup html2tex_strdup

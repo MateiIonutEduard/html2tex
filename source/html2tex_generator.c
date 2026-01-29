@@ -860,7 +860,7 @@ void append_figure_caption(LaTeXConverter* converter, const HTMLNode* table_node
     append_string(converter, "}\n");
 }
 
-void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
+void html2tex_convert_document(LaTeXConverter* converter, const HTMLNode* node) {
     /* clear previous errors */
     html2tex_err_clear();
 
@@ -1025,9 +1025,6 @@ void convert_document(LaTeXConverter* converter, const HTMLNode* node) {
         if (current_css && current_css != inherit_props 
             && (already_processed || !current_node->children))
             css_properties_destroy(current_css);
-        
-        /* check for errors from other operations */
-        if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:

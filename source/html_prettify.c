@@ -29,7 +29,11 @@ static int is_inline_element_for_formatting(const char* tag_name) {
 
 /* This helper function is used to escape HTML special characters. */
 static char* escape_html(const char* text) {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
     if (!text) return NULL;
+
     const char* p = text;
     size_t extra = 0;
 
@@ -52,13 +56,26 @@ static char* escape_html(const char* text) {
     }
 
     /* no escaping needed, return copy */
-    if (extra == 0) return strdup(text);
+    if (extra == 0) {
+        char* result = strdup(text);
+        if (!result) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to duplicate plain text"
+                " for HTML escaping.");
+        }
+        return result;
+    }
 
     /* allocate once */
     size_t len = p - text;
-
     char* escaped = (char*)malloc(len + extra + 1);
-    if (!escaped) return NULL;
+
+    if (!escaped) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate escaped HTML"
+            " text buffer.");
+        return NULL;
+    }
 
     /* copy with escaping */
     char* dest = escaped;
@@ -105,7 +122,16 @@ static char* escape_html(const char* text) {
 
 /* Recursive function to write the prettified HTML code. */
 static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
-    if (!node || !file) return;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!node || !file) {
+        if (!node) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+                "HTML node is NULL for pretty printing.");
+        }
+        return;
+    }
 
     /* create indentation */
     for (int i = 0; i < indent_level; i++)
@@ -122,13 +148,14 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         while (attr) {
             if (attr->value) {
                 char* escaped_value = escape_html(attr->value);
-                fputs(" ", file); fputs(attr->key, file); fputs("=\"", file);
 
-                fputs(escaped_value ? escaped_value : attr->value, file);
-                fputs("\"", file);
-
-                if (escaped_value) 
-                    free(escaped_value);
+                if (escaped_value) {
+                    fputs(" ", file); fputs(attr->key, file); 
+                    fputs("=\"", file); fputs(escaped_value, file); 
+                    fputs("\"", file); free(escaped_value);
+                }
+                else if (html2tex_has_error())
+                    return;
             }
             else {
                 fputs(" ", file);
@@ -155,6 +182,8 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                     fputs(escaped_content, file);
                     free(escaped_content);
                 }
+                else if (html2tex_has_error())
+                    return;
             }
 
             /* write children with proper indentation */
@@ -164,6 +193,9 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
 
                 while (child) {
                     write_pretty_node(file, child, indent_level + 1);
+
+                    /* propagate any error from recursive call */
+                    if (html2tex_has_error()) return;
                     child = child->next;
                 }
 
@@ -183,15 +215,17 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
         if (node->content) {
             char* escaped_content = escape_html(node->content);
 
+            /* check if this is mostly whitespace */
             if (escaped_content) {
-                /* check if this is mostly whitespace */
                 int all_whitespace = 1;
+                char* p = escaped_content;
 
-                for (char* p = escaped_content; *p; p++) {
-                    if (!isspace(*p)) {
+                while (*p) {
+                    if (!isspace((unsigned char)*p)) {
                         all_whitespace = 0;
                         break;
                     }
+                    p++;
                 }
 
                 if (!all_whitespace) {
@@ -199,23 +233,35 @@ static void write_pretty_node(FILE* file, HTMLNode* node, int indent_level) {
                     fputs("\n", file);
                 }
                 else
-                    /* for whitespace-only nodes, just output a newline */
                     fputs("\n", file);
-
                 free(escaped_content);
             }
+            else if (html2tex_has_error())
+                return;
         }
     }
 }
 
 int write_pretty_html(const HTMLNode* root, const char* filename) {
-    if (!root || !filename) return 0;
-    FILE* file = fopen(filename, "w");
+    /* clear any previous error state */
+    html2tex_err_clear();
 
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Root node is NULL for HTML file writing.");
+        return 0;
+    }
+
+    if (!filename) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Filename is NULL for HTML file writing.");
+        return 0;
+    }
+
+    FILE* file = fopen(filename, "w");
     if (!file) {
-        fputs("Error: Could not open file ", stderr);
-        fputs(filename, stderr);
-        fputs(" for writing.\n", stderr);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to open file '%s' for writing.", filename);
         return 0;
     }
 
@@ -223,10 +269,14 @@ int write_pretty_html(const HTMLNode* root, const char* filename) {
     fputs("<html>\n<head>\n", file);
     fputs("  <meta charset=\"UTF-8\">\n", file);
     char* html_title = html2tex_extract_title(root);
-    int default_title = !html_title ? 1 : 0;
-    fputs("  <title>", file);
 
-    if (!html_title)
+    if (html2tex_has_error()) {
+        fclose(file);
+        return 0;
+    }
+
+    fputs("  <title>", file);
+    if (!html_title) 
         fputs("Parsed HTML Output", file);
     else {
         fputs(html_title, file);
@@ -241,22 +291,43 @@ int write_pretty_html(const HTMLNode* root, const char* filename) {
 
     while (child) {
         write_pretty_node(file, child, 1);
+
+        /* check for errors from write_pretty_node function */
+        if (html2tex_has_error()) {
+            fclose(file);
+            return 0;
+        }
+
         child = child->next;
     }
 
     /* write HTML footer and close the stream */
     fputs("</body>\n</html>\n", file);
-    fclose(file);
+
+    if (fclose(file) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to close file '%s' "
+            "after writing.", filename);
+        return 0;
+    }
+
     return 1;
 }
 
 char* get_pretty_html(const HTMLNode* root) {
-    if (!root) return NULL;
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    if (!root) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Root node is NULL for HTML "
+            "string generation.");
+        return NULL;
+    }
 
 #ifndef _WIN32
     /* use open_memstream for fastest, no disk I/O */
     char* buffer = NULL;
-
     size_t size = 0;
     FILE* stream = open_memstream(&buffer, &size);
 
@@ -265,8 +336,14 @@ char* get_pretty_html(const HTMLNode* root) {
         fputs("<html>\n<head>\n", stream);
         fputs("  <meta charset=\"UTF-8\">\n", stream);
         char* html_title = html2tex_extract_title(root);
-        fputs("  <title>", stream);
 
+        if (html2tex_has_error()) {
+            fclose(stream);
+            free(buffer);
+            return NULL;
+        }
+
+        fputs("  <title>", stream);
         if (!html_title)
             fputs("Parsed HTML Output", stream);
         else {
@@ -282,23 +359,51 @@ char* get_pretty_html(const HTMLNode* root) {
 
         while (child) {
             write_pretty_node(stream, child, 1);
+
+            if (html2tex_has_error()) {
+                fclose(stream);
+                free(buffer);
+                return NULL;
+            }
+
             child = child->next;
         }
 
         fputs("</body>\n</html>\n", stream);
-        fclose(stream);
+
+        if (fclose(stream) != 0) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+                "Failed to close memory stream"
+                " for HTML generation.");
+            free(buffer);
+            return NULL;
+        }
+
         return buffer;
     }
 #endif
+
+    /* fallback to temporary file */
     FILE* temp_file = tmpfile();
-    if (!temp_file) return NULL;
+
+    if (!temp_file) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to create temporary"
+            " file for HTML generation.");
+        return NULL;
+    }
 
     /* write to temp file */
     fputs("<html>\n<head>\n", temp_file);
     fputs("  <meta charset=\"UTF-8\">\n", temp_file);
     char* html_title = html2tex_extract_title(root);
-    fputs("  <title>", temp_file);
 
+    if (html2tex_has_error()) {
+        fclose(temp_file);
+        return NULL;
+    }
+
+    fputs("  <title>", temp_file);
     if (!html_title)
         fputs("Parsed HTML Output", temp_file);
     else {
@@ -312,6 +417,12 @@ char* get_pretty_html(const HTMLNode* root) {
 
     while (child) {
         write_pretty_node(temp_file, child, 1);
+
+        if (html2tex_has_error()) {
+            fclose(temp_file);
+            return NULL;
+        }
+
         child = child->next;
     }
 
@@ -319,25 +430,45 @@ char* get_pretty_html(const HTMLNode* root) {
 
     /* get the file size and read back */
     if (fseek(temp_file, 0, SEEK_END) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to seek to end of "
+            "temporary file.");
         fclose(temp_file);
         return NULL;
     }
 
     long file_size = ftell(temp_file);
-
-    if (file_size <= 0) {
+    if (file_size < 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to get temporary file size.");
         fclose(temp_file);
-        return strdup("");
+        return NULL;
+    }
+
+    if (file_size == 0) {
+        fclose(temp_file);
+        char* empty_string = strdup("");
+        if (!empty_string) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to allocate empty string"
+                " for HTML output.");
+        }
+        return empty_string;
     }
 
     if (fseek(temp_file, 0, SEEK_SET) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to seek to beginning"
+            " of temporary file.");
         fclose(temp_file);
         return NULL;
     }
 
     char* html_string = (char*)malloc(file_size + 1);
-
     if (!html_string) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %ld bytes for"
+            " HTML string.", file_size + 1);
         fclose(temp_file);
         return NULL;
     }
@@ -345,6 +476,23 @@ char* get_pretty_html(const HTMLNode* root) {
     size_t bytes_read = fread(html_string, 1, file_size, temp_file);
     html_string[bytes_read] = '\0';
 
-    fclose(temp_file);
+    if (bytes_read != (size_t)file_size) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to read complete temporary"
+            " file (%zu of %ld bytes).",
+            bytes_read, file_size);
+        free(html_string);
+        fclose(temp_file);
+        return NULL;
+    }
+
+    if (fclose(temp_file) != 0) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_IO,
+            "Failed to close temporary file"
+            " after reading.");
+        free(html_string);
+        return NULL;
+    }
+
     return html_string;
 }

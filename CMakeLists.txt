@@ -158,7 +158,7 @@ endif()
 # Create C static library
 add_library(html2tex_c STATIC
     source/html2tex.c
-    source/tex_gen.c
+    source/html2tex_generator.c
     source/html_parser.c
     source/html_minify.c
     source/html_prettify.c
@@ -268,6 +268,7 @@ install(FILES
 # Install C++ wrapper header
 install(FILES
     include/htmltex.h
+	include/htmltex_exception.h
     DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 
@@ -275,6 +276,7 @@ install(FILES
 install(FILES
     source/html_parser.cpp
     source/html_converter.cpp
+	source/htmltex_exception.cpp
     DESTINATION ${SOURCE_INSTALL_DIR}
 )
 
@@ -334,10 +336,10 @@ message(STATUS "  C++ static library: ${LIBRARY_PREFIX}html2tex_cpp${LIBRARY_SUF
 message(STATUS "  Architecture: ${ARCH_NAME}")
 message(STATUS "  Output directory: ${OUTPUT_BASE_DIR}/<Config>/<Arch>")
 message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
-message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/ (2 .cpp files)")
+message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/ (3 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
-message(STATUS "  Core: html2tex.c, tex_gen.c")
+message(STATUS "  Core: html2tex.c, html2tex_generator.c")
 message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_utils.c")
 message(STATUS "  CSS: html2tex_css.c")
 message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c")
@@ -353,7 +355,7 @@ message(STATUS "")
 message(STATUS "For external applications:")
 message(STATUS "  1. Link against: ${LIBRARY_PREFIX}html2tex_c${LIBRARY_SUFFIX}")
 message(STATUS "  2. Include: html2tex.h (C) or htmltex.h (C++)")
-message(STATUS "  3. Add html_parser.cpp and html_converter.cpp to your C++ project")
+message(STATUS "  3. Add html_parser.cpp, html_converter.cpp, and htmltex_exception.cpp to your C++ project")
 message(STATUS "")
 message(STATUS "Build commands:")
 message(STATUS "  cmake --build . --config Release")

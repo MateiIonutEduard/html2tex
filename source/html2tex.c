@@ -5,10 +5,12 @@
 LaTeXConverter* html2tex_create(void) {
     html2tex_err_clear();
     LaTeXConverter* converter = calloc(1, sizeof(LaTeXConverter));
-    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NOMEM, "Converter initialization failed.");
+    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NOMEM, 
+        "Converter initialization failed.");
 
     converter->buffer = string_buffer_create(1024);
-    HTML2TEX__CHECK_NULL(converter->buffer, HTML2TEX_ERR_NOMEM, "String buffer memory allocation failed.");
+    HTML2TEX__CHECK_NULL(converter->buffer, HTML2TEX_ERR_NOMEM, 
+        "String buffer memory allocation failed.");
 
     /* initialize state */
     converter->state.indent_level = 0;
@@ -41,10 +43,12 @@ LaTeXConverter* html2tex_create(void) {
 
 LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     html2tex_err_clear();
-    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL, "Converter initialization failed.");
+    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL, 
+        "Converter initialization failed.");
 
     LaTeXConverter* clone = calloc(1, sizeof(LaTeXConverter));
-    HTML2TEX__CHECK_NULL(clone, HTML2TEX_ERR_NOMEM, "Clone converter memory allocation failed.");
+    HTML2TEX__CHECK_NULL(clone, HTML2TEX_ERR_NOMEM, 
+        "Clone converter memory allocation failed.");
 
     /* copy primitive fields */
     clone->state = converter->state;
@@ -55,38 +59,44 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     if (converter->state.table_caption) {
         clone->state.table_caption = strdup(converter->state.table_caption);
         HTML2TEX__CHECK_NULL(clone->state.table_caption,
-            HTML2TEX_ERR_NOMEM, "Table caption duplication in memory failed.");
+            HTML2TEX_ERR_NOMEM, "Table caption duplication"
+            " in memory failed.");
     }
 
     if (converter->image_output_dir) {
         clone->image_output_dir = strdup(converter->image_output_dir);
         HTML2TEX__CHECK_NULL(clone->image_output_dir,
-            HTML2TEX_ERR_NOMEM, "Image directory duplication failed.");
+            HTML2TEX_ERR_NOMEM, "Image directory "
+            "duplication failed.");
     }
 
     /* copy CSS properties if present */
     if (converter->current_css) {
         clone->current_css = css_properties_copy(converter->current_css);
         HTML2TEX__CHECK_NULL(clone->current_css,
-            HTML2TEX_ERR_CSS, "CSS properties copy is NULL.");
+            HTML2TEX_ERR_CSS, "CSS properties "
+            "copy is NULL.");
     }
 
     /* copy buffer contents if present */
     if (converter->buffer && converter->buffer->data) {
         clone->buffer = string_buffer_create(converter->buffer->capacity);
-        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, "String buffer is NULL.");
+        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, 
+            "String buffer is NULL.");
 
         if (string_buffer_append(clone->buffer,
             converter->buffer->data,
             converter->buffer->length) != 0) {
             html2tex_destroy(clone);
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Buffer copy failed.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+                "Buffer copy failed.");
             return NULL;
         }
     }
     else {
         clone->buffer = string_buffer_create(1024);
-        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, "String buffer is NULL.");
+        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, 
+            "String buffer is NULL.");
     }
 
     return clone;
@@ -94,7 +104,8 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
 
 void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir) {
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is not initialized.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is not initialized.");
         return;
     }
 
@@ -106,14 +117,16 @@ void html2tex_set_image_directory(LaTeXConverter* converter, const char* dir) {
     if (dir && dir[0] != '\0') {
         converter->image_output_dir = strdup(dir);
         if (!converter->image_output_dir) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM, "Image directory memory allocation failed.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM, 
+                "Image directory memory allocation failed.");
         }
     }
 }
 
 void html2tex_set_download_images(LaTeXConverter* converter, int enable) {
     if (!converter) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, "Converter is not initialized.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL, 
+            "Converter is not initialized.");
         return;
     }
     converter->download_images = enable ? 1 : 0;
@@ -122,8 +135,10 @@ void html2tex_set_download_images(LaTeXConverter* converter, int enable) {
 char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     html2tex_err_clear();
 
-    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL, "Converter is not initialized.");
-    HTML2TEX__CHECK_NULL(html, HTML2TEX_ERR_NULL, "HTML input is NULL.");
+    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL, 
+        "Converter is not initialized.");
+    HTML2TEX__CHECK_NULL(html, HTML2TEX_ERR_NULL, 
+        "HTML input is NULL.");
 
     converter->image_counter = 0;
 
@@ -140,27 +155,31 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     /* clear the buffer for new conversion */
     if (converter->buffer) {
         if (string_buffer_clear(converter->buffer) != 0) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Buffer clear failed because of overflow.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+                "Buffer clear failed because of overflow.");
             return NULL;
         }
     }
     else {
         converter->buffer = string_buffer_create(1024);
         HTML2TEX__CHECK_NULL(converter->buffer,
-            HTML2TEX_ERR_NOMEM, "String buffer creation failed.");
+            HTML2TEX_ERR_NOMEM, "String buffer"
+            " creation failed.");
     }
 
     /* initialize image download if needed */
     if (converter->download_images) {
         if (image_utils_init() != 0) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE, "Image utils init failed.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_IMAGE, 
+                "Image utils init failed.");
             return NULL;
         }
     }
 
     /* compress the HTML code */
     char* compact_html = html2tex_compress_html(html);
-    HTML2TEX__CHECK_NULL(compact_html, HTML2TEX_ERR_PARSE, "HTML compression failed.");
+    HTML2TEX__CHECK_NULL(compact_html, HTML2TEX_ERR_PARSE, 
+        "HTML compression failed.");
 
     /* add LaTeX preamble */
     if (string_buffer_append(converter->buffer,
@@ -174,7 +193,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         "\\setcounter{secnumdepth}{4}\n", 0) != 0) {
         free(compact_html);
         if (converter->download_images) image_utils_cleanup();
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "LaTeX preamble overflow.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+            "LaTeX preamble overflow.");
         return NULL;
     }
 
@@ -182,7 +202,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
     HTMLNode* root = html2tex_parse(compact_html);
     free(compact_html);
 
-    HTML2TEX__CHECK_NULL(root, HTML2TEX_ERR_PARSE, "Parsed HTML content failed.");
+    HTML2TEX__CHECK_NULL(root, HTML2TEX_ERR_PARSE, 
+        "Parsed HTML content failed.");
 
     char* title = html2tex_extract_title(root);
     int has_title = 0;
@@ -195,7 +216,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
             free(title);
             html2tex_free_node(root);
             if (converter->download_images) image_utils_cleanup();
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Title addition failed.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+                "Title addition failed.");
             return NULL;
         }
         free(title);
@@ -206,7 +228,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         "\\begin{document}\n", 0) != 0) {
         html2tex_free_node(root);
         if (converter->download_images) image_utils_cleanup();
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Document begin overflow.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+            "Document begin overflow.");
         return NULL;
     }
 
@@ -215,25 +238,28 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
         if (string_buffer_append(converter->buffer, "\\maketitle\n\n", 0) != 0) {
             html2tex_free_node(root);
             if (converter->download_images) image_utils_cleanup();
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Failed maketitle addition.");
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+                "Failed maketitle addition.");
             return NULL;
         }
     }
 
     /* convert the content */
-    convert_document(converter, root);
+    html2tex_convert_document(converter, root);
     html2tex_free_node(root);
 
     /* check for conversion errors */
     if (html2tex_has_error()) {
-        if (converter->download_images) image_utils_cleanup();
+        if (converter->download_images) 
+            image_utils_cleanup();
         return NULL;
     }
 
     /* end the document */
     if (string_buffer_append(converter->buffer, "\n\\end{document}\n", 0) != 0) {
         if (converter->download_images) image_utils_cleanup();
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, "Document end overflow.");
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+            "Document end overflow.");
         return NULL;
     }
 
@@ -243,7 +269,8 @@ char* html2tex_convert(LaTeXConverter* converter, const char* html) {
 
     /* return the output */
     char* result = string_buffer_detach(converter->buffer);
-    HTML2TEX__CHECK_NULL(result, HTML2TEX_ERR_BUF_OVERFLOW, "Buffer detach overflow.");
+    HTML2TEX__CHECK_NULL(result, HTML2TEX_ERR_BUF_OVERFLOW, 
+        "Buffer detach overflow.");
 
     return result;
 }
