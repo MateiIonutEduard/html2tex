@@ -163,6 +163,7 @@ add_library(html2tex_c STATIC
     source/html_minify.c
     source/html_prettify.c
     source/html2tex_dom_tree.c
+	source/html2tex_dom_tree_visitor.c
     source/html2tex_errors.c
     source/html2tex_css.c
     source/html2tex_string_buffer.c
@@ -255,6 +256,7 @@ install(TARGETS html2tex_cpp
 install(FILES
     include/html2tex.h
     include/dom_tree.h
+	include/dom_tree_visitor.h
 	include/html2tex_errors.h
     include/string_buffer.h
     include/html2tex_queue.h
@@ -340,11 +342,12 @@ message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
 message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.hpp + ${INCLUDE_INSTALL_DIR}/htmltex_converter.hpp + ${INCLUDE_INSTALL_DIR}/htmltex_exception.hpp + ${SOURCE_INSTALL_DIR}/ (3 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
-message(STATUS "  Core: html2tex.c, html2tex_generator.c")
-message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_utils.c")
+message(STATUS "  Core: html2tex.c, html2tex_generator.c, html2tex_processor.c")
+message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_tree.c html2tex_dom_tree_visitor.c")
 message(STATUS "  CSS: html2tex_css.c")
 message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c")
 message(STATUS "  Data structures: html2tex_queue_utils.c, html2tex_stack_utils.c")
+message(STATUS "  Error system: html2tex_errors.c")
 message(STATUS "  Image: html2tex_image_utils.c")
 message(STATUS "")
 message(STATUS "Installation paths:")
