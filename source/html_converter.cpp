@@ -1,5 +1,5 @@
 #include "html2tex.h"
-#include "htmltex.hpp"
+#include "htmltex_converter.hpp"
 #include <iostream>
 #include <fstream>
 #include <stdexcept>

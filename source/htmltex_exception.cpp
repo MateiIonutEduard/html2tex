@@ -1,4 +1,4 @@
-#include "htmltex_exception.h"
+#include "htmltex_exception.hpp"
 #include "html2tex.h"
 #include <iostream>
 #include <iomanip>
