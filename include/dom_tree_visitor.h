@@ -112,6 +112,18 @@ extern "C" {
 	HTMLElement** html_nodelist_dismantle(HTMLNodeList** list);
 
 	/**
+	 * @brief Performs depth-first traversal to find all DOM nodes matching a predicate.
+	 * @param root Starting node for traversal (inclusive)
+	 * @param predicate Callback function that evaluates whether a node matches
+	 * @param data User-defined context passed to each predicate invocation
+	 * @param inherited_props Base CSS properties for the inheritance chain
+	 * @return Success: HTMLNodeList* containing matched elements with computed CSS
+	 * @return Failure: NULL with error set
+	*/
+	HTMLNodeList* html2tex_find_all(const HTMLNode* root, DOMTreeVisitor predicate,
+		const void* data, const CSSProperties* inherited_props);
+
+	/**
 	 * @brief Finds first DOM node matching predicate with computed CSS inheritance.
 	 * @param root Starting node for DFS search
 	 * @param predicate Matching function (returns non-zero for match)
@@ -120,7 +132,8 @@ extern "C" {
 	 * @return Success: HTMLElement with node + computed CSS (caller owns)
 	 * @return Failure: NULL with error set
 	 */
-	HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate, const void* data, const CSSProperties* inherited_props);
+	HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate, 
+		const void* data, const CSSProperties* inherited_props);
 
 	/**
 	 * @brief Safely deallocates HTMLElement structure from html2tex_search_tree().

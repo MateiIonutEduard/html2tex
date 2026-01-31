@@ -188,6 +188,169 @@ HTMLElement** html_nodelist_dismantle(HTMLNodeList** list) {
     return array;
 }
 
+HTMLNodeList* html2tex_find_all(const HTMLNode* root, DOMTreeVisitor predicate,
+    const void* data, const CSSProperties* inherited_props) {
+    /* clear the previous errors */
+    html2tex_err_clear();
+
+    if (!root || !predicate) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Invalid parameters in html2tex_find_all() function.");
+        return NULL;
+    }
+
+    HTMLNodeList* result = html_nodelist_create();
+    if (!result) return NULL;
+
+    Stack* node_stack = NULL;
+    Stack* css_stack = NULL;
+
+    /* push root node with initial CSS properties */
+    if (!stack_push(&node_stack, (void*)root) ||
+        !stack_push(&css_stack, (void*)inherited_props)) {
+        html_nodelist_destroy(&result);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to push initial nodes "
+            "onto stack.");
+        goto cleanup;
+    }
+
+    while (!stack_is_empty(node_stack)) {
+        CSSProperties* current_css = (CSSProperties*)stack_pop(&css_stack);
+        HTMLNode* current_node = (HTMLNode*)stack_pop(&node_stack);
+
+        if (!current_node) {
+            if (current_css && current_css != inherited_props)
+                css_properties_destroy(current_css);
+            continue;
+        }
+
+        /* merge CSS properties with inline styles */
+        CSSProperties* merged_css = current_css;
+        CSSProperties* inline_css = NULL;
+
+        if (current_node->tag) {
+            const char* style_attr = get_attribute(current_node->attributes, "style");
+            if (style_attr) {
+                inline_css = parse_css_style(style_attr);
+                if (inline_css) {
+                    merged_css = css_properties_merge(current_css, inline_css);
+                    css_properties_destroy(inline_css);
+
+                    if (html2tex_has_error()) {
+                        if (merged_css && merged_css != current_css)
+                            css_properties_destroy(merged_css);
+                        if (current_css && current_css != inherited_props)
+                            css_properties_destroy(current_css);
+                        goto cleanup;
+                    }
+                }
+            }
+        }
+
+        /* check predicate: if matches, add to result list */
+        if (predicate(current_node, data)) {
+            HTMLElement* found = (HTMLElement*)malloc(sizeof(HTMLElement));
+            if (!found) {
+                HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                    "Failed to allocate HTMLElement.");
+                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                if (current_css && current_css != inherited_props)
+                    css_properties_destroy(current_css);
+                goto cleanup;
+            }
+
+            found->node = current_node;
+            found->css_props = css_properties_copy(merged_css);
+            if (!found->css_props) {
+                free(found);
+                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                if (current_css && current_css != inherited_props)
+                    css_properties_destroy(current_css);
+                goto cleanup;
+            }
+
+            /* efficient O(1) append to result list */
+            if (!html_nodelist_append(result, found)) {
+                html2tex_element_destroy(found);
+                if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                    css_properties_destroy(merged_css);
+                if (current_css && current_css != inherited_props)
+                    css_properties_destroy(current_css);
+                goto cleanup;
+            }
+        }
+
+        /* push children in reverse order for DFS */
+        if (current_node->children) {
+            HTMLNode* last_child = current_node->children;
+            while (last_child->next) last_child = last_child->next;
+            HTMLNode* child = last_child;
+
+            while (child) {
+                CSSProperties* child_css = merged_css;
+
+                /* only copy CSS if it's different from inherited */
+                if (child_css && child_css != inherited_props) {
+                    child_css = css_properties_copy(merged_css);
+                    if (!child_css || html2tex_has_error()) {
+                        if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                            css_properties_destroy(merged_css);
+                        if (current_css && current_css != inherited_props)
+                            css_properties_destroy(current_css);
+                        goto cleanup;
+                    }
+                }
+
+                /* push child onto stack */
+                if (!stack_push(&node_stack, (void*)child) ||
+                    !stack_push(&css_stack, (void*)child_css)) {
+                    if (child_css && child_css != merged_css && child_css != inherited_props)
+                        css_properties_destroy(child_css);
+                    if (merged_css && merged_css != current_css && merged_css != inherited_props)
+                        css_properties_destroy(merged_css);
+                    if (current_css && current_css != inherited_props)
+                        css_properties_destroy(current_css);
+                    HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                        "Failed to push child node onto stack.");
+                    goto cleanup;
+                }
+
+                /* move to previous sibling */
+                if (child == current_node->children)
+                    child = NULL;
+                else {
+                    HTMLNode* prev = current_node->children;
+                    while (prev->next != child) prev = prev->next;
+                    child = prev;
+                }
+            }
+        }
+
+        /* clean up current node's CSS (if haven't passed it to children) */
+        if (merged_css && merged_css != current_css && merged_css != inherited_props)
+            css_properties_destroy(merged_css);
+
+        if (current_css && current_css != inherited_props)
+            css_properties_destroy(current_css);
+    }
+
+cleanup:
+    /* clean up stacks */
+    stack_cleanup(&node_stack);
+    stack_cleanup(&css_stack);
+
+    /* if error occurred, clean up partial results */
+    if (html2tex_has_error() && result) {
+        html_nodelist_destroy(&result);
+        return NULL;
+    }
+
+    return result;
+}
+
 HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate, const void* data, const CSSProperties* inherited_props) {
     html2tex_err_clear();
 
@@ -368,9 +531,6 @@ HTMLElement* html2tex_search_tree(const HTMLNode* root, DOMTreeVisitor predicate
 
         if (current_css && current_css != inherited_props)
             css_properties_destroy(current_css);
-
-        /* check for errors from predicate or other operations */
-        if (html2tex_has_error()) goto cleanup;
     }
 
 cleanup:
