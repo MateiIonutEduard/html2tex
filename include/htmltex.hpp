@@ -1,10 +1,10 @@
-#ifndef HTMLTEX_H
-#define HTMLTEX_H
+#ifndef HTMLTEX_HPP
+#define HTMLTEX_HPP
 
 #include <memory>
 #include <string>
 #include "html2tex.h"
-#include "htmltex_exception.h"
+#include "htmltex_exception.hpp"
 #include <iostream>
 
 /**

@@ -1,5 +1,5 @@
-#ifndef HTMLTEX_EXCEPTION_H
-#define HTMLTEX_EXCEPTION_H
+#ifndef HTMLTEX_EXCEPTION_HPP
+#define HTMLTEX_EXCEPTION_HPP
 
 #include <exception>
 #include <string>

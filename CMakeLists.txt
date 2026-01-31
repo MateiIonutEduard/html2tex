@@ -267,8 +267,8 @@ install(FILES
 
 # Install C++ wrapper header
 install(FILES
-    include/htmltex.h
-	include/htmltex_exception.h
+    include/htmltex.hpp
+	include/htmltex_exception.hpp
     DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 
@@ -336,7 +336,7 @@ message(STATUS "  C++ static library: ${LIBRARY_PREFIX}html2tex_cpp${LIBRARY_SUF
 message(STATUS "  Architecture: ${ARCH_NAME}")
 message(STATUS "  Output directory: ${OUTPUT_BASE_DIR}/<Config>/<Arch>")
 message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
-message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.h + ${SOURCE_INSTALL_DIR}/ (3 .cpp files)")
+message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.hpp + ${INCLUDE_INSTALL_DIR}/htmltex_exception.hpp + ${SOURCE_INSTALL_DIR}/ (3 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
 message(STATUS "  Core: html2tex.c, html2tex_generator.c")
@@ -354,7 +354,7 @@ message(STATUS "  CMake config: ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/
 message(STATUS "")
 message(STATUS "For external applications:")
 message(STATUS "  1. Link against: ${LIBRARY_PREFIX}html2tex_c${LIBRARY_SUFFIX}")
-message(STATUS "  2. Include: html2tex.h (C) or htmltex.h (C++)")
+message(STATUS "  2. Include: html2tex.h (C) or htmltex.hpp and htmltex_exception.hpp (C++)")
 message(STATUS "  3. Add html_parser.cpp, html_converter.cpp, and htmltex_exception.cpp to your C++ project")
 message(STATUS "")
 message(STATUS "Build commands:")
