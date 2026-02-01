@@ -92,40 +92,6 @@ public:
 	HtmlDocument() noexcept;
 
 	/**
-	 * @brief Constructs HtmlDocument from existing HtmlParser.
-	 *
-	 * Creates a document by copying content from an HtmlParser instance.
-	 * 
-	 * Only copies if the parser contains valid content.
-	 *
-	 * @param parser Source parser containing HTML content.
-	 *
-	 * @post If parser.hasContent() == true:
-	 *       - hasContent() == true
-	 *       - Content matches parser's content
-	 *       - htmlParser is valid unique_ptr
-	 * @post If parser.hasContent() == false:
-	 *       - hasContent() == false
-	 *       - htmlParser == nullptr
-	 *
-	 * @throws HtmlRuntimeException If content copy fails (memory allocation,
-	 * 
-	 *         DOM tree corruption, or CSS computation errors).
-	 *
-	 * @note Exception is caught and logged to std::cerr, leaving document empty.
-	 *
-	 * @complexity O(N) where N = nodes in DOM tree
-	 *
-	 * @example
-	 * @code
-	 * HtmlParser parser("<html><body>Hello</body></html>");
-	 * HtmlDocument doc(parser);  // Copy content
-	 * assert(doc.hasContent());
-	 * @endcode
-	 */
-	HtmlDocument(const HtmlDocument& other);
-
-	/**
 	 * @brief Copy constructor (deep copy).
 	 *
 	 * Creates a new document with independent copy of another document's content.
@@ -141,7 +107,7 @@ public:
 	 *       - htmlParser == nullptr
 	 *
 	 * @throws HtmlRuntimeException If deep copy fails (memory allocation,
-	 * 
+	 *
 	 *         DOM tree copy errors, or CSS property duplication failures).
 	 *
 	 * @note Exception is caught and logged to std::cerr, leaving document empty.
@@ -156,6 +122,40 @@ public:
 	 * assert(doc2.hasContent() == doc1.hasContent());
 	 * @endcode
 	 */
+	HtmlDocument(const HtmlDocument& other);
+
+	 /**
+	  * @brief Constructs HtmlDocument from existing HtmlParser.
+	  *
+	  * Creates a document by copying content from an HtmlParser instance.
+	  *
+	  * Only copies if the parser contains valid content.
+	  *
+	  * @param parser Source parser containing HTML content.
+	  *
+	  * @post If parser.hasContent() == true:
+	  *       - hasContent() == true
+	  *       - Content matches parser's content
+	  *       - htmlParser is valid unique_ptr
+	  * @post If parser.hasContent() == false:
+	  *       - hasContent() == false
+	  *       - htmlParser == nullptr
+	  *
+	  * @throws HtmlRuntimeException If content copy fails (memory allocation,
+	  *
+	  *         DOM tree corruption, or CSS computation errors).
+	  *
+	  * @note Exception is caught and logged to std::cerr, leaving document empty.
+	  *
+	  * @complexity O(N) where N = nodes in DOM tree
+	  *
+	  * @example
+	  * @code
+	  * HtmlParser parser("<html><body>Hello</body></html>");
+	  * HtmlDocument doc(parser);  // Copy content
+	  * assert(doc.hasContent());
+	  * @endcode
+	  */
 	HtmlDocument(const HtmlParser& parser);
 
 	/**
