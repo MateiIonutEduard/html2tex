@@ -164,7 +164,6 @@ std::string RuntimeException::toString() const noexcept {
     return stream.str();
 }
 
-[[noreturn]]
 void RuntimeException::throwWithContext(const std::string& message, int code,
     const char* file, int line) {
     throw RuntimeException(message,
