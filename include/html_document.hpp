@@ -272,6 +272,13 @@ public:
     std::vector<HtmlDocument> findAllElementsById(const std::string& id) const;
 
     /**
+     * @brief Finds all descendants matching a specific class name attribute value.
+     * @param className The class name attribute value of HTML tree node
+     * @return Vector of matching elements
+     */
+    std::vector<HtmlDocument> findAllElementsByClassName(const std::string& className) const;
+
+    /**
      * @brief Checks if any descendant matches a predicate.
      * @param predicate Function returning true for matching elements
      * @return true if any descendant matches, false otherwise
