@@ -133,6 +133,111 @@ bool HtmlDocument::hasParent() const noexcept {
     return node && node->parent;
 }
 
+HtmlDocument HtmlDocument::nextSibling() const noexcept {
+    if (!node || !node->next) return HtmlDocument();
+    return HtmlDocument(node->next);
+}
+
+HtmlDocument HtmlDocument::previousSibling() const noexcept {
+    if (!node) return HtmlDocument();
+
+    /* find previous sibling by traversing parent's children */
+    if (!node->parent) return HtmlDocument();
+
+    HTMLNode* child = node->parent->children;
+    HTMLNode* prev = nullptr;
+
+    while (child && child != node) {
+        prev = child;
+        child = child->next;
+    }
+
+    return prev ? HtmlDocument(prev) 
+        : HtmlDocument();
+}
+
+bool HtmlDocument::hasNextSibling() const noexcept {
+    return node && node->next;
+}
+
+bool HtmlDocument::hasPreviousSibling() const noexcept {
+    if (!node || !node->parent) return false;
+
+    HTMLNode* child = node->parent->children;
+    return child && child != node;
+}
+
+HtmlDocument HtmlDocument::firstChild() const noexcept {
+    if (!node || !node->children) return HtmlDocument();
+    return HtmlDocument(node->children);
+}
+
+HtmlDocument HtmlDocument::lastChild() const noexcept {
+    if (!node || !node->children) 
+        return HtmlDocument();
+
+    HTMLNode* child = node->children;
+    while (child->next)
+        child = child->next;
+
+    return HtmlDocument(child);
+}
+
+bool HtmlDocument::hasChildren() const noexcept {
+    return node && node->children;
+}
+
+std::vector<HtmlDocument> HtmlDocument::children() const {
+    std::vector<HtmlDocument> result;
+    if (!node) return result;
+    HTMLNode* child = node->children;
+
+    while (child) {
+        result.emplace_back(child);
+        child = child->next;
+    }
+
+    return result;
+}
+
+size_t HtmlDocument::childCount() const noexcept {
+    if (!node) return 0;
+    size_t count = 0;
+    HTMLNode* child = node->children;
+
+    while (child) {
+        ++count;
+        child = child->next;
+    }
+
+    return count;
+}
+
+bool HtmlDocument::isBlockElement() const {
+    if (!node || !node->tag) return false;
+    return is_block_element(node->tag) != 0;
+}
+
+bool HtmlDocument::isInlineElement() const {
+    if (!node || !node->tag) return false;
+    return is_inline_element(node->tag) != 0;
+}
+
+bool HtmlDocument::isVoidElement() const {
+    if (!node || !node->tag) return false;
+    return is_void_element(node->tag) != 0;
+}
+
+bool HtmlDocument::isWhitespaceOnly() const {
+    if (!node) return true;
+    return is_whitespace_only(node->content) != 0;
+}
+
+bool HtmlDocument::shouldExclude() const {
+    if (!node || !node->tag) return false;
+    return should_exclude_tag(node->tag) != 0;
+}
+
 HtmlDocument::~HtmlDocument() {
     if (hasProps && props)
         css_properties_destroy(props);
