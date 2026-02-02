@@ -363,6 +363,38 @@ HtmlDocument::~HtmlDocument() {
         css_properties_destroy(props);
 }
 
+HtmlDocument::Iterator HtmlDocument::begin() {
+    return Iterator(node ? node->children : nullptr, props);
+}
+
+HtmlDocument::ConstIterator HtmlDocument::begin() const {
+    return ConstIterator(node ? node->children : nullptr, props);
+}
+
+HtmlDocument::ConstIterator HtmlDocument::cbegin() const {
+    return ConstIterator(node ? node->children : nullptr, props);
+}
+
+HtmlDocument::Iterator HtmlDocument::end() {
+    return Iterator();
+}
+
+HtmlDocument::ConstIterator HtmlDocument::end() const {
+    return ConstIterator();
+}
+
+HtmlDocument::ConstIterator HtmlDocument::cend() const {
+    return ConstIterator();
+}
+
+HTMLNode* HtmlDocument::rawNode() const noexcept {
+    return node;
+}
+
+HtmlDocument HtmlDocument::fromRawElement(HTMLElement* elem) {
+    return HtmlDocument(elem);
+}
+
 // Iterator class implementation
 
 HtmlDocument::Iterator::Iterator() noexcept
