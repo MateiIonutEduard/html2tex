@@ -95,6 +95,44 @@ HtmlDocument& HtmlDocument::operator=(HtmlDocument&& other) noexcept {
     return *this;
 }
 
+bool HtmlDocument::isValid() const noexcept {
+    return node != nullptr;
+}
+
+std::string HtmlDocument::tagName() const noexcept {
+    if (!node || !node->tag) return "";
+    return std::string(node->tag);
+}
+
+std::string HtmlDocument::textContent() const noexcept {
+    if (!node || !node->content) return "";
+    return std::string(node->content);
+}
+
+std::string HtmlDocument::getAttribute(const std::string& key) const {
+    if (!node) return "";
+    const char* value = get_attribute(node->attributes, key.c_str());
+    return value ? std::string(value) : "";
+}
+
+bool HtmlDocument::hasAttribute(const std::string& key) const {
+    if (!node) return false;
+    return get_attribute(node->attributes, key.c_str()) != nullptr;
+}
+
+CSSProperties* HtmlDocument::cssProperties() const noexcept {
+    return props;
+}
+
+HtmlDocument HtmlDocument::parent() const noexcept {
+    if (!node || !node->parent) return HtmlDocument();
+    return HtmlDocument(node->parent);
+}
+
+bool HtmlDocument::hasParent() const noexcept {
+    return node && node->parent;
+}
+
 HtmlDocument::~HtmlDocument() {
     if (hasProps && props)
         css_properties_destroy(props);
