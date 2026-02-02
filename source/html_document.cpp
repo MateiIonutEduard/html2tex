@@ -276,6 +276,38 @@ HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
     return HtmlDocument();
 }
 
+std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& id) const {
+    std::vector<HtmlDocument> result;
+    if (!node) return result;
+
+    HTMLNodeList* list = html2tex_find_all(
+        node,
+        &HtmlDocument::getElementByIdPredicate,
+        (const void*)id.c_str(),
+        props
+    );
+
+    if (list) {
+        /* get array of found elements */
+        HTMLElement** elements = html_nodelist_dismantle(&list);
+
+        if (elements) {
+            size_t count = list->node_count;
+            result.reserve(count);
+
+            for (size_t i = 0; i < count; ++i)
+                result.emplace_back(elements[i]);
+
+            free(elements);
+        }
+
+        if (list)
+            html_nodelist_destroy(&list);
+    }
+
+    return result;
+}
+
 HtmlDocument HtmlDocument::getFirstElementByClassName(const std::string& className) const {
     if (!node) return HtmlDocument();
 

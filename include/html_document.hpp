@@ -265,11 +265,11 @@ public:
     HtmlDocument getFirstElementByClassName(const std::string& className) const;
 
     /**
-     * @brief Finds all descendants matching a predicate.
-     * @param predicate Function returning true for matching elements
+     * @brief Finds all descendants matching a specific ID attribute value.
+     * @param id The ID attribute value of HTML tree node
      * @return Vector of matching elements
      */
-    std::vector<HtmlDocument> findAll(std::function<bool(const HtmlDocument&)> predicate) const;
+    std::vector<HtmlDocument> findAllElementsById(const std::string& id) const;
 
     /**
      * @brief Checks if any descendant matches a predicate.
