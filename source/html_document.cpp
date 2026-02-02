@@ -262,13 +262,27 @@ int HtmlDocument::getElementByClassPredicate(const HTMLNode* root, const void* d
 }
 
 HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
-    if (!node || !node->tag) 
-        return HtmlDocument();
+    if (!node) return HtmlDocument();
 
     HTMLElement* found = html2tex_search_tree(
         node,
         &HtmlDocument::getElementByIdPredicate,
         (const void*)id.c_str(),
+        props
+    );
+
+    if (found)
+        return HtmlDocument(found);
+    return HtmlDocument();
+}
+
+HtmlDocument HtmlDocument::getFirstElementByClassName(const std::string& className) const {
+    if (!node) return HtmlDocument();
+
+    HTMLElement* found = html2tex_search_tree(
+        node,
+        &HtmlDocument::getElementByClassPredicate,
+        (const void*)className.c_str(),
         props
     );
 

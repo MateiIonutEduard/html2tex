@@ -251,11 +251,18 @@ public:
     bool shouldExclude() const;
 
     /**
-     * @brief Finds the first descendant matching a predicate.
-     * @param predicate Function returning true for matching elements
+     * @brief Finds the first descendant matching a specific ID attribute value.
+     * @param id The ID attribute value of HTML tree node
      * @return First matching element (invalid if none found)
      */
     HtmlDocument getFirstElementById(const std::string& id) const;
+
+    /**
+     * @brief Finds the first descendant matching a specific class name attribute value.
+     * @param className The class name attribute value of HTML tree node
+     * @return First matching element (invalid if none found)
+     */
+    HtmlDocument getFirstElementByClassName(const std::string& className) const;
 
     /**
      * @brief Finds all descendants matching a predicate.
