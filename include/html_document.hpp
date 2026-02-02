@@ -279,11 +279,20 @@ public:
     std::vector<HtmlDocument> findAllElementsByClassName(const std::string& className) const;
 
     /**
-     * @brief Checks if any descendant matches a predicate.
-     * @param predicate Function returning true for matching elements
-     * @return true if any descendant matches, false otherwise
+     * @brief Checks if any descendant element has the specified ID.
+     * @param id The ID to search for (case-sensitive)
+     * @return true if at least one descendant element matches the ID,
+     * @return false otherwise or if the document is invalid
      */
-    bool any(std::function<bool(const HtmlDocument&)> predicate) const;
+    bool hasElementWithId(const std::string& id) const;
+
+    /**
+     * @brief Checks if any descendant element has the specified CSS class.
+     * @param className The CSS class name to search for (case-sensitive)
+     * @return true if at least one descendant element matches the class,
+     * @return false otherwise or if the document is invalid
+     */
+    bool hasElementWithClass(const std::string& className) const;
 
     // Range-based for loop support
 
@@ -314,7 +323,7 @@ public:
      * @param elem Raw HTMLElement pointer
      * @return HtmlDocument wrapper
      */
-    static HtmlDocument fromRawElement(::HTMLElement* elem);
+    static HtmlDocument fromRawElement(HTMLElement* elem);
 
 private:
     HTMLNode* node;

@@ -276,6 +276,16 @@ HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
     return HtmlDocument();
 }
 
+bool HtmlDocument::hasElementWithId(const std::string& id) const {
+    return getFirstElementById(id)
+        .isValid();
+}
+
+bool HtmlDocument::hasElementWithClass(const std::string& className) const {
+    return getFirstElementByClassName(className)
+        .isValid();
+}
+
 std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& id) const {
     std::vector<HtmlDocument> result;
     if (!node) return result;
