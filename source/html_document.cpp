@@ -362,3 +362,40 @@ HtmlDocument::~HtmlDocument() {
     if (hasProps && props)
         css_properties_destroy(props);
 }
+
+HtmlDocument::Iterator::Iterator() noexcept
+    : current(nullptr), props(nullptr) { }
+
+HtmlDocument::Iterator::Iterator(HTMLNode* node, CSSProperties* css) noexcept
+    : current(node), props(css), element(node, css) { }
+
+HtmlDocument::Iterator::reference HtmlDocument::Iterator::operator*() noexcept {
+    return element;
+}
+
+HtmlDocument::Iterator::pointer HtmlDocument::Iterator::operator->() noexcept {
+    return &element;
+}
+
+HtmlDocument::Iterator& HtmlDocument::Iterator::operator++() noexcept {
+    if (current) {
+        current = current->next;
+        element = HtmlDocument(current, props);
+    }
+
+    return *this;
+}
+
+HtmlDocument::Iterator HtmlDocument::Iterator::operator++(int) noexcept {
+    Iterator temp = *this;
+    ++(*this);
+    return temp;
+}
+
+bool HtmlDocument::Iterator::operator==(const Iterator& other) const noexcept {
+    return current == other.current;
+}
+
+bool HtmlDocument::Iterator::operator!=(const Iterator& other) const noexcept {
+    return current != other.current;
+}

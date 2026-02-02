@@ -322,4 +322,34 @@ private:
     bool hasProps;
 };
 
+/**
+ * @class HtmlDocument::Iterator
+ * @brief Forward iterator for child elements.
+ */
+class HtmlDocument::Iterator {
+public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = HtmlDocument;
+    using difference_type = std::ptrdiff_t;
+    using pointer = HtmlDocument*;
+    using reference = HtmlDocument&;
+
+    Iterator() noexcept;
+    explicit Iterator(HTMLNode* node, CSSProperties* css = nullptr) noexcept;
+
+    reference operator*() noexcept;
+    pointer operator->() noexcept;
+
+    Iterator& operator++() noexcept;
+    Iterator operator++(int) noexcept;
+
+    bool operator==(const Iterator& other) const noexcept;
+    bool operator!=(const Iterator& other) const noexcept;
+
+private:
+    HTMLNode* current;
+    CSSProperties* props;
+    HtmlDocument element;
+};
+
 #endif
