@@ -1,6 +1,7 @@
 #include "html_document.hpp"
 #include "dom_tree_visitor.h"
 #include "htmltex_exception.hpp"
+#include <cstring>
 #include <iostream>
 #include <queue>
 #include <stack>
@@ -236,6 +237,44 @@ bool HtmlDocument::isWhitespaceOnly() const {
 bool HtmlDocument::shouldExclude() const {
     if (!node || !node->tag) return false;
     return should_exclude_tag(node->tag) != 0;
+}
+
+int HtmlDocument::getElementByIdPredicate(const HTMLNode* root, const void* data) {
+    if (!root || !root->tag) return 0;
+    
+    if (root->attributes) {
+        const char* value = get_attribute(root->attributes, "id");
+        return (value && std::strcmp(value, (const char*)data) == 0);
+    }
+
+    return 0;
+}
+
+int HtmlDocument::getElementByClassPredicate(const HTMLNode* root, const void* data) {
+    if (!root || !root->tag) return 0;
+
+    if (root->attributes) {
+        const char* className = get_attribute(root->attributes, "class");
+        return (className && std::strcmp(className, (const char*)data) == 0);
+    }
+
+    return 0;
+}
+
+HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
+    if (!node || !node->tag) 
+        return HtmlDocument();
+
+    HTMLElement* found = html2tex_search_tree(
+        node,
+        &HtmlDocument::getElementByIdPredicate,
+        (const void*)id.c_str(),
+        props
+    );
+
+    if (found)
+        return HtmlDocument(found);
+    return HtmlDocument();
 }
 
 HtmlDocument::~HtmlDocument() {

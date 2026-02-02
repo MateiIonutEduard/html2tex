@@ -49,6 +49,10 @@ enum class HtmlEncodingType : uint8_t {
  * for DOM traversal and manipulation.
  */
 class HtmlDocument {
+private:
+    static int getElementByIdPredicate(const HTMLNode* root, const void* data);
+    static int getElementByClassPredicate(const HTMLNode* root, const void* data);
+
 public:
     class Iterator;
     class ConstIterator;
@@ -246,14 +250,12 @@ public:
      */
     bool shouldExclude() const;
 
-    // DOM tree queries using existing C functions
-
     /**
      * @brief Finds the first descendant matching a predicate.
      * @param predicate Function returning true for matching elements
      * @return First matching element (invalid if none found)
      */
-    HtmlDocument findFirst(std::function<bool(const HtmlDocument&)> predicate) const;
+    HtmlDocument getFirstElementById(const std::string& id) const;
 
     /**
      * @brief Finds all descendants matching a predicate.
