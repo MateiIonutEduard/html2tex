@@ -43,3 +43,59 @@ HtmlDocument::HtmlDocument(const HtmlDocument& other)
         }
     }
 }
+
+HtmlDocument::HtmlDocument(HtmlDocument&& other) noexcept
+    : node(other.node), props(other.props), hasProps(other.hasProps) {
+    other.node = nullptr;
+    other.props = nullptr;
+    other.hasProps = false;
+}
+
+HtmlDocument& HtmlDocument::operator=(const HtmlDocument& other) {
+    if (this != &other) {
+        /* clean up existing CSS */
+        if (hasProps && props)
+            css_properties_destroy(props);
+
+        node = other.node;
+
+        if (other.props) {
+            try {
+                props = css_properties_copy(other.props);
+                hasProps = true;
+            }
+            catch (const HtmlRuntimeException& exception) {
+                std::cerr << exception.toString() << std::endl;
+            }
+        }
+        else {
+            props = nullptr;
+            hasProps = false;
+        }
+    }
+
+    return *this;
+}
+
+HtmlDocument& HtmlDocument::operator=(HtmlDocument&& other) noexcept {
+    if (this != &other) {
+        /* clean up existing CSS (take ownership) */
+        if (hasProps && props)
+            css_properties_destroy(props);
+
+        node = other.node;
+        props = other.props;
+        hasProps = other.hasProps;
+
+        other.node = nullptr;
+        other.props = nullptr;
+        other.hasProps = false;
+    }
+
+    return *this;
+}
+
+HtmlDocument::~HtmlDocument() {
+    if (hasProps && props)
+        css_properties_destroy(props);
+}
