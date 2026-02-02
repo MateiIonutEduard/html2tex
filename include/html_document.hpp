@@ -352,4 +352,34 @@ private:
     HtmlDocument element;
 };
 
+/**
+ * @class HtmlDocument::ConstIterator
+ * @brief Const forward iterator for child elements.
+ */
+class HtmlDocument::ConstIterator {
+public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = const HtmlDocument;
+    using difference_type = std::ptrdiff_t;
+    using pointer = const HtmlDocument*;
+    using reference = const HtmlDocument&;
+
+    ConstIterator() noexcept;
+    explicit ConstIterator(const HTMLNode* node, CSSProperties* css = nullptr) noexcept;
+
+    reference operator*() const noexcept;
+    pointer operator->() const noexcept;
+
+    ConstIterator& operator++() noexcept;
+    ConstIterator operator++(int) noexcept;
+
+    bool operator==(const ConstIterator& other) const noexcept;
+    bool operator!=(const ConstIterator& other) const noexcept;
+
+private:
+    const HTMLNode* current;
+    CSSProperties* props;
+    HtmlDocument element;
+};
+
 #endif

@@ -363,6 +363,8 @@ HtmlDocument::~HtmlDocument() {
         css_properties_destroy(props);
 }
 
+// Iterator class implementation
+
 HtmlDocument::Iterator::Iterator() noexcept
     : current(nullptr), props(nullptr) { }
 
@@ -397,5 +399,46 @@ bool HtmlDocument::Iterator::operator==(const Iterator& other) const noexcept {
 }
 
 bool HtmlDocument::Iterator::operator!=(const Iterator& other) const noexcept {
+    return current != other.current;
+}
+
+// ConstIterator class implementation
+
+HtmlDocument::ConstIterator::ConstIterator() noexcept
+    : current(nullptr), props(nullptr) {
+}
+
+HtmlDocument::ConstIterator::ConstIterator(const HTMLNode* node, CSSProperties* css) noexcept
+    : current(node), props(css), element(const_cast<HTMLNode*>(node), css) {
+}
+
+HtmlDocument::ConstIterator::reference HtmlDocument::ConstIterator::operator*() const noexcept {
+    return element;
+}
+
+HtmlDocument::ConstIterator::pointer HtmlDocument::ConstIterator::operator->() const noexcept {
+    return &element;
+}
+
+HtmlDocument::ConstIterator& HtmlDocument::ConstIterator::operator++() noexcept {
+    if (current) {
+        current = current->next;
+        element = HtmlDocument(const_cast<HTMLNode*>(current), props);
+    }
+
+    return *this;
+}
+
+HtmlDocument::ConstIterator HtmlDocument::ConstIterator::operator++(int) noexcept {
+    ConstIterator temp = *this;
+    ++(*this);
+    return temp;
+}
+
+bool HtmlDocument::ConstIterator::operator==(const ConstIterator& other) const noexcept {
+    return current == other.current;
+}
+
+bool HtmlDocument::ConstIterator::operator!=(const ConstIterator& other) const noexcept {
     return current != other.current;
 }
