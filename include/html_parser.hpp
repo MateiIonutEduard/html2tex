@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include "html2tex.h"
+#include "html2tex_defs.hpp"
 #include "htmltex_exception.hpp"
 #include <iostream>
 
@@ -27,7 +28,7 @@
 class HtmlParser {
 private:
     std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> node;
-    int minify;
+    HtmlEncodingType minify;
     void setParent(std::unique_ptr<HTMLNode, decltype(&html2tex_free_node)> new_node) noexcept;
 
 public:
@@ -48,11 +49,12 @@ public:
     /**
      * @brief Constructs a parser with optional minification.
      * @param html HTML source code to parse.
-     * @param minify_flag Non-zero to minify HTML during parsing.
+     * @param minifyFlag HtmlEncodingType::HTML_MINIFIED
+     *      to minify HTML during parsing.
      * @throws HtmlRuntimeException if parsing fails.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    HtmlParser(const std::string& html, int minify_flag);
+    HtmlParser(const std::string& html, HtmlEncodingType minifyFlag);
 
     /**
      * @brief Constructs a parser from existing DOM tree (takes ownership).
@@ -66,11 +68,12 @@ public:
     /**
      * @brief Constructs a parser from DOM tree with minification option.
      * @param raw_node Pointer to DOM tree root (must not be null).
-     * @param minify_flag Non-zero to apply minification to copied tree.
+     * @param minifyFlag HtmlEncodingType::HTML_MINIFIED 
+     *      to apply minification to copied tree.
      * @throws HtmlRuntimeException if node is null or invalid.
      * @throws std::bad_alloc if memory allocation fails.
      */
-    HtmlParser(const HTMLNode* raw_node, int minify_flag);
+    HtmlParser(const HTMLNode* raw_node, HtmlEncodingType minifyFlag);
 
     /**
      * @brief Copy constructor (deep copy).
