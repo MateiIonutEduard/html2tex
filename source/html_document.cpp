@@ -1,6 +1,6 @@
 #include "html_document.hpp"
 #include "dom_tree_visitor.h"
-#include "htmltex_exception.hpp"
+#include "html_exception.hpp"
 #include <cstring>
 #include <iostream>
 #include <queue>

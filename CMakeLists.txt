@@ -202,6 +202,7 @@ endif()
 add_library(html2tex_cpp STATIC
     source/html_parser.cpp
     source/html_converter.cpp
+	source/html_document.cpp
 )
 
 # Set C++ library properties
@@ -269,10 +270,16 @@ install(FILES
 
 # Install C++ wrapper header
 install(FILES
-    include/htmltex.hpp
+    include/html_parser.hpp
+    include/html2tex_defs.hpp
 	include/html_document.hpp
 	include/htmltex_converter.hpp
-	include/htmltex_exception.hpp
+	include/base_exception.hpp
+	include/html_exception.hpp
+	include/tex_exception.hpp
+	include/base_exception.hpp
+	include/html_exception.hpp
+	include/latex_exception.hpp
     DESTINATION ${INCLUDE_INSTALL_DIR}
 )
 
@@ -281,7 +288,9 @@ install(FILES
     source/html_parser.cpp
 	source/html_document.cpp
     source/html_converter.cpp
-	source/htmltex_exception.cpp
+	source/base_exception.cpp
+	source/html_exception.cpp
+	source/latex_exception.cpp
     DESTINATION ${SOURCE_INSTALL_DIR}
 )
 

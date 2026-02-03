@@ -5,7 +5,7 @@
 #include <string>
 #include "html2tex.h"
 #include "html2tex_defs.hpp"
-#include "htmltex_exception.hpp"
+#include "html_exception.hpp"
 #include <iostream>
 
 /**

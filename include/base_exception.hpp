@@ -1,5 +1,5 @@
-#ifndef HTMLTEX_EXCEPTION_HPP
-#define HTMLTEX_EXCEPTION_HPP
+#ifndef BASE_EXCEPTION_HPP
+#define BASE_EXCEPTION_HPP
 
 #include <exception>
 #include <string>
@@ -15,7 +15,7 @@ struct RuntimeExceptionImpl;
  * @brief Base runtime exception class with error code and message support.
  *
  * Provides rich error information including error codes, messages,
- * 
+ *
  * file/line context, and chained exception support.
  */
 class RuntimeException : public std::exception {
@@ -167,60 +167,10 @@ private:
 };
 
 /**
- * @brief Html-specific runtime exception.
- */
-class HtmlRuntimeException : public RuntimeException {
-public:
-    explicit HtmlRuntimeException(const std::string& message) noexcept;
-    HtmlRuntimeException(const std::string& message, int code) noexcept;
-    HtmlRuntimeException(const std::string& message, int code,
-        const char* file, int line) noexcept;
-
-    virtual ~HtmlRuntimeException() noexcept override = default;
-
-    /**
-     * @brief Creates exception from HTML parsing error.
-     * @return HtmlRuntimeException with current error state
-     */
-    static HtmlRuntimeException fromHtmlError();
-
-protected:
-    virtual void format(std::ostream& stream) const override;
-};
-
-/**
- * @brief LaTeX conversion-specific runtime exception.
- */
-class LaTeXRuntimeException : public RuntimeException {
-public:
-    explicit LaTeXRuntimeException(const std::string& message) noexcept;
-    LaTeXRuntimeException(const std::string& message, int code) noexcept;
-    LaTeXRuntimeException(const std::string& message, int code,
-        const char* file, int line) noexcept;
-
-    virtual ~LaTeXRuntimeException() noexcept override = default;
-
-    /**
-     * @brief Creates exception from LaTeX conversion error.
-     * @return LaTeXRuntimeException with current error state
-     */
-    static LaTeXRuntimeException fromLaTeXError();
-
-protected:
-    virtual void format(std::ostream& stream) const override;
-};
-
-/**
- * @brief Macro for throwing exceptions with file/line context.
+ * @brief Macro for throwing RuntimeException exceptions with file/line context.
  */
 #define THROW_RUNTIME_ERROR(msg, code) \
     RuntimeException::throwWithContext((msg), (code), __FILE__, __LINE__)
-
-#define THROW_HTML_ERROR(msg, code) \
-    throw HtmlRuntimeException((msg), (code), __FILE__, __LINE__)
-
-#define THROW_LATEX_ERROR(msg, code) \
-    throw LaTeXRuntimeException((msg), (code), __FILE__, __LINE__)
 
  /**
   * @brief Macro for throwing if condition is true.

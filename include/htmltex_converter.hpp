@@ -5,6 +5,7 @@
 #include <string>
 #include "html2tex.h"
 #include "html_parser.hpp"
+#include "latex_exception.hpp"
 #include <iostream>
 
 /**
