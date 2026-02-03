@@ -265,6 +265,14 @@ public:
     HtmlDocument getFirstElementByClassName(const std::string& className) const;
 
     /**
+     * @brief Finds the first descendant matching a predicate.
+     * @param predicate Function returning true for matching elements
+     * @param content The user text content, passed to the predicate
+     * @return First matching element (invalid if none found)
+     */
+    HtmlDocument findFirst(DOMTreeVisitor predicate, const std::string& content) const;
+
+    /**
      * @brief Finds all descendants matching a specific ID attribute value.
      * @param id The ID attribute value of HTML tree node
      * @return Vector of matching elements

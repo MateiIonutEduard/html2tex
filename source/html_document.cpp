@@ -262,12 +262,17 @@ int HtmlDocument::getElementByClassPredicate(const HTMLNode* root, const void* d
 }
 
 HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
+    return findFirst(
+        &getElementByIdPredicate,
+        id.c_str());
+}
+
+HtmlDocument HtmlDocument::findFirst(DOMTreeVisitor predicate, const std::string& content) const {
     if (!node) return HtmlDocument();
 
     HTMLElement* found = html2tex_search_tree(
-        node,
-        &HtmlDocument::getElementByIdPredicate,
-        (const void*)id.c_str(),
+        node, predicate,
+        (const void*)content.c_str(),
         props
     );
 
@@ -322,18 +327,10 @@ std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& i
 }
 
 HtmlDocument HtmlDocument::getFirstElementByClassName(const std::string& className) const {
-    if (!node) return HtmlDocument();
-
-    HTMLElement* found = html2tex_search_tree(
-        node,
-        &HtmlDocument::getElementByClassPredicate,
-        (const void*)className.c_str(),
-        props
+    return findFirst(
+        &getElementByClassPredicate,
+        className.c_str()
     );
-
-    if (found)
-        return HtmlDocument(found);
-    return HtmlDocument();
 }
 
 std::vector<HtmlDocument> HtmlDocument::findAllElementsByClassName(const std::string& className) const {
