@@ -1,5 +1,5 @@
 #include "html2tex.h"
-#include "htmltex.h"
+#include "html_parser.hpp"
 #include <stdlib.h>
 #include <string>
 #include <vector>
@@ -7,17 +7,18 @@
 #include <fstream>
 #include <sstream>
 
-HtmlParser::HtmlParser() : node(nullptr, &html2tex_free_node), minify(0) 
+HtmlParser::HtmlParser() : node(nullptr, &html2tex_free_node), minify(HtmlEncodingType::NONE)
 { }
 
-HtmlParser::HtmlParser(const std::string& html) : HtmlParser(html, 0) { }
+HtmlParser::HtmlParser(const std::string& html) : HtmlParser(html, HtmlEncodingType::HTML_STANDARD) { }
 
-HtmlParser::HtmlParser(const std::string& html, int minify_flag)
-    : node(nullptr, &html2tex_free_node), minify(minify_flag) {
+HtmlParser::HtmlParser(const std::string& html, HtmlEncodingType minifyFlag)
+    : node(nullptr, &html2tex_free_node), minify(minifyFlag) {
     /* empty parser, but valid state */
     if (html.empty()) return;
 
-    HTMLNode* raw_node = minify_flag ? html2tex_parse_minified(html.c_str())
+    HTMLNode* raw_node = minifyFlag == HtmlEncodingType::HTML_MINIFIED 
+        ? html2tex_parse_minified(html.c_str())
         : html2tex_parse(html.c_str());
 
     /* if parsing fails, node remains nullptr */
@@ -29,11 +30,11 @@ HtmlParser::HtmlParser(const std::string& html, int minify_flag)
     }
 }
 
-HtmlParser::HtmlParser(const HTMLNode* raw_node) : HtmlParser(raw_node, 0)
+HtmlParser::HtmlParser(const HTMLNode* raw_node) : HtmlParser(raw_node, HtmlEncodingType::HTML_STANDARD)
 { }
 
-HtmlParser::HtmlParser(const HTMLNode* raw_node, int minify_flag)
-    : node(nullptr, &html2tex_free_node), minify(minify_flag) {
+HtmlParser::HtmlParser(const HTMLNode* raw_node, HtmlEncodingType minifyFlag)
+    : node(nullptr, &html2tex_free_node), minify(minifyFlag) {
     /* object is in empty but valid state */
     if (!raw_node) return;
 
@@ -62,7 +63,7 @@ HtmlParser::HtmlParser(const HtmlParser& other)
 HtmlParser::HtmlParser(HtmlParser&& other) noexcept
     : node(std::move(other.node)), minify(other.minify) {
     other.node.reset(nullptr);
-    other.minify = 0;
+    other.minify = HtmlEncodingType::NONE;
 }
 
 HtmlParser& HtmlParser::operator =(const HtmlParser& other) {
@@ -92,7 +93,7 @@ HtmlParser& HtmlParser::operator =(HtmlParser&& other) noexcept {
     if (this != &other) {
         node = std::move(other.node);
         minify = other.minify;
-        other.minify = 0;
+        other.minify = HtmlEncodingType::NONE;
     }
 
     return *this;
@@ -199,7 +200,7 @@ std::istream& operator >>(std::istream& in, HtmlParser& parser) {
 
     /* parse the content */
     if (!content.empty()) {
-        HTMLNode* raw_node = parser.minify ?
+        HTMLNode* raw_node = parser.minify == HtmlEncodingType::HTML_MINIFIED ?
             html2tex_parse_minified(content.c_str()) :
             html2tex_parse(content.c_str());
 

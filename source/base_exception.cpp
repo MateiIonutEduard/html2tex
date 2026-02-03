@@ -1,4 +1,4 @@
-#include "htmltex_exception.h"
+#include "base_exception.hpp"
 #include "html2tex.h"
 #include <iostream>
 #include <iomanip>
@@ -164,7 +164,6 @@ std::string RuntimeException::toString() const noexcept {
     return stream.str();
 }
 
-[[noreturn]]
 void RuntimeException::throwWithContext(const std::string& message, int code,
     const char* file, int line) {
     throw RuntimeException(message,
@@ -194,73 +193,3 @@ RuntimeException::ErrorGuard::ErrorGuard() noexcept
 
 RuntimeException::ErrorGuard::~ErrorGuard() noexcept
 { }
-
-HtmlRuntimeException::HtmlRuntimeException(const std::string& message) noexcept
-    : RuntimeException(message, 0) {
-}
-
-HtmlRuntimeException::HtmlRuntimeException(const std::string& message, int code) noexcept
-    : RuntimeException(message, code) {
-}
-
-HtmlRuntimeException::HtmlRuntimeException(const std::string& message, int code,
-    const char* file, int line) noexcept
-    : RuntimeException(message, code, file, line) {
-}
-
-HtmlRuntimeException HtmlRuntimeException::fromHtmlError() {
-    const int error_code = html2tex_get_error();
-    const char* error_msg = html2tex_get_error_message();
-
-    return HtmlRuntimeException(
-        error_msg,
-        error_code);
-}
-
-void HtmlRuntimeException::format(std::ostream& stream) const {
-    stream << "[HTML Error " << code() << "] " << message();
-
-    if (file()) {
-        stream << " (at " << file();
-
-        if (line() > 0)
-            stream << ":" << line();
-
-        stream << ")";
-    }
-}
-
-LaTeXRuntimeException::LaTeXRuntimeException(const std::string& message) noexcept
-    : RuntimeException(message, 0) {
-}
-
-LaTeXRuntimeException::LaTeXRuntimeException(const std::string& message, int code) noexcept
-    : RuntimeException(message, code) {
-}
-
-LaTeXRuntimeException::LaTeXRuntimeException(const std::string& message, int code,
-    const char* file, int line) noexcept
-    : RuntimeException(message, code, file, line) {
-}
-
-LaTeXRuntimeException LaTeXRuntimeException::fromLaTeXError() {
-    const int error_code = html2tex_get_error();
-    const char* error_msg = html2tex_get_error_message();
-
-    return LaTeXRuntimeException(
-        error_msg,
-        error_code);
-}
-
-void LaTeXRuntimeException::format(std::ostream& stream) const {
-    stream << "[LaTeX Error " << code() << "] " << message();
-
-    if (file()) {
-        stream << " (at " << file();
-
-        if (line() > 0)
-            stream << ":" << line();
-
-        stream << ")";
-    }
-}
