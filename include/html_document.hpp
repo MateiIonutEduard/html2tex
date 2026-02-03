@@ -9,35 +9,6 @@
 #include <vector>
 #include <functional>
 
-
-/**
- * @enum HtmlEncodingType
- * @brief Specifies HTML document encoding and processing modes.
- *
- * Used to configure document parsing and serialization behavior.
- * 
- * Currently reserved for future expansion of encoding support.
- *
- * @var HtmlEncodingType::NONE
- *      No specific encoding (default).
- *
- * @var HtmlEncodingType::HTML_MINIFIED
- *      Minified HTML encoding (future feature).
- *
- * @var HtmlEncodingType::HTML_STANDARD
- *      Standard HTML encoding with proper formatting (future feature).
- *
- * @note Currently unused in HtmlDocument implementation. Reserved for
- *       future encoding-aware parsing and serialization features.
- *
- * @see HtmlDocument for potential future usage
- */
-enum class HtmlEncodingType : uint8_t {
-	NONE = 0,
-	HTML_MINIFIED = 1,
-	HTML_STANDARD = 2
-};
-
 /**
  * @class HtmlDocument
  * @brief Modern C++ wrapper for HTML DOM elements with RAII management and traversal API.

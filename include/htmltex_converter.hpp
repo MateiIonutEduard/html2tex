@@ -4,7 +4,7 @@
 #include <memory>
 #include <string>
 #include "html2tex.h"
-#include "htmltex.hpp"
+#include "html_parser.hpp"
 #include <iostream>
 
 /**

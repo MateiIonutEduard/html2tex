@@ -1,5 +1,5 @@
 #include "html2tex.h"
-#include "htmltex.hpp"
+#include "html_parser.hpp"
 #include <stdlib.h>
 #include <string>
 #include <vector>

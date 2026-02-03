@@ -1,5 +1,5 @@
-#ifndef HTMLTEX_HPP
-#define HTMLTEX_HPP
+#ifndef HTML_PARSER_HPP
+#define HTML_PARSER_HPP
 
 #include <memory>
 #include <string>
