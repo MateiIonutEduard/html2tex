@@ -201,8 +201,11 @@ endif()
 # Create C++ wrapper static library
 add_library(html2tex_cpp STATIC
     source/html_parser.cpp
-    source/html_converter.cpp
 	source/html_document.cpp
+    source/html_converter.cpp
+	source/base_exception.cpp
+	source/html_exception.cpp
+	source/latex_exception.cpp
 )
 
 # Set C++ library properties
@@ -272,7 +275,7 @@ install(FILES
 install(FILES
     include/html_parser.hpp
     include/html2tex_defs.hpp
-	include/html_document.hpp
+	include/ext/html_document.hpp
 	include/htmltex_converter.hpp
 	include/base_exception.hpp
 	include/html_exception.hpp
@@ -350,7 +353,7 @@ message(STATUS "  C++ static library: ${LIBRARY_PREFIX}html2tex_cpp${LIBRARY_SUF
 message(STATUS "  Architecture: ${ARCH_NAME}")
 message(STATUS "  Output directory: ${OUTPUT_BASE_DIR}/<Config>/<Arch>")
 message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
-message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/htmltex.hpp + ${INCLUDE_INSTALL_DIR}/html_document.hpp + ${INCLUDE_INSTALL_DIR}/htmltex_converter.hpp + ${INCLUDE_INSTALL_DIR}/htmltex_exception.hpp + ${SOURCE_INSTALL_DIR}/ (4 .cpp files)")
+message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/html2tex.hpp + others sources (7 .hpp interfaces, 6 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
 message(STATUS "  Core: html2tex.c, html2tex_generator.c, html2tex_processor.c")
@@ -369,8 +372,8 @@ message(STATUS "  CMake config: ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/
 message(STATUS "")
 message(STATUS "For external applications:")
 message(STATUS "  1. Link against: ${LIBRARY_PREFIX}html2tex_c${LIBRARY_SUFFIX}")
-message(STATUS "  2. Include: html2tex.h (C) or htmltex.hpp, html_document.hpp, htmltex_converter.hpp, and htmltex_exception.hpp (C++)")
-message(STATUS "  3. Add html_parser.cpp, html_document.cpp, html_converter.cpp, and htmltex_exception.cpp to your C++ project")
+message(STATUS "  2. Include: html2tex.h (C) or html2tex.hpp (C++)")
+message(STATUS "  3. Add cpp source files to your C++ project")
 message(STATUS "")
 message(STATUS "Build commands:")
 message(STATUS "  cmake --build . --config Release")

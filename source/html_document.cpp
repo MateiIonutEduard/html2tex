@@ -1,4 +1,4 @@
-#include "html_document.hpp"
+#include "ext/html_document.hpp"
 #include "dom_tree_visitor.h"
 #include "html_exception.hpp"
 #include <cstring>
@@ -324,9 +324,6 @@ std::vector<HtmlDocument> HtmlDocument::findAll(DOMTreeVisitor predicate, const 
         HTMLElement** elements = html_nodelist_dismantle(&list);
 
         if (elements) {
-            size_t count = list->node_count;
-            result.reserve(count);
-
             for (size_t i = 0; i < count; ++i)
                 result.emplace_back(elements[i]);
 
