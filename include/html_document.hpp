@@ -273,6 +273,14 @@ public:
     HtmlDocument findFirst(DOMTreeVisitor predicate, const std::string& content) const;
 
     /**
+     * @brief Finds all descendants matching a predicate.
+     * @param predicate Function returning true for matching elements
+     * @param content The user text content, passed to the predicate
+     * @return Vector of matching elements
+     */
+    std::vector<HtmlDocument> findAll(DOMTreeVisitor predicate, const std::string& content) const;
+
+    /**
      * @brief Finds all descendants matching a specific ID attribute value.
      * @param id The ID attribute value of HTML tree node
      * @return Vector of matching elements

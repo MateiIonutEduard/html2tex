@@ -264,7 +264,7 @@ int HtmlDocument::getElementByClassPredicate(const HTMLNode* root, const void* d
 HtmlDocument HtmlDocument::getFirstElementById(const std::string& id) const {
     return findFirst(
         &getElementByIdPredicate,
-        id.c_str());
+        id);
 }
 
 HtmlDocument HtmlDocument::findFirst(DOMTreeVisitor predicate, const std::string& content) const {
@@ -292,13 +292,18 @@ bool HtmlDocument::hasElementWithClass(const std::string& className) const {
 }
 
 std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& id) const {
+    return findAll(
+        &getElementByIdPredicate,
+        id);
+}
+
+std::vector<HtmlDocument> HtmlDocument::findAll(DOMTreeVisitor predicate, const std::string& content) const {
     std::vector<HtmlDocument> result;
     if (!node) return result;
 
     HTMLNodeList* list = html2tex_find_all(
-        node,
-        &HtmlDocument::getElementByIdPredicate,
-        (const void*)id.c_str(),
+        node, predicate,
+        (const void*)content.c_str(),
         props
     );
 
@@ -319,8 +324,8 @@ std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& i
             free(elements);
         }
 
-        if (list)
-            html_nodelist_destroy(&list);
+        /* destroy the list, but keep the ownership */
+        if (list) html_nodelist_destroy(&list);
     }
 
     return result;
@@ -329,40 +334,13 @@ std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& i
 HtmlDocument HtmlDocument::getFirstElementByClassName(const std::string& className) const {
     return findFirst(
         &getElementByClassPredicate,
-        className.c_str()
-    );
+        className);
 }
 
 std::vector<HtmlDocument> HtmlDocument::findAllElementsByClassName(const std::string& className) const {
-    std::vector<HtmlDocument> result;
-    if (!node) return result;
-
-    HTMLNodeList* list = html2tex_find_all(
-        node,
-        &HtmlDocument::getElementByClassPredicate,
-        (const void*)className.c_str(),
-        props
-    );
-
-    if (list) {
-        size_t count = list->node_count;
-        result.reserve(count);
-
-        /* get array of matching elements */
-        HTMLElement** elements = html_nodelist_dismantle(&list);
-
-        if (elements) {
-            for (size_t i = 0; i < count; ++i)
-                result.emplace_back(elements[i]);
-
-            free(elements);
-        }
-
-        /* destroy the list, but keep the ownership */
-        if (list) html_nodelist_destroy(&list);
-    }
-
-    return result;
+    return findAll(
+        &getElementByClassPredicate,
+        className);
 }
 
 HtmlDocument::~HtmlDocument() {
