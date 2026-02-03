@@ -310,6 +310,14 @@ public:
      */
     bool hasElementWithClass(const std::string& className) const;
 
+    /**
+     * @brief Checks if any descendant matches a predicate.
+     * @param predicate Function returning true for matching elements
+     * @param content The user text content, passed to the predicate
+     * @return true if any descendant matches, false otherwise
+     */
+    bool hasAnyElement(DOMTreeVisitor predicate, const std::string content) const;
+
     // Range-based for loop support
 
     /**

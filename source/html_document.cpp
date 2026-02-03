@@ -282,13 +282,22 @@ HtmlDocument HtmlDocument::findFirst(DOMTreeVisitor predicate, const std::string
 }
 
 bool HtmlDocument::hasElementWithId(const std::string& id) const {
-    return getFirstElementById(id)
-        .isValid();
+    return hasAnyElement(
+        &getElementByIdPredicate,
+        id);
 }
 
 bool HtmlDocument::hasElementWithClass(const std::string& className) const {
-    return getFirstElementByClassName(className)
-        .isValid();
+    return hasAnyElement(
+        &getElementByClassPredicate,
+        className);
+}
+
+bool HtmlDocument::hasAnyElement(DOMTreeVisitor predicate, const std::string content) const {
+    return findFirst(
+        predicate,
+        content
+    ).isValid();
 }
 
 std::vector<HtmlDocument> HtmlDocument::findAllElementsById(const std::string& id) const {
