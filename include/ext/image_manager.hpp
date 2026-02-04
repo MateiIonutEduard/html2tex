@@ -119,6 +119,82 @@ public:
      */
     ~ImageManager();
 
+    // Non-copyable - prevent accidental duplication of thread pool
+    ImageManager(const ImageManager&) = delete;
+    ImageManager& operator=(const ImageManager&) = delete;
+
+    // Move operations defaulted (transfer ownership of thread pool)
+    ImageManager(ImageManager&&) = default;
+    ImageManager& operator=(ImageManager&&) = default;
+
+    /**
+     * @brief Initiates asynchronous download without blocking.
+     *
+     * Queues the download request and returns immediately. The download executes
+     * 
+     * on a worker thread from the pool. Result is accessible via the returned future.
+     *
+     * @param request Complete download specification
+     * @return std::future<DownloadResult> Future containing eventual result
+     *
+     * @throws std::runtime_error if manager is shutting down
+     * @throws std::bad_alloc if memory allocation fails
+     *
+     * @par Performance characteristics:
+     * - O(1) queue insertion (amortized)
+     * - Lock contention limited to queue mutex
+     * - Memory: sizeof(DownloadRequest) + promise overhead
+     *
+     * @note Future may throw ImageRuntimeException if download fails
+     * @warning Request output_dir must exist or be creatable
+     *
+     * @see downloadSync() for blocking alternative
+     */
+    std::future<DownloadResult> downloadAsync(const DownloadRequest& request);
+
+    /**
+     * @brief Executes download synchronously. (blocks until complete)
+     *
+     * Convenience wrapper around downloadAsync() that blocks calling thread
+     * until download completes. Suitable for simple scripts or when immediate
+     * result is required.
+     *
+     * @param request Complete download specification
+     * @return DownloadResult Direct result (no future wrapper)
+     *
+     * @throws ImageRuntimeException if download fails
+     * @throws std::runtime_error if manager is shutting down
+     *
+     * @note Equivalent to downloadAsync(request).get()
+     * @warning Blocks calling thread - avoid in performance-critical paths
+     */
+    DownloadResult downloadSync(const DownloadRequest& request);
+
+    /**
+     * @brief Downloads multiple images with all-or-nothing semantics.
+     *
+     * Initiates all downloads concurrently and waits for all to complete.
+     * 
+     * Returns vector of results in the same order as requests. This method
+     * 
+     * provides maximum parallelism for batch operations.
+     *
+     * @param requests Vector of download requests
+     * @return std::vector<DownloadResult> Results in request order
+     *
+     * @throws std::bad_alloc if memory allocation fails
+     *
+     * @par Concurrency behavior:
+     * - All downloads start immediately (subject to thread pool limits)
+     * - Method blocks until all downloads complete
+     * - Ordering of completion is non-deterministic
+     * - Ordering of results matches input requests
+     *
+     * @note Some downloads may succeed while others fail
+     * @warning Large batches may exhaust file descriptors or memory
+     */
+    std::vector<DownloadResult> downloadBatch(const std::vector<DownloadRequest>& requests);
+
 private:
     /**
      * @brief Worker thread entry point.

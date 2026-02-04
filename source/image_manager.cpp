@@ -240,3 +240,67 @@ void ImageManager::workerThread() {
         --active_workers;
     }
 }
+
+std::future<ImageManager::DownloadResult>
+ImageManager::downloadAsync(const DownloadRequest& request) {
+    if (request.url.empty())
+        throw std::invalid_argument(
+            "Provided URL cannot be empty.");
+
+    if (request.output_dir.empty())
+        throw std::invalid_argument(
+            "Output directory cannot"
+            " be empty.");
+
+    if (request.sequence_number < 0)
+        throw std::invalid_argument(
+            "Sequence number must be"
+            " non-negative.");
+
+    std::promise<DownloadResult> promise;
+    auto future = promise.get_future();
+
+    std::lock_guard<std::mutex> lock(queue_mutex);
+
+    /* check if we're shutting down */
+    if (stop_flag)
+        throw std::runtime_error(
+            "ImageManager is shutting down.");
+
+    /* add task to queue */
+    task_queue.emplace(request,
+        std::move(promise));
+
+    /* wake up one worker thread */
+    queue_cv.notify_one();
+
+    return future;
+}
+
+ImageManager::DownloadResult
+ImageManager::downloadSync(const DownloadRequest& request) {
+    auto future = downloadAsync(request);
+    return future.get();
+}
+
+std::vector<ImageManager::DownloadResult>
+ImageManager::downloadBatch(const std::vector<DownloadRequest>& requests) {
+    if (requests.empty())
+        return {};
+
+    /* start all downloads asynchronously */
+    std::vector<std::future<DownloadResult>> futures;
+    futures.reserve(requests.size());
+
+    for (const auto& request : requests)
+        futures.push_back(downloadAsync(request));
+
+    /* collect results (maintains input order) */
+    std::vector<DownloadResult> results;
+    results.reserve(requests.size());
+
+    for (auto& future : futures)
+        results.push_back(future.get());
+
+    return results;
+}
