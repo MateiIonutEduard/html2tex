@@ -3,6 +3,7 @@
 #include <cstring>
 #include <curl/curl.h>
 #include <system_error>
+#include <iostream>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -16,50 +17,30 @@
 
 namespace {
     /**
-     * @brief Creates directory recursively. (cross-platform)
-     * @param path Directory path to create
-     * @return 0 on success, -1 on error with errno set
+     * @brief Attempts to create directory, but doesn't fail if it exists or can't be created.
+     * @param path Directory path
+     * @return true if directory exists or was created, false otherwise
      */
-    int create_directory_recursive(const std::string& path) {
-        if (path.empty()) {
-            errno = EINVAL;
-            return -1;
-        }
+    bool tryCreateDirectory(const std::string& path) noexcept {
+        if (path.empty())
+            return false;
 
+        /* try to create directory */
         if (mkdir(path.c_str()) == 0)
-            return 0;
+            return true;
 
-        if (errno == ENOENT) {
-            size_t pos = path.find_last_of("/\\");
-            if (pos == std::string::npos)
-                return -1;
+        /* if directory already exists, that's fine */
+        if (errno == EEXIST)
+            return true;
 
-            std::string parent = path.substr(0, pos);
-            if (parent.empty()) return -1;
-
-            if (create_directory_recursive(parent) != 0) {
-                return -1;
-
-                return mkdir(path.c_str());
-            }
-
-            if (errno == EEXIST) {
+        /* on Windows, check for ERROR_ALREADY_EXISTS */
 #ifdef _WIN32
-                DWORD attrib = GetFileAttributesA(path.c_str());
-                if (attrib != INVALID_FILE_ATTRIBUTES &&
-                    (attrib & FILE_ATTRIBUTE_DIRECTORY)) {
-                    return 0;
-                }
-#else
-                struct stat st;
-                if (stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
-                    return 0;
-                }
+        if (GetLastError() == ERROR_ALREADY_EXISTS)
+            return true;
 #endif
-            }
-
-            return -1;
-        }
+        std::cerr << "Warning: Could not create directory '" << path
+            << "': " << strerror(errno) << std::endl;
+        return false;
     }
 
     /**
@@ -72,58 +53,38 @@ namespace {
         result.url = req.url;
         result.sequence_number = req.sequence_number;
 
-        try {
-            if (req.output_dir.empty()) {
-                throw ImageRuntimeException(
-                    "Output directory is empty.",
-                    HTML2TEX_ERR_INVAL);
-            }
+        if (!req.output_dir.empty())
+            tryCreateDirectory(req.output_dir);
 
-            if (req.url.empty()) {
-                throw ImageRuntimeException(
-                    "Provided URL is empty.",
-                    HTML2TEX_ERR_INVAL);
-            }
+        char* local_path = download_image_src(
+            req.url.c_str(),
+            req.output_dir.c_str(),
+            req.sequence_number);
 
-            if (create_directory_recursive(req.output_dir) != 0) {
-                throw ImageRuntimeException::fromFileError(
-                    req.output_dir,
-                    "Create directory failed.",
-                    errno);
-            }
-
-            char* local_path = download_image_src(
-                req.url.c_str(),
-                req.output_dir.c_str(),
-                req.sequence_number);
-
-            if (!local_path) {
-                if (html2tex_has_error())
-                    throw ImageRuntimeException::fromImageError();
-
-                throw ImageRuntimeException(
-                    "download_image_src() function returned"
-                    " NULL without setting error.",
-                    HTML2TEX_ERR_IMAGE_DOWNLOAD);
-            }
-
+        if (local_path) {
             result.local_path = local_path;
             result.success = true;
             free(local_path);
+        }
+        else {
+            /* failure, check for error */
+            result.success = false;
 
-        }
-        catch (const ImageRuntimeException& e) {
-            result.success = false;
-            result.error = e.what();
-        }
-        catch (const std::exception& e) {
-            result.success = false;
-            result.error = std::string("Unexpected error: ") + e.what();
-        }
-        catch (...) {
-            result.success = false;
-            result.error = "Unknown exception"
-                " during download.";
+            if (html2tex_has_error()) {
+                int error_code = html2tex_get_error();
+                const char* error_msg = html2tex_get_error_message();
+
+                if (error_msg && error_msg[0])
+                    result.error = error_msg;
+                else {
+                    result.error = "Download failed"
+                        " with error code: " +
+                        std::to_string(error_code);
+                }
+            }
+            else
+                result.error = "Download failed"
+                " (unknown reason).";
         }
 
         return result;
