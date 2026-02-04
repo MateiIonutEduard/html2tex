@@ -35,6 +35,20 @@ public:
         const char* file, int line) noexcept;
 
     /**
+     * @brief Creates exception from current image error state.
+     * @return ImageRuntimeException with current error state
+     */
+    static ImageRuntimeException fromImageError();
+
+    /**
+     * @brief Creates exception from libcurl error.
+     * @param curl_error libcurl error code
+     * @param url URL that failed to download
+     * @return ImageRuntimeException with libcurl error context
+     */
+    static ImageRuntimeException fromCurlError(int curl_error, const std::string& url);
+
+    /**
      * @brief Destructor.
      */
     virtual ~ImageRuntimeException() noexcept override = default;
