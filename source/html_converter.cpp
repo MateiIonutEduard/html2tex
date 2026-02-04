@@ -4,7 +4,9 @@
 #include <fstream>
 #include <stdexcept>
 
-HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false) {
+HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false),
+downloads_enabled(false), 
+image_directory("") {
     LaTeXConverter* raw_converter = html2tex_create();
 
     if (raw_converter) {
@@ -19,11 +21,16 @@ HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), va
 }
 
 HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other)
-: converter(nullptr, &html2tex_destroy), valid(false) {
+: converter(nullptr, &html2tex_destroy), valid(false),
+downloads_enabled(false),
+image_directory("") {
     if (other.converter && other.valid) {
         LaTeXConverter* clone = html2tex_copy(other.converter.get());
 
         if (clone) {
+            downloads_enabled = other.downloads_enabled;
+            image_directory = other.image_directory;
+
             converter.reset(clone);
             valid = true;
         }
@@ -36,15 +43,25 @@ HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other)
 }
 
 HtmlTeXConverter::HtmlTeXConverter(HtmlTeXConverter&& other) noexcept
-    : converter(std::move(other.converter)), valid(other.valid) { 
+    : converter(std::move(other.converter)), valid(other.valid), 
+    downloads_enabled(other.downloads_enabled), 
+    image_directory(other.image_directory) {
+    other.downloads_enabled = false;
+    other.image_directory = "";
+
     other.converter.reset(nullptr);
     other.valid = false;
 }
 
-bool HtmlTeXConverter::setDirectory(const std::string& fullPath) const noexcept {
-    if (!converter || !valid) return false;
-    html2tex_set_image_directory(converter.get(), fullPath.c_str());
+bool HtmlTeXConverter::setDirectory(const std::string& fullPath) noexcept {
+    if (!converter || !valid) 
+        return false;
 
+    /* store the directory */
+    image_directory = fullPath;
+    downloads_enabled = true;
+
+    html2tex_set_image_directory(converter.get(), fullPath.c_str());
     html2tex_set_download_images(converter.get(), 1);
     return true;
 }
@@ -329,6 +346,9 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) {
                 other.converter.get());
 
             if (clone) {
+                downloads_enabled = other.downloads_enabled;
+                image_directory = other.image_directory;
+
                 temp.reset(clone);
                 new_valid = true;
             }
@@ -347,6 +367,12 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(const HtmlTeXConverter& other) {
 
 HtmlTeXConverter& HtmlTeXConverter::operator =(HtmlTeXConverter&& other) noexcept {
     if (this != &other) {
+        downloads_enabled = other.downloads_enabled;
+        other.downloads_enabled = false;
+
+        image_directory = other.image_directory;
+        other.image_directory = "";
+
         converter = std::move(other.converter);
         valid = other.valid;
         other.valid = false;

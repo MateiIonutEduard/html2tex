@@ -25,7 +25,8 @@
 class HtmlTeXConverter {
 private:
     std::unique_ptr<LaTeXConverter, decltype(&html2tex_destroy)> converter;
-    bool valid;
+    std::string image_directory;
+    bool downloads_enabled, valid;
 
 public:
     /**
@@ -94,7 +95,7 @@ public:
      * @note Enables automatic image downloading.
      * @warning Directory must exist and be writable.
      */
-    bool setDirectory(const std::string& fullPath) const noexcept;
+    bool setDirectory(const std::string& fullPath) noexcept;
 
     /**
      * @brief Checks for errors from last operation.
