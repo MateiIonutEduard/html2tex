@@ -195,6 +195,60 @@ public:
      */
     std::vector<DownloadResult> downloadBatch(const std::vector<DownloadRequest>& requests);
 
+    /**
+     * @brief Blocks until all queued and active downloads complete
+     *
+     * Useful for synchronization points, such as before program exit or
+     * 
+     * when downloads must complete before subsequent processing.
+     *
+     * @par Implementation details:
+     * - Polls internal state with 10ms sleeps
+     * - Returns when task queue is empty and no active workers
+     * - Does not prevent new downloads during wait
+     *
+     * @note May return while other threads add new tasks
+     * @warning Not suitable for precise synchronization across threads
+     */
+    void waitForCompletion();
+
+    /**
+     * @brief Cancels all pending downloads immediately.
+     *
+     * Removes all queued tasks and rejects their promises with
+     * std::runtime_error.
+     * 
+     * Actively executing downloads continue to completion.
+     *
+     * @par Use cases:
+     * - Application shutdown
+     * - User cancellation
+     * - Error recovery
+     *
+     * @note Active downloads are not interrupted
+     * @warning Cancelled promises throw std::runtime_error when accessed
+     */
+    void cancelAll();
+
+    /**
+     * @brief Checks if downloads are currently active or queued.
+     *
+     * Atomic check of internal state. Useful for progress
+     * 
+     * indicators or conditional logic based on download
+     * 
+     * activity.
+     *
+     * @return true if any of:
+     *         - Tasks are queued but not yet started
+     *         - Workers are actively downloading
+     *         false otherwise
+     *
+     * @note Race condition: State may change immediately after check
+     * @note O(1) atomic read, no locking
+     */
+    bool isActive() const;
+
 private:
     /**
      * @brief Worker thread entry point.

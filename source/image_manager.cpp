@@ -304,3 +304,30 @@ ImageManager::downloadBatch(const std::vector<DownloadRequest>& requests) {
 
     return results;
 }
+
+void ImageManager::cancelAll() {
+    std::lock_guard<std::mutex> lock(queue_mutex);
+
+    while (!task_queue.empty()) {
+        auto& promise = task_queue
+            .front().second;
+
+        try {
+            promise.set_exception(std::make_exception_ptr(
+                std::runtime_error("Download cancelled by user")));
+        }
+        catch (...) { }
+        task_queue.pop();
+    }
+}
+
+bool ImageManager::isActive() const { 
+    return active_workers > 0 
+        || !task_queue.empty(); 
+}
+
+void ImageManager::waitForCompletion() {
+    while (isActive())
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds(10));
+}
