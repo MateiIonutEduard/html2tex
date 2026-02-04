@@ -3,6 +3,7 @@
 
 #include "dom_tree.h"
 #include "dom_tree_visitor.h"
+#include "html_exception.hpp"
 #include "css_properties.h"
 #include <memory>
 #include <string>

@@ -4,5 +4,6 @@
 #include "html_parser.hpp"
 #include "htmltex_converter.hpp"
 #include "ext/html_document.hpp"
+#include "ext/image_manager.hpp"
 
 #endif

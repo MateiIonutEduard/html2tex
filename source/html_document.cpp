@@ -1,10 +1,6 @@
 #include "ext/html_document.hpp"
-#include "dom_tree_visitor.h"
-#include "html_exception.hpp"
 #include <cstring>
 #include <iostream>
-#include <queue>
-#include <stack>
 
 HtmlDocument::HtmlDocument() noexcept
     : node(nullptr), props(nullptr), hasProps(false) {
