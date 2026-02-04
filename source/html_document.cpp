@@ -25,10 +25,10 @@ HtmlDocument::HtmlDocument(HTMLElement* elem) noexcept
         props = elem->css_props;
 
         /* destroy container only */
-        if (props != nullptr) {
-            std::free(elem);
+        std::free(elem);
+
+        if (props != nullptr)
             hasProps = true;
-        }
     }
 }
 
@@ -194,7 +194,8 @@ std::vector<HtmlDocument> HtmlDocument::children() const {
     HTMLNode* child = node->children;
 
     while (child) {
-        result.emplace_back(child);
+        result.emplace_back(
+            HtmlDocument(child));
         child = child->next;
     }
 
@@ -324,8 +325,10 @@ std::vector<HtmlDocument> HtmlDocument::findAll(DOMTreeVisitor predicate, const 
         HTMLElement** elements = html_nodelist_dismantle(&list);
 
         if (elements) {
-            for (size_t i = 0; i < count; ++i)
-                result.emplace_back(elements[i]);
+            for (size_t i = 0; i < count; ++i) {
+                HtmlDocument document = HtmlDocument(elements[i]);
+                result.emplace_back(document);
+            }
 
             free(elements);
         }
