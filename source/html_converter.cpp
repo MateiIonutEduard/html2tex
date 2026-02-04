@@ -1,4 +1,3 @@
-#include "html2tex.h"
 #include "htmltex_converter.hpp"
 #include <iostream>
 #include <fstream>

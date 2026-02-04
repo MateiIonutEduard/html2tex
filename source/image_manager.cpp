@@ -1,5 +1,4 @@
 #include "ext/image_manager.hpp"
-#include "html2tex.h"
 #include <cstring>
 #include <curl/curl.h>
 #include <system_error>
