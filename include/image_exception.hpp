@@ -49,6 +49,25 @@ public:
     static ImageRuntimeException fromCurlError(int curl_error, const std::string& url);
 
     /**
+     * @brief Creates exception from filesystem error.
+     * @param path File path that caused the error
+     * @param operation Operation being performed
+     * @param error_code System error code
+     * @return ImageRuntimeException with filesystem context
+     */
+    static ImageRuntimeException fromFileError(const std::string& path,
+        const std::string& operation, int error_code);
+
+    /**
+     * @brief Creates exception from network error.
+     * @param url URL that failed
+     * @param http_status HTTP status code if available
+     * @return ImageRuntimeException with network context
+     */
+    static ImageRuntimeException fromNetworkError(const std::string& url,
+        int http_status = 0);
+
+    /**
      * @brief Destructor.
      */
     virtual ~ImageRuntimeException() noexcept override = default;

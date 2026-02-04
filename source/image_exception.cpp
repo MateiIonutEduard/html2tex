@@ -39,3 +39,34 @@ ImageRuntimeException ImageRuntimeException::fromCurlError(int curl_error,
     return ImageRuntimeException(message, 
         HTML2TEX_ERR_IMAGE_DOWNLOAD);
 }
+
+ImageRuntimeException ImageRuntimeException::fromFileError(const std::string& path,
+    const std::string& operation, int error_code) {
+
+    std::string message = "File " + operation + " failed for '" + path + "'";
+
+    if (error_code != 0) {
+        const char* error_str = std::strerror(error_code);
+        message += ": " + (error_str ? 
+            std::string(error_str) : "Unknown image error.");
+    }
+
+    return ImageRuntimeException(message, 
+        HTML2TEX_ERR_IO);
+}
+
+ImageRuntimeException ImageRuntimeException::fromNetworkError(const std::string& url,
+    int http_status) {
+
+    std::string message = "Network error";
+
+    if (http_status != 0) 
+        message += " [HTTP " + std::to_string(http_status) + "]";
+
+    if (!url.empty()) 
+        message += " while accessing: " + url;
+
+    return ImageRuntimeException(message,
+        http_status != 0 ? HTML2TEX_ERR_DOWNLOAD 
+        : HTML2TEX_ERR_NETWORK);
+}
