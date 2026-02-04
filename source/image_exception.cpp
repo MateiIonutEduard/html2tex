@@ -70,3 +70,16 @@ ImageRuntimeException ImageRuntimeException::fromNetworkError(const std::string&
         http_status != 0 ? HTML2TEX_ERR_DOWNLOAD 
         : HTML2TEX_ERR_NETWORK);
 }
+
+void ImageRuntimeException::format(std::ostream& stream) const {
+    stream << "[Image Error " << code() << "] " << message();
+
+    if (file()) {
+        stream << " (at " << file();
+
+        if (line() > 0)
+            stream << ":" << line();
+
+        stream << ")";
+    }
+}

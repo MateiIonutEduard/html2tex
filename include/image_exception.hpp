@@ -67,10 +67,23 @@ public:
     static ImageRuntimeException fromNetworkError(const std::string& url,
         int http_status = 0);
 
+protected:
+    /**
+     * @brief Formats the exception message for output.
+     * @param stream Output stream to format into
+     */
+    virtual void format(std::ostream& stream) const override;
+
     /**
      * @brief Destructor.
      */
     virtual ~ImageRuntimeException() noexcept override = default;
 };
+
+/**
+ * @brief Macro for throwing ImageRuntimeException exceptions with file/line context.
+ */
+#define THROW_IMAGE_ERROR(msg, code) \
+    throw ImageRuntimeException((msg), (code), __FILE__, __LINE__)
 
 #endif
