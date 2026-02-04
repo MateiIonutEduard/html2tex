@@ -205,6 +205,7 @@ add_library(html2tex_cpp STATIC
     source/html_converter.cpp
 	source/base_exception.cpp
 	source/html_exception.cpp
+	source/image_exception.cpp
 	source/latex_exception.cpp
 )
 
@@ -276,6 +277,7 @@ install(FILES
     include/html_parser.hpp
     include/html2tex_defs.hpp
 	include/ext/html_document.hpp
+	include/image_exception.hpp
 	include/htmltex_converter.hpp
 	include/base_exception.hpp
 	include/html_exception.hpp
@@ -293,6 +295,7 @@ install(FILES
     source/html_converter.cpp
 	source/base_exception.cpp
 	source/html_exception.cpp
+	source/image_exception.cpp
 	source/latex_exception.cpp
     DESTINATION ${SOURCE_INSTALL_DIR}
 )
@@ -353,7 +356,7 @@ message(STATUS "  C++ static library: ${LIBRARY_PREFIX}html2tex_cpp${LIBRARY_SUF
 message(STATUS "  Architecture: ${ARCH_NAME}")
 message(STATUS "  Output directory: ${OUTPUT_BASE_DIR}/<Config>/<Arch>")
 message(STATUS "  C headers: ${INCLUDE_INSTALL_DIR}/ (6 headers)")
-message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/html2tex.hpp + others sources (7 .hpp interfaces, 6 .cpp files)")
+message(STATUS "  C++ wrapper: ${INCLUDE_INSTALL_DIR}/html2tex.hpp + others sources (8 .hpp interfaces, 7 .cpp files)")
 message(STATUS "")
 message(STATUS "Source files included:")
 message(STATUS "  Core: html2tex.c, html2tex_generator.c, html2tex_processor.c")
