@@ -29,7 +29,7 @@ int stack_push(Stack** top, void* data) {
     return 1;
 }
 
-void** stack_to_array(Stack** top, size_t* count, void (*cleanup)(void*)) {
+void** stack_to_array(Stack** top, size_t* count) {
     /* clear the error context */
     html2tex_err_clear();
 
@@ -49,30 +49,9 @@ void** stack_to_array(Stack** top, size_t* count, void (*cleanup)(void*)) {
     }
 
     /* initialize output count */
-    *count = 0;
-
-    /* handle empty stack case */
-    if (!*top) {
-        void** empty_array = (void**)malloc(sizeof(void*));
-        if (!empty_array) {
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
-                "Failed to allocate empty array"
-                " for stack conversion.");
-            return NULL;
-        }
-        empty_array[0] = NULL;
-        return empty_array;
-    }
-
-    /* count elements efficiently */
-    size_t element_count = 0;
-    Stack* current = *top;
-
-    while (current) {
-        element_count++;
-        current = current->next;
-    }
-
+    size_t element_count = stack_size(*top);
+    if (!element_count) return NULL;
+    
     /* allocate array with exact size */
     void** array = (void**)malloc(element_count * sizeof(void*));
 
@@ -84,36 +63,25 @@ void** stack_to_array(Stack** top, size_t* count, void (*cleanup)(void*)) {
         return NULL;
     }
 
+    /* get a reference to the top stack */
+    const Stack* current = *top;
+
     /* pop elements and fill array */
     size_t index = 0;
 
-    /* keep a reference for cleanup */
-    Stack* stack_copy = *top;
-
-    while (!stack_is_empty(*top)) {
-        void* data = stack_pop(top);
+    while (current) {
+        void* data = current->data;
 
         if (data) {
             array[element_count - index - 1] = data;
             index++;
         }
-    }
 
-    /* verify we got all elements */
-    if (index != element_count) {
-        HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
-            "Stack element count mismatch: "
-            "expected %zu, got %zu.",
-            element_count, index);
-        free(array);
-
-        /* clean up remaining stack */
-        stack_destroy(&stack_copy, cleanup);
-        return NULL;
+        current = current->next;
     }
 
     /* destroy empty stack nodes (transfer ownership to array) */
-    stack_destroy(&stack_copy, NULL);
+    stack_cleanup(top);
 
     *count = element_count;
     return array;
