@@ -78,6 +78,27 @@ extern "C" {
 	 */
 	void stack_destroy(Stack** top, void (*cleanup)(void*));
 
+	/**
+	 * @brief Atomically converts stack to array while destroying the stack.
+	 *
+	 * Transforms LIFO stack to FIFO array with guaranteed cleanup. All stack nodes
+	 * 
+	 * are freed, element ownership transfers to array. Operation is all-or-nothing:
+	 * 
+	 * returns valid array with destroyed stack, or NULL with destroyed stack and
+	 * 
+	 * error set.
+	 *
+	 * @param top Stack to convert/destroy. Set to NULL on completion.
+	 * @param count Number of elements extracted. 0 on empty/error.
+	 * @param cleanup Optional element destructor. NULL retains ownership.
+	 *
+	 * @return Success: malloc'd array[*count]. 
+	 * @return Empty: array[1]={NULL}.
+	 * @return Failure: NULL with error set.
+	 */
+	void** stack_to_array(Stack** top, size_t* count);
+
 #ifdef __cplusplus
 }
 #endif
