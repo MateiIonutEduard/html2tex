@@ -949,6 +949,26 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
     return unique_name;
 }
 
+ImageStorage* create_image_storage() {
+    /* clear any previous error state */
+    html2tex_err_clear();
+
+    ImageStorage* store = (ImageStorage*)malloc(sizeof(ImageStorage));
+
+    if (!store) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes "
+            "for ImageStorage structure.",
+            sizeof(ImageStorage));
+        return NULL;
+    }
+
+    /* initialize with safe defaults */
+    store->lazy_downloading = FALSE;
+    store->image_stack = NULL;
+    return store;
+}
+
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */
     html2tex_err_clear();

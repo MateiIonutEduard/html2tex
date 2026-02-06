@@ -2,10 +2,21 @@
 #define IMAGE_UTILS_H
 
 #include <stddef.h>
+#include "html2tex_stack.h"
+
+#ifndef TRUE
+#define TRUE 1
+#endif
+
+#ifndef FALSE
+#define FALSE 0
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+	typedef struct ImageStorage ImageStorage;
+
 	/**
 	 * @brief Downloads or processes image source to local file with collision avoidance.
 	 * @param src Image source (URL, file path, or Base64 data URI)
@@ -33,6 +44,20 @@ extern "C" {
 
 	/* @brief Releases image download resources. */
 	void image_utils_cleanup(void);
+
+	/**
+	 * @brief Allocates and initializes a new ImageStorage structure for deferred image management.
+	 *
+	 * @see destroy_image_storage() for complementary destruction
+	 * @see html2tex_create() for converter-level integration
+	 * @see html2tex_err_clear() for error state management
+	 * @see ImageStorage for structure definition and field semantics
+	 *
+	 * @return Pointer to initialized ImageStorage structure on success.
+	 * @return NULL on failure with error state set (check html2tex_has_error()).
+	 */
+	ImageStorage* create_image_storage();
+
 #ifdef __cplusplus
 }
 #endif

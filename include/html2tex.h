@@ -18,6 +18,12 @@ extern "C" {
 #endif
 	typedef struct ConverterState ConverterState;
 	typedef struct LaTeXConverter LaTeXConverter;
+	typedef struct ImageStorage ImageStorage;
+
+	struct ImageStorage {
+		int lazy_downloading;
+		Stack* image_stack;
+	};
 
 	/* converter configuration */
 	struct ConverterState {
@@ -56,7 +62,7 @@ extern "C" {
 		StringBuffer* buffer;
 		ConverterState state;
 		CSSProperties* current_css;
-
+		ImageStorage* store;
 		char* image_output_dir;
 		int download_images;
 		int image_counter;
