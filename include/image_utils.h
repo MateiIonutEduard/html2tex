@@ -51,50 +51,39 @@ extern "C" {
 	ImageStorage* create_image_storage();
 
 	/**
-	 * @brief Safely clears accumulated image storage while preserving error context.
+	 * @brief Safely clears accumulated image storage with comprehensive error handling.
 	 *
 	 * @param store Pointer to ImageStorage structure (may be NULL).
 	 *
-     * @return 1 on successful clearing with all resources freed.
-     * @return 0 when store is NULL (no operation performed).
-     * @return -1 on allocation failure with error state set.
-	 * @warning This function transfers ownership of filename pointers. Caller must
-	 *          ensure no other references exist to these strings after calling.
-	 *
+	 * @return 1 on successful clearing with all resources freed.
+	 * @return 0 when store is NULL (no operation performed).
+	 * @return -1 on allocation failure with stack cleaned up and error preserved.
+	 * 
 	 * @warning This function transfers ownership of filename pointers from the
 	 *          stack to the temporary array. Caller must ensure no other
 	 *          references exist to these strings after calling.
 	 *
-	 * @note The ImageStorage structure itself is not freed. Use destroy_image_storage()
-	 *       for complete resource reclamation. After successful call, the store
-	 *       remains valid but empty.
+	 * @note On failure (-1), the stack is destroyed via stack_destroy(), ensuring
+	 *       no memory leaks from partial allocations.
 	 *
 	 * @see stack_to_array() for ownership transfer mechanism
+	 * @see stack_destroy() for failure cleanup
 	 * @see destroy_image_storage() for complete destruction
-	 * @see create_image_storage() for complementary constructor
 	 */
 	int clear_image_storage(ImageStorage* store);
 
 	/**
-	 * @brief Completely destroys an ImageStorage structure and all its resources.
+	 * @brief Completely destroys an ImageStorage structure with guaranteed cleanup.
 	 * @param store Pointer to ImageStorage structure to destroy (may be NULL).
-	 * 
-	 * @warning **Memory Leak Risk**: If `clear_image_storage()` fails (returns -1),
-	 *          stored filenames may leak while the container is still freed.
-	 *          This is a deliberate trade-off to prevent resource retention.
-	 *
-	 * @warning **Error Discard**: Any errors from `clear_image_storage()` are
-	 *          intentionally ignored. Callers requiring error awareness should
-	 *          call `clear_image_storage()` explicitly before destruction.
 	 *
 	 * @note This function implements **destructor semantics** rather than
 	 *       **resource management semantics**. For applications requiring
 	 *       guaranteed cleanup, use the explicit pattern shown above.
 	 *
-	 * @note The function is idempotent: calling multiple times or after
-	 *       partial destruction is safe (though not recommended).
+	 * @note The function is now more reliable due to clear_image_storage()'s
+	 *       enhanced error recovery. Stack memory is cleaned up even on failures.
 	 *
-	 * @see clear_image_storage() for explicit content clearing with error reporting
+	 * @see clear_image_storage() for the improved cleanup implementation
 	 * @see create_image_storage() for complementary constructor
 	*/
 	void destroy_image_storage(ImageStorage* store);

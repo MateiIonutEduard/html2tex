@@ -980,8 +980,12 @@ int clear_image_storage(ImageStorage* store) {
         char** filenames = (char**)stack_to_array(&image_stack, &count);
         int errorThrown = html2tex_has_error();
 
-        /* propagate the existing error forwardly */
-        if (errorThrown) return -1;
+        /* propagate the existing error forward */
+        if (errorThrown) {
+            /* force memory clean up first */
+            stack_destroy(&image_stack, &free);
+            return -1;
+        }
 
         /* transferring data ownership succeed */
         for (size_t i = 0; i < count; i++)
@@ -1000,8 +1004,8 @@ void destroy_image_storage(ImageStorage* store) {
     if (!store) return;
 
     store->lazy_downloading = 0;
-    int res_code = clear_image_storage(store);
-    if (res_code > 0) free(store);
+    clear_image_storage(store);
+    free(store);
 }
 
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
