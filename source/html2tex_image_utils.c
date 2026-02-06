@@ -1008,6 +1008,46 @@ void destroy_image_storage(ImageStorage* store) {
     free(store);
 }
 
+
+int html2tex_enable_downloads(ImageStorage** storage, int enable) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (!storage) return NULL;
+    ImageStorage* store = *storage;
+
+    /* create a new container */
+    ImageStorage* new_store = create_image_storage();
+    if (!new_store) return 0;
+    new_store->lazy_downloading = enable;
+
+    if (enable) {
+        /* destroy existing one */
+        if (store != NULL)
+            destroy_image_storage(store);
+
+        *storage = new_store;
+    }
+    else {
+        /* check if container is NULL */
+        if (store != NULL) {
+            if (stack_is_empty(store->image_stack)) {
+                destroy_image_storage(new_store);
+                store->lazy_downloading = enable;
+            }
+            else {
+                destroy_image_storage(store);
+                *storage = new_store;
+            }
+        }
+        else
+            destroy_image_storage(new_store);
+    }
+
+    return 1;
+}
+
+
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */
     html2tex_err_clear();
