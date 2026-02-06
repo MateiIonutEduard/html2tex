@@ -964,9 +964,34 @@ ImageStorage* create_image_storage() {
     }
 
     /* initialize with safe defaults */
-    store->lazy_downloading = FALSE;
+    store->lazy_downloading = 0;
     store->image_stack = NULL;
     return store;
+}
+
+int clear_image_storage(ImageStorage* store, int enable) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    if (store && enable) {
+        Stack* image_stack = store->image_stack;
+        size_t count = 0;
+
+        char** filenames = (char**)stack_to_array(&image_stack, &count);
+        int errorThrown = html2tex_has_error();
+
+        /* propagate the existing error forwardly */
+        if (errorThrown) return -1;
+
+        /* transferring data ownership succeed */
+        for (size_t i = 0; i < count; i++)
+            free(filenames[i]);
+
+        free(filenames);
+        return 1;
+    }
+
+    return 0;
 }
 
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {

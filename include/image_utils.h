@@ -4,14 +4,6 @@
 #include <stddef.h>
 #include "html2tex_stack.h"
 
-#ifndef TRUE
-#define TRUE 1
-#endif
-
-#ifndef FALSE
-#define FALSE 0
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,6 +49,27 @@ extern "C" {
 	 * @return NULL on failure with error state set (check html2tex_has_error()).
 	 */
 	ImageStorage* create_image_storage();
+
+	/**
+	 * @brief Safely clears accumulated image storage while preserving error context.
+	 *
+	 * @param store Pointer to ImageStorage structure (may be NULL).
+	 * @param enable Control flag (non-zero enables clearing, zero is no-op).
+	 *
+	 * @return 1 on successful clearing with all resources freed.
+	 * @return 0 when store is NULL or enable is zero (no operation performed).
+	 * @return -1 on allocation failure with error state set.
+	 * @warning This function transfers ownership of filename pointers. Caller must
+	 *          ensure no other references exist to these strings after calling.
+	 *
+	 * @note The ImageStorage structure itself is not freed. Use destroy_image_storage()
+	 *       for complete resource reclamation.
+	 *
+	 * @see stack_to_array() for ownership transfer mechanism
+	 * @see destroy_image_storage() for complete destruction
+	 * @see create_image_storage() for complementary constructor
+	 */
+	int clear_image_storage(ImageStorage* store, int enable);
 
 #ifdef __cplusplus
 }
