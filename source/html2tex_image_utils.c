@@ -994,6 +994,16 @@ int clear_image_storage(ImageStorage* store) {
     return 0;
 }
 
+void destroy_image_storage(ImageStorage* store) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+    if (!store) return;
+
+    store->lazy_downloading = 0;
+    int res_code = clear_image_storage(store);
+    if (res_code > 0) free(store);
+}
+
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */
     html2tex_err_clear();

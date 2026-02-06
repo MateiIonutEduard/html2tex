@@ -73,7 +73,31 @@ extern "C" {
 	 * @see destroy_image_storage() for complete destruction
 	 * @see create_image_storage() for complementary constructor
 	 */
-	int clear_image_storage(ImageStorage* store, int enable);
+	int clear_image_storage(ImageStorage* store);
+
+	/**
+	 * @brief Completely destroys an ImageStorage structure and all its resources.
+	 * @param store Pointer to ImageStorage structure to destroy (may be NULL).
+	 * 
+	 * @warning **Memory Leak Risk**: If `clear_image_storage()` fails (returns -1),
+	 *          stored filenames may leak while the container is still freed.
+	 *          This is a deliberate trade-off to prevent resource retention.
+	 *
+	 * @warning **Error Discard**: Any errors from `clear_image_storage()` are
+	 *          intentionally ignored. Callers requiring error awareness should
+	 *          call `clear_image_storage()` explicitly before destruction.
+	 *
+	 * @note This function implements **destructor semantics** rather than
+	 *       **resource management semantics**. For applications requiring
+	 *       guaranteed cleanup, use the explicit pattern shown above.
+	 *
+	 * @note The function is idempotent: calling multiple times or after
+	 *       partial destruction is safe (though not recommended).
+	 *
+	 * @see clear_image_storage() for explicit content clearing with error reporting
+	 * @see create_image_storage() for complementary constructor
+	*/
+	void destroy_image_storage(ImageStorage* store);
 
 #ifdef __cplusplus
 }
