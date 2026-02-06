@@ -1007,13 +1007,18 @@ void destroy_image_storage(ImageStorage* store) {
     clear_image_storage(store);
     free(store);
 }
-
-
+ 
 int html2tex_enable_downloads(ImageStorage** storage, int enable) {
     /* clear any existing error state */
     html2tex_err_clear();
 
-    if (!storage) return NULL;
+    if (!storage) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Storage pointer is NULL for "
+            "download control.");
+        return 0;
+    }
+
     ImageStorage* store = *storage;
 
     /* create a new container */
@@ -1046,7 +1051,6 @@ int html2tex_enable_downloads(ImageStorage** storage, int enable) {
 
     return 1;
 }
-
 
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */

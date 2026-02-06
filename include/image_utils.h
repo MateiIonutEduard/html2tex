@@ -88,6 +88,29 @@ extern "C" {
 	*/
 	void destroy_image_storage(ImageStorage* store);
 
+	/**
+	 * @brief Controls deferred image downloading mode with state preservation.
+	 * @param storage Double pointer to ImageStorage handle.
+	 * @param enable Boolean control flag:
+	 *
+	 *                  - Non-zero: Enable deferred downloads
+	 *
+	 *                  - Zero: Disable deferred downloads
+	 * @return int Success indicator:
+	 *
+	 *         - 1: Operation completed successfully
+	 *
+	 *         - 0: Operation failed, error state set (check html2tex_has_error())
+	 *
+	 * @note When disabling with pending downloads, existing storage is destroyed
+	 *       and replaced with fresh disabled storage to ensure clean state.
+	 *
+	 * @see create_image_storage()
+	 * @see destroy_image_storage()
+	 * @see clear_image_storage()
+	 */
+	int html2tex_enable_downloads(ImageStorage** storage, int enable);
+
 #ifdef __cplusplus
 }
 #endif
