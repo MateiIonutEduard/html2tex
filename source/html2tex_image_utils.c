@@ -969,11 +969,11 @@ ImageStorage* create_image_storage() {
     return store;
 }
 
-int clear_image_storage(ImageStorage* store, int enable) {
+int clear_image_storage(ImageStorage* store) {
     /* clear any existing error state */
     html2tex_err_clear();
 
-    if (store && enable) {
+    if (store) {
         Stack* image_stack = store->image_stack;
         size_t count = 0;
 

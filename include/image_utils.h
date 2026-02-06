@@ -54,16 +54,20 @@ extern "C" {
 	 * @brief Safely clears accumulated image storage while preserving error context.
 	 *
 	 * @param store Pointer to ImageStorage structure (may be NULL).
-	 * @param enable Control flag (non-zero enables clearing, zero is no-op).
 	 *
-	 * @return 1 on successful clearing with all resources freed.
-	 * @return 0 when store is NULL or enable is zero (no operation performed).
-	 * @return -1 on allocation failure with error state set.
+     * @return 1 on successful clearing with all resources freed.
+     * @return 0 when store is NULL (no operation performed).
+     * @return -1 on allocation failure with error state set.
 	 * @warning This function transfers ownership of filename pointers. Caller must
 	 *          ensure no other references exist to these strings after calling.
 	 *
+	 * @warning This function transfers ownership of filename pointers from the
+	 *          stack to the temporary array. Caller must ensure no other
+	 *          references exist to these strings after calling.
+	 *
 	 * @note The ImageStorage structure itself is not freed. Use destroy_image_storage()
-	 *       for complete resource reclamation.
+	 *       for complete resource reclamation. After successful call, the store
+	 *       remains valid but empty.
 	 *
 	 * @see stack_to_array() for ownership transfer mechanism
 	 * @see destroy_image_storage() for complete destruction
