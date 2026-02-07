@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "dom_tree.h"
 #include "image_utils.h"
+#include "image_storage.h"
 #include "string_buffer.h"
 #include "html2tex_stack.h"
 #include "html2tex_queue.h"

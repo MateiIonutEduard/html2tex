@@ -170,6 +170,7 @@ add_library(html2tex_c STATIC
     source/html2tex_utils.c
     source/html2tex_queue_utils.c
     source/html2tex_stack_utils.c
+	source/html2tex_image_storage.c
     source/html2tex_image_utils.c
     source/html2tex_processor.c
 )
@@ -268,6 +269,7 @@ install(FILES
     include/html2tex_queue.h
 	include/html2tex_stack.h
     include/css_properties.h
+	include/image_storage.h
     include/image_utils.h
     include/html2tex_processor.h
     DESTINATION ${INCLUDE_INSTALL_DIR}
@@ -365,7 +367,7 @@ message(STATUS "Source files included:")
 message(STATUS "  Core: html2tex.c, html2tex_generator.c, html2tex_processor.c")
 message(STATUS "  DOM: html_parser.c, html_minify.c, html_prettify.c, html2tex_dom_tree.c html2tex_dom_tree_visitor.c")
 message(STATUS "  CSS: html2tex_css.c")
-message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c")
+message(STATUS "  Utilities: html2tex_string_buffer.c, html2tex_utils.c html2tex_image_storage.c")
 message(STATUS "  Data structures: html2tex_queue_utils.c, html2tex_stack_utils.c")
 message(STATUS "  Error system: html2tex_errors.c")
 message(STATUS "  Image: html2tex_image_utils.c")
