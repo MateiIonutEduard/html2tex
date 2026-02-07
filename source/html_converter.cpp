@@ -108,6 +108,39 @@ ImageManager& HtmlTeXConverter::getImageManager() {
     return *image_manager;
 }
 
+std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
+    if (!converter || !valid)
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter:"
+            " Converter not "
+            "initialized.", -1);
+
+    std::vector<ImageManager::DownloadRequest> batch;
+    ImageStorage* storage = converter.get()->store;
+    size_t count = 0;
+
+    if (storage != nullptr && !stack_is_empty(storage->image_stack)) {
+        char** filenames = (char**)stack_to_array(
+            &storage->image_stack, &count);
+
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
+
+        if (count > 0) {
+            for (size_t i = 0; i < count; i++) {
+                std::string full_path = std::string(filenames[i]);
+                std::free(filenames[i]);
+                ImageManager::DownloadRequest req{ full_path, image_directory, i + 1 };
+                batch.emplace_back(req);
+            }
+
+            std::free(filenames);
+        }
+    }
+
+    return batch;
+}
+
 std::string HtmlTeXConverter::convert(const std::string& html) const {
     /* fast and optimized precondition checks */
     if (!converter || !valid)
@@ -418,6 +451,8 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(HtmlTeXConverter&& other) noexcep
         other.image_directory = "";
 
         converter = std::move(other.converter);
+        image_manager = std::move(other.image_manager);
+
         valid = other.valid;
         other.valid = false;
     }

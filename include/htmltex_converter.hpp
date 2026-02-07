@@ -8,6 +8,7 @@
 #include "ext/image_manager.hpp"
 #include "latex_exception.hpp"
 #include <iostream>
+#include <vector>
 
 /**
  * @class HtmlTeXConverter
@@ -150,6 +151,30 @@ public:
      * @see HtmlTeXConverter::convert() for integrated conversion workflow
      */
     ImageManager& getImageManager();
+
+    /**
+     * @brief Retrieves queued image download requests from deferred storage.
+     * @return std::vector<ImageManager::DownloadRequest> Vector of download requests
+     *         - Empty if no images queued or converter invalid
+     *         - Each request contains URL, output directory, and sequence number
+     *         - Sequence numbers start at 1 and preserve original order
+     *
+     * @throws RuntimeException if converter is not initialized
+     * @throws LaTeXRuntimeException if underlying C API reports error
+     * @throws std::bad_alloc if memory allocation fails during conversion
+     *
+     * @note Clears internal ImageStorage as side effect (transfer semantics)
+     * @note Requires image directory to be set via setDirectory() for valid requests
+     * @note Thread-safe only if converter is not accessed concurrently
+     * @warning After calling, internal storage will be empty
+     * @warning Returned vector must be processed before converter destruction
+     *
+     * @see setDirectory() for output directory configuration
+     * @see enableLazyDownloading() for deferred download mode
+     * @see ImageManager::downloadBatch() for processing returned requests
+     * @see clear_image_storage() (C API) for underlying implementation
+     */
+    std::vector<ImageManager::DownloadRequest> getImages();
 
     /**
      * @brief Gets error message from last operation.
