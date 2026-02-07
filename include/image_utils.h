@@ -11,13 +11,14 @@ extern "C" {
 
 	/**
 	 * @brief Downloads or processes image source to local file with collision avoidance.
+	 * @param storage Image storage structure for deferred download management (NULL for immediate processing)
 	 * @param src Image source (URL, file path, or Base64 data URI)
 	 * @param output_dir Directory for downloaded images (created if needed)
 	 * @param image_counter Sequence number for unique filename generation
 	 * @return Success: Local file path (caller must free())
 	 * @return Failure: NULL with error set
 	 */
-	char* download_image_src(const char* src, const char* output_dir, int image_counter);
+	char* download_image_src(ImageStorage** storage, const char* src, const char* output_dir, int image_counter);
 
 	/**
 	 * @brief Detects Base64-encoded image data URIs.

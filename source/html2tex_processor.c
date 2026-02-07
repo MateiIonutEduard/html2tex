@@ -872,7 +872,8 @@ int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node, const 
 
             if (converter->download_images && converter->image_output_dir) {
                 converter->image_counter++;
-                image_path = download_image_src(src, converter->image_output_dir,
+                image_path = download_image_src(&converter->store, 
+                    src, converter->image_output_dir,
                     converter->image_counter);
             }
 
@@ -942,13 +943,16 @@ int convert_inline_image(LaTeXConverter* converter, const HTMLNode* node, const 
 
             if (converter->download_images
                 && converter->image_output_dir)
-                image_path = download_image_src(src,
+                image_path = download_image_src(
+                    &converter->store, src, 
                     converter->image_output_dir,
                     converter->image_counter);
 
             if (!image_path) {
                 if (is_base64_image(src) && converter->download_images && converter->image_output_dir)
-                    image_path = download_image_src(src, converter->image_output_dir,
+                    image_path = download_image_src(
+                        &converter->store, src, 
+                        converter->image_output_dir,
                         converter->image_counter);
 
                 if (!image_path) image_path = strdup(src);
