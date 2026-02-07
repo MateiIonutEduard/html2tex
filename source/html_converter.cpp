@@ -144,20 +144,23 @@ std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
     return batch;
 }
 
-void HtmlTeXConverter::downloadQueuedImagesAsync() {
-    auto image_list = getImages();
+void HtmlTeXConverter::downloadImageListAsync(std::vector<ImageManager::DownloadRequest> imageList) {
+    if (imageList.size() > 0) {
+        ImageManager& imageManager = getImageManager();
+        auto results = imageManager.downloadBatch(imageList);
 
-    if (!image_list.empty()) {
-        ImageManager& manager = getImageManager();
-        auto results = manager.downloadBatch(image_list);
-
-        /* check downloading succeed */
+        /* check if downloading succeed */
         for (const auto& res : results) {
             if (!res.success)
                 std::cerr << "Failed to download " << res.url
                 << ": " << res.error << std::endl;
         }
     }
+}
+
+void HtmlTeXConverter::downloadQueuedImagesAsync() {
+    auto image_list = getImages();
+    downloadImageListAsync(image_list);
 }
 
 std::string HtmlTeXConverter::convert(const std::string& html) const {

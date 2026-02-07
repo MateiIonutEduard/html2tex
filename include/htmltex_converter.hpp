@@ -177,6 +177,41 @@ public:
     std::vector<ImageManager::DownloadRequest> getImages();
 
     /**
+     * @brief Asynchronously downloads a provided list of images using the internal ImageManager.
+     *
+     * @param imageList Vector of DownloadRequest objects specifying images to download.
+     *         - Each request must contain a valid URL, output directory, and
+     *         - sequence number. Empty lists are handled as no-ops.
+     *
+     * @note The converter must have a valid ImageManager instance, typically initialized
+     *       after calling setDirectory(). The ImageManager is created lazily on first access.
+     * @warning The function modifies internal ImageManager state but is thread-safe for
+     *          concurrent calls with different image lists.
+     * @post Downloads execute asynchronously; the function returns immediately after
+     *        scheduling all download tasks.
+     * @post Failed downloads are logged to std::cerr with descriptive error messages
+     *       but do not prevent processing of remaining images.
+     *
+     * @throws RuntimeException If the converter is not properly initialized or
+     *         ImageManager cannot be created.
+     * @throws std::invalid_argument If any DownloadRequest contains invalid parameters
+     *         (empty URL, empty output directory, or negative sequence number).
+     * @throws std::bad_alloc If memory allocation fails during batch processing.
+     *
+     * @par Performance Characteristics:
+     * - Time Complexity: O(n) for n image requests
+     * - Parallelism: Utilizes all available ImageManager worker threads (default: 4)
+     * - Memory: O(n) allocation for internal task scheduling
+     * - I/O: Non-blocking; returns immediately after queueing tasks
+     *
+     * @see downloadQueuedImagesAsync() For processing converter-accumulated images
+     * @see getImages() For retrieving queued images from the converter
+     * @see ImageManager::downloadBatch() For the underlying batch download implementation
+     * @see setDirectory() For configuring default image output location
+     */
+    void downloadImageListAsync(std::vector<ImageManager::DownloadRequest> imageList);
+
+    /**
      * @brief Asynchronously downloads all queued images accumulated during lazy download mode conversion.
      * @note Requires the converter to be in lazy download mode (enabled via enableLazyDownloading(true))
      *       and an image directory to be configured via setDirectory().
