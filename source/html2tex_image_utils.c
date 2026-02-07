@@ -1016,7 +1016,7 @@ char* download_image_src(ImageStorage** storage, const char* src, const char* ou
         return NULL;
     }
 
-    ImageStorage* store = *storage;
+    ImageStorage* store = storage ? (*storage) : NULL;
     int success = 0;
 
     /* lazy image download is not enabled */

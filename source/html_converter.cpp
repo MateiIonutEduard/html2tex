@@ -117,9 +117,12 @@ std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
 
     std::vector<ImageManager::DownloadRequest> batch;
     ImageStorage* storage = converter.get()->store;
+
+    bool enabled = (storage != nullptr) 
+        && storage->lazy_downloading;
     size_t count = 0;
 
-    if (storage != nullptr && !stack_is_empty(storage->image_stack)) {
+    if (enabled && !stack_is_empty(storage->image_stack)) {
         char** filenames = (char**)stack_to_array(
             &storage->image_stack, &count);
 
@@ -139,6 +142,22 @@ std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
     }
 
     return batch;
+}
+
+void HtmlTeXConverter::downloadQueuedImagesAsync() {
+    auto image_list = getImages();
+
+    if (!image_list.empty()) {
+        ImageManager& manager = getImageManager();
+        auto results = manager.downloadBatch(image_list);
+
+        /* check downloading succeed */
+        for (const auto& res : results) {
+            if (!res.success)
+                std::cerr << "Failed to download " << res.url
+                << ": " << res.error << std::endl;
+        }
+    }
 }
 
 std::string HtmlTeXConverter::convert(const std::string& html) const {

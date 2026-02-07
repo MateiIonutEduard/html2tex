@@ -177,6 +177,26 @@ public:
     std::vector<ImageManager::DownloadRequest> getImages();
 
     /**
+     * @brief Asynchronously downloads all queued images accumulated during lazy download mode conversion.
+     * @note Requires the converter to be in lazy download mode (enabled via enableLazyDownloading(true))
+     *       and an image directory to be configured via setDirectory().
+     * @warning Not thread-safe. External synchronization required if called concurrently.
+     * @post Failed downloads are logged to std::cerr with descriptive error messages.
+     * @post Image queue is cleared internally; subsequent calls will process new images only.
+     *
+     * @see getImages() For retrieving queued image requests without processing
+     * @see ImageManager::downloadBatch() For the underlying batch download mechanism
+     * @see enableLazyDownloading() For controlling deferred download mode
+     * @see setDirectory() For configuring image output location
+     *
+     * @throws LaTeXRuntimeException If the converter is not properly initialized or
+     *         underlying LaTeX conversion API reports an error.
+     * @throws RuntimeException If image directory is not configured via setDirectory().
+     * @throws std::bad_alloc If memory allocation fails during batch processing.
+     */
+    void downloadQueuedImagesAsync();
+
+    /**
      * @brief Gets error message from last operation.
      * @return Human-readable error description.
      */
