@@ -98,6 +98,27 @@ public:
     bool setDirectory(const std::string& fullPath) noexcept;
 
     /**
+     * @brief Enables or disables lazy downloading mode for deferred image processing.
+     * @param enabled Boolean flag controlling lazy download mode.
+     *
+     * @return true if operation succeeded
+     * @return false if operation failed (check error state)
+     *
+     * @throws LaTeXRuntimeException if converter is not initialized
+     * @throws LaTeXRuntimeException if underlying C API returns error
+     *
+     * @note Requires converter to be initialized via constructor
+     * @note Does not affect previously queued images in storage
+     * @warning When disabling with pending downloads, queued images may be lost
+     *          unless processed via clear_image_storage()
+     *
+     * @see HtmlTeXConverter::setDirectory() for output directory configuration
+     * @see clear_image_storage() (C API) for processing queued images
+     * @see html2tex_enable_downloads() (C API) for underlying implementation
+     */
+    bool enableLazyDownloading(bool enabled);
+
+    /**
      * @brief Checks for errors from last operation.
      * @return true if error occurred, false otherwise.
      */

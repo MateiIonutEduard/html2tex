@@ -65,6 +65,29 @@ bool HtmlTeXConverter::setDirectory(const std::string& fullPath) noexcept {
     return true;
 }
 
+bool HtmlTeXConverter::enableLazyDownloading(bool enabled) {
+    if (!converter || !valid) {
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter: "
+            "Converter not initialized.", 
+            -1);
+        return false;
+    }
+
+    bool succeed = html2tex_enable_downloads(
+        &converter.get()->store,
+        enabled
+    );
+
+    if (!succeed) {
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
+        return false;
+    }
+
+    return true;
+}
+
 std::string HtmlTeXConverter::convert(const std::string& html) const {
     /* fast and optimized precondition checks */
     if (!converter || !valid)

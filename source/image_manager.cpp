@@ -56,6 +56,7 @@ namespace {
             tryCreateDirectory(req.output_dir);
 
         char* local_path = download_image_src(
+            nullptr,
             req.url.c_str(),
             req.output_dir.c_str(),
             req.sequence_number);
