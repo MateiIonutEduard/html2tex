@@ -299,5 +299,8 @@ void html2tex_destroy(LaTeXConverter* converter) {
     if (converter->image_output_dir)
         free(converter->image_output_dir);
 
+    if (converter->store != NULL)
+        destroy_image_storage(converter->store);
+
     free(converter);
 }
