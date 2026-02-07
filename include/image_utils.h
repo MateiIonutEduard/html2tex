@@ -117,26 +117,35 @@ extern "C" {
 
 	/**
 	 * @brief Queues image file for deferred processing in lazy download mode.
-	 * @param store ImageStorage instance configured for deferred processing.
 	 * 
-	 *             Must be initialized with lazy_downloading enabled.
+	 * @param storage Double pointer to ImageStorage instance for deferred processing.
+	 * 
+	 *                       Storage must be initialized via html2tex_enable_downloads()
+	 * 
+	 *                       with lazy_downloading enabled.
+	 * 
 	 * @param file_path Absolute or relative path to image file for deferred processing.
 	 * 
-	 *                 Must be a valid, non-empty string.
+	 *                     Must be a valid, non-empty string representing an existing file.
 	 * @return Status code indicating operation result:
 	 * 
 	 *         -  Success: 1, image queued for deferred processing
 	 * 
-	 *         -  Success: 0, lazy downloading not enabled (no operation performed)
+	 *         -  Success: 0, lazy downloading not enabled or storage is NULL (no operation)
 	 * 
 	 *         - Failure: -1, error state set (check html2tex_has_error())
-	 *
-	 * @note This function only queues paths - actual processing occurs separately
-	 *       via clear_image_storage() or destroy_image_storage().
 	 * 
-	 * @warning Do not modify or free the file_path string after successful call.
-	*/
-	int html2tex_add_image(ImageStorage* store, const char* file_path);
+	 * @note The function validates file_path existence and accessibility during
+	 *       actual processing (clear_image_storage()), not during queuing.
+	 *
+	 * @warning Path length validation uses PATH_MAX_LENGTH define. Ensure this
+	 *          matches system constraints (typically 4096 for modern systems).
+	 * 
+	 * @see html2tex_enable_downloads()
+	 * @see clear_image_storage()
+	 * @see destroy_image_storage()
+	 */
+	int html2tex_add_image(ImageStorage** storage, const char* file_path);
 
 #ifdef __cplusplus
 }

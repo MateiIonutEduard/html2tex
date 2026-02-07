@@ -1052,14 +1052,14 @@ int html2tex_enable_downloads(ImageStorage** storage, int enable) {
     return 1;
 }
 
-int html2tex_add_image(ImageStorage* store, const char* file_path) {
+int html2tex_add_image(ImageStorage** storage, const char* file_path) {
     /* clear any existing error state */
     html2tex_err_clear();
 
     /* validate input parameters */
-    if (!store) {
+    if (!storage) {
         HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
-            "ImageStorage object is NULL "
+            "ImageStorage pointer is NULL "
             "for image addition.");
         return -1;
     }
@@ -1077,8 +1077,10 @@ int html2tex_add_image(ImageStorage* store, const char* file_path) {
         return -1;
     }
 
+    ImageStorage* store = *storage;
+
     /* check if deferred downloading is enabled */
-    if (!store->lazy_downloading)
+    if (!store || (store && !store->lazy_downloading))
         return 0;
 
     /* duplicate file path with bounds checking */
