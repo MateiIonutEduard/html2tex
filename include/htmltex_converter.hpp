@@ -5,6 +5,7 @@
 #include <string>
 #include "html2tex.h"
 #include "html_parser.hpp"
+#include "ext/image_manager.hpp"
 #include "latex_exception.hpp"
 #include <iostream>
 
@@ -25,6 +26,7 @@
 class HtmlTeXConverter {
 private:
     std::unique_ptr<LaTeXConverter, decltype(&html2tex_destroy)> converter;
+    std::unique_ptr<ImageManager> image_manager;
     std::string image_directory;
     bool downloads_enabled, valid;
 
@@ -129,6 +131,25 @@ public:
      * @return Error code (HTML2TEX_OK = 0 means no error).
      */
     int getErrorCode() const;
+
+    /**
+     * @brief Provides access to the asynchronous image download manager.
+     * @return ImageManager reference to internal image manager instance.
+     *
+     * @throws RuntimeException if converter is not initialized
+     * @throws RuntimeException if image directory is not configured via setDirectory()
+     * @throws std::bad_alloc if memory allocation for ImageManager fails
+     *
+     * @note ImageManager is created lazily on first access
+     * @note Subsequent calls return reference to same manager instance
+     * @note Thread-safe for concurrent access after initialization
+     * @warning Must call setDirectory() before first access to getImageManager()
+     *
+     * @see setDirectory() for image output configuration
+     * @see ImageManager for complete asynchronous download capabilities
+     * @see HtmlTeXConverter::convert() for integrated conversion workflow
+     */
+    ImageManager& getImageManager();
 
     /**
      * @brief Gets error message from last operation.
