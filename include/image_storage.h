@@ -114,6 +114,22 @@ extern "C" {
 	 */
 	int html2tex_add_image(ImageStorage** storage, const char* file_path);
 
+	/**
+	 * @brief Creates a deep copy of an ImageStorage structure with all contained image references.
+	 * @param store Source ImageStorage to copy (non-NULL)
+	 * 
+	 * @note The copy operation is atomic with respect to error state - either complete
+	 *       success or complete failure with all resources cleaned up.
+	 * @warning Not thread-safe if source is modified during copy operation
+	 * @see create_image_storage() for constructor
+	 * @see destroy_image_storage() for destructor
+	 * @see clear_image_storage() for partial cleanup
+	 * 
+	 * @return Success: Independent ImageStorage* copy (caller must destroy)
+	 * @return Failure: NULL with error state set (check html2tex_has_error())
+	 */
+	ImageStorage* copy_image_storage(const ImageStorage* store);
+
 #ifdef __cplusplus
 }
 #endif

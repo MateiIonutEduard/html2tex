@@ -49,6 +49,134 @@ int clear_image_storage(ImageStorage* store) {
     return 0;
 }
 
+ImageStorage* copy_image_storage(const ImageStorage* store) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    /* validate input parameter */
+    if (!store) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Source ImageStorage is NULL "
+            "for copy operation.");
+        return NULL;
+    }
+
+    /* create destination storage */
+    ImageStorage* new_store = create_image_storage();
+    if (!new_store) return NULL;
+
+    /* copy lazy downloading flag */
+    new_store->lazy_downloading = store->lazy_downloading;
+
+    /* handle empty stack case efficiently */
+    if (!store->image_stack || stack_is_empty(store->image_stack))
+        return new_store;
+
+    /* get stack size and allocate filename array */
+    size_t count = stack_size(store->image_stack);
+    if (count == 0) return new_store;
+
+    /* cap count to prevent potential overflow issues */
+    const size_t MAX_REASONABLE_FILES = 1000000;
+
+    if (count > MAX_REASONABLE_FILES) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "Image stack too large for copy: %zu "
+            "files.", count);
+        destroy_image_storage(new_store);
+        return NULL;
+    }
+
+    char** filenames = (char**)malloc(count * sizeof(char*));
+    if (!filenames) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate %zu bytes for"
+            " filename array during ImageStorage copy.",
+            count * sizeof(char*));
+        destroy_image_storage(new_store);
+        return NULL;
+    }
+
+    /* initialize array to NULL for safe cleanup */
+    memset(filenames, 0, count * sizeof(char*));
+
+    /* traverse stack and duplicate strings with error checking */
+    const Stack* current = store->image_stack;
+    size_t index = 0;
+    int allocation_failed = 0;
+
+    /* explicit bounds check */
+    while (current && index < count && !allocation_failed) {
+        const char* original = (const char*)current->data;
+
+        if (original) {
+            char* copy = strdup(original);
+
+            if (!copy) {
+                allocation_failed = 1;
+                break;
+            }
+
+            filenames[index++] = copy;
+        }
+
+        current = current->next;
+    }
+
+    /* verify it processed exactly count elements */
+    if (current != NULL) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INTERNAL,
+            "Stack size changed during ImageStorage copy.");
+        allocation_failed = 1;
+    }
+
+    /* handle allocation failure mid-copy */
+    if (allocation_failed) {
+        for (size_t i = 0; i < index && i < count; i++) {
+            if (filenames[i])
+                free(filenames[i]);
+        }
+
+        free(filenames);
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to duplicate filename "
+            "string during ImageStorage copy.");
+
+        destroy_image_storage(new_store);
+        return NULL;
+    }
+
+    /* push strings onto new stack maintaining original order */
+    for (size_t i = 0; i < index; i++) {
+        if (!stack_push(&new_store->image_stack, filenames[i])) {
+            /* cleanup already pushed items */
+            while (!stack_is_empty(new_store->image_stack)) {
+                char* item = (char*)stack_pop(
+                    &new_store->image_stack);
+                if (item) free(item);
+            }
+
+            /* cleanup remaining filenames */
+            for (size_t j = i; j < index; j++) {
+                if (filenames[j]) 
+                    free(filenames[j]);
+            }
+
+            free(filenames);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to push filename onto "
+                "stack during ImageStorage copy.");
+
+            destroy_image_storage(new_store);
+            return NULL;
+        }
+    }
+
+    /* free temporary array */
+    free(filenames);
+    return new_store;
+}
+
 void destroy_image_storage(ImageStorage* store) {
     /* clear any existing error state */
     html2tex_err_clear();
