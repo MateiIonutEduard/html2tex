@@ -37,6 +37,7 @@ LaTeXConverter* html2tex_create(void) {
     converter->download_images = 0;
     converter->image_counter = 0;
     converter->current_css = NULL;
+    converter->store = NULL;
 
     return converter;
 }

@@ -1052,6 +1052,66 @@ int html2tex_enable_downloads(ImageStorage** storage, int enable) {
     return 1;
 }
 
+int html2tex_add_image(ImageStorage* store, const char* file_path) {
+    /* clear any existing error state */
+    html2tex_err_clear();
+
+    /* validate input parameters */
+    if (!store) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "ImageStorage object is NULL "
+            "for image addition.");
+        return -1;
+    }
+
+    if (!file_path) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "File path is NULL for image addition.");
+        return -1;
+    }
+
+    if (file_path[0] == '\0') {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_INVAL,
+            "File path is empty string for "
+            "image addition.");
+        return -1;
+    }
+
+    /* check if deferred downloading is enabled */
+    if (!store->lazy_downloading)
+        return 0;
+
+    /* duplicate file path with bounds checking */
+    size_t path_len = strlen(file_path);
+
+    if (path_len > PATH_MAX_LENGTH) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
+            "File path length %zu exceeds maximum allowed %d.",
+            path_len, PATH_MAX_LENGTH);
+        return -1;
+    }
+
+    char* full_path = strdup(file_path);
+    if (!full_path) return -1;
+
+    /* push onto image stack with error handling */
+    if (!stack_push(&store->image_stack, full_path)) {
+        /* clean up allocated path */
+        free(full_path);
+
+        /* check if error was already set */
+        if (!html2tex_has_error()) {
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "Failed to push image path onto"
+                " storage stack.");
+        }
+
+        return -1;
+    }
+
+    return 1;
+}
+
 char* download_image_src(const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */
     html2tex_err_clear();

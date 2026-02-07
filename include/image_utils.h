@@ -4,6 +4,10 @@
 #include <stddef.h>
 #include "html2tex_stack.h"
 
+#ifndef PATH_MAX_LENGTH
+#define PATH_MAX_LENGTH 512
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -110,6 +114,29 @@ extern "C" {
 	 * @see clear_image_storage()
 	 */
 	int html2tex_enable_downloads(ImageStorage** storage, int enable);
+
+	/**
+	 * @brief Queues image file for deferred processing in lazy download mode.
+	 * @param store ImageStorage instance configured for deferred processing.
+	 * 
+	 *             Must be initialized with lazy_downloading enabled.
+	 * @param file_path Absolute or relative path to image file for deferred processing.
+	 * 
+	 *                 Must be a valid, non-empty string.
+	 * @return Status code indicating operation result:
+	 * 
+	 *         -  Success: 1, image queued for deferred processing
+	 * 
+	 *         -  Success: 0, lazy downloading not enabled (no operation performed)
+	 * 
+	 *         - Failure: -1, error state set (check html2tex_has_error())
+	 *
+	 * @note This function only queues paths - actual processing occurs separately
+	 *       via clear_image_storage() or destroy_image_storage().
+	 * 
+	 * @warning Do not modify or free the file_path string after successful call.
+	*/
+	int html2tex_add_image(ImageStorage* store, const char* file_path);
 
 #ifdef __cplusplus
 }
