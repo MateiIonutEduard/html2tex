@@ -949,7 +949,7 @@ static char* generate_unique_filename(const char* output_dir, const char* src, i
     return unique_name;
 }
 
-char* download_image_src(const char* src, const char* output_dir, int image_counter) {
+char* download_image_src(ImageStorage** storage, const char* src, const char* output_dir, int image_counter) {
     /* clear any existing error state */
     html2tex_err_clear();
 
@@ -1016,21 +1016,33 @@ char* download_image_src(const char* src, const char* output_dir, int image_coun
         return NULL;
     }
 
+    ImageStorage* store = storage ? (*storage) : NULL;
     int success = 0;
 
-    /* handle base64 encoded image */
-    if (is_base64_image(src))
-        success = save_base64_image(src, full_path);
-    else
-        /* handle normal URL */
-        success = download_image_url(src, full_path);
-    free(safe_filename);
+    /* lazy image download is not enabled */
+    if (!store || (store != NULL && !store->lazy_downloading)) {
+        /* handle base64 encoded image */
+        if (is_base64_image(src))
+            success = save_base64_image(src, full_path);
+        else
+            /* handle normal URL */
+            success = download_image_url(src, full_path);
+        free(safe_filename);
 
-    if (success)
-        return full_path;
+        if (success)
+            return full_path;
+        else {
+            free(full_path);
+            return NULL;
+        }
+    }
     else {
-        free(full_path);
-        return NULL;
+        success = html2tex_add_image(storage, src);
+        if (success > 0) return full_path;
+        else {
+            free(full_path);
+            return NULL;
+        }
     }
 }
 

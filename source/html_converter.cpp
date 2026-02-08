@@ -4,8 +4,7 @@
 #include <stdexcept>
 
 HtmlTeXConverter::HtmlTeXConverter() : converter(nullptr, &html2tex_destroy), valid(false),
-downloads_enabled(false), 
-image_directory("") {
+downloads_enabled(false), image_directory(""), image_manager(nullptr) {
     LaTeXConverter* raw_converter = html2tex_create();
 
     if (raw_converter) {
@@ -21,8 +20,7 @@ image_directory("") {
 
 HtmlTeXConverter::HtmlTeXConverter(const HtmlTeXConverter& other)
 : converter(nullptr, &html2tex_destroy), valid(false),
-downloads_enabled(false),
-image_directory("") {
+downloads_enabled(false), image_directory(""), image_manager(nullptr) {
     if (other.converter && other.valid) {
         LaTeXConverter* clone = html2tex_copy(other.converter.get());
 
@@ -44,11 +42,13 @@ image_directory("") {
 HtmlTeXConverter::HtmlTeXConverter(HtmlTeXConverter&& other) noexcept
     : converter(std::move(other.converter)), valid(other.valid), 
     downloads_enabled(other.downloads_enabled), 
-    image_directory(other.image_directory) {
+    image_directory(other.image_directory),
+    image_manager(std::move(other.image_manager)) {
     other.downloads_enabled = false;
     other.image_directory = "";
 
     other.converter.reset(nullptr);
+    other.image_manager.reset(nullptr);
     other.valid = false;
 }
 
@@ -65,11 +65,111 @@ bool HtmlTeXConverter::setDirectory(const std::string& fullPath) noexcept {
     return true;
 }
 
+bool HtmlTeXConverter::enableLazyDownloading(bool enabled) {
+    if (!converter || !valid) {
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter: "
+            "Converter not initialized.", 
+            -1);
+    }
+
+    bool succeed = html2tex_enable_downloads(
+        &converter.get()->store,
+        enabled
+    );
+
+    if (!succeed) {
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
+    }
+
+    return true;
+}
+
+ImageManager& HtmlTeXConverter::getImageManager() {
+    if (!converter || !valid)
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter:"
+            " Converter not "
+            "initialized.", -1);
+
+    if (!image_manager) {
+        image_manager = std::make_unique<ImageManager>();
+
+        /* check if image directory is set */
+        if (image_directory.empty()) {
+            THROW_RUNTIME_ERROR(
+                "HtmlTeXConverter: Image directory must be set "
+                "before accessing ImageManager. Call setDirectory() first.",
+                -2);
+        }
+    }
+
+    return *image_manager;
+}
+
+std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
+    if (!converter || !valid)
+        THROW_RUNTIME_ERROR(
+            "HtmlTeXConverter:"
+            " Converter not "
+            "initialized.", -1);
+
+    std::vector<ImageManager::DownloadRequest> batch;
+    ImageStorage* storage = converter.get()->store;
+
+    bool enabled = (storage != nullptr) 
+        && storage->lazy_downloading;
+    size_t count = 0;
+
+    if (enabled && !stack_is_empty(storage->image_stack)) {
+        char** filenames = (char**)stack_to_array(
+            &storage->image_stack, &count);
+
+        if (html2tex_has_error())
+            throw LaTeXRuntimeException::fromLaTeXError();
+
+        if (count > 0) {
+            for (size_t i = 0; i < count; i++) {
+                std::string full_path = std::string(filenames[i]);
+                std::free(filenames[i]);
+                ImageManager::DownloadRequest req{ full_path, image_directory, (int)(i + 1) };
+                batch.emplace_back(req);
+            }
+
+            std::free(filenames);
+        }
+    }
+
+    return batch;
+}
+
+void HtmlTeXConverter::downloadImageListAsync(std::vector<ImageManager::DownloadRequest> imageList) {
+    if (imageList.size() > 0) {
+        ImageManager& imageManager = getImageManager();
+        auto results = imageManager.downloadBatch(imageList);
+
+        /* check if downloading succeed */
+        for (const auto& res : results) {
+            if (!res.success)
+                std::cerr << "Failed to download " << res.url
+                << ": " << res.error << std::endl;
+        }
+    }
+}
+
+void HtmlTeXConverter::downloadQueuedImagesAsync() {
+    auto image_list = getImages();
+    downloadImageListAsync(image_list);
+}
+
 std::string HtmlTeXConverter::convert(const std::string& html) const {
     /* fast and optimized precondition checks */
     if (!converter || !valid)
         THROW_RUNTIME_ERROR(
-            "HtmlTeXConverter: Converter not initialized.", -1);
+            "HtmlTeXConverter:"
+            " Converter not "
+            "initialized.", -1);
 
     /* early return for empty input to avoid unnecessary allocations */
     if (html.empty()) return "";
@@ -373,6 +473,8 @@ HtmlTeXConverter& HtmlTeXConverter::operator =(HtmlTeXConverter&& other) noexcep
         other.image_directory = "";
 
         converter = std::move(other.converter);
+        image_manager = std::move(other.image_manager);
+
         valid = other.valid;
         other.valid = false;
     }

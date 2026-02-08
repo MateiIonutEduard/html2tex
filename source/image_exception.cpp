@@ -46,12 +46,20 @@ ImageRuntimeException ImageRuntimeException::fromFileError(const std::string& pa
     std::string message = "File " + operation + " failed for '" + path + "'";
 
     if (error_code != 0) {
+        char error_buffer[256] = { 0 };
+
+#if defined(_MSC_VER)
+        strerror_s(error_buffer, sizeof(error_buffer), error_code);
+        const char* error_str = error_buffer;
+#else
         const char* error_str = std::strerror(error_code);
-        message += ": " + (error_str ? 
+#endif
+
+        message += ": " + (error_str ?
             std::string(error_str) : "Unknown image error.");
     }
 
-    return ImageRuntimeException(message, 
+    return ImageRuntimeException(message,
         HTML2TEX_ERR_IO);
 }
 

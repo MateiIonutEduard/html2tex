@@ -676,7 +676,9 @@ void process_table_image(LaTeXConverter* converter, const HTMLNode* img_node) {
 
     if (converter->download_images && converter->image_output_dir) {
         converter->image_counter++;
-        image_path = download_image_src(src, converter->image_output_dir,
+        image_path = download_image_src(
+            &converter->store, src, 
+            converter->image_output_dir,
             converter->image_counter);
 
         if (image_path) {

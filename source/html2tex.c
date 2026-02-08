@@ -37,23 +37,34 @@ LaTeXConverter* html2tex_create(void) {
     converter->download_images = 0;
     converter->image_counter = 0;
     converter->current_css = NULL;
+    converter->store = NULL;
 
     return converter;
 }
 
 LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
     html2tex_err_clear();
-    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL, 
+    HTML2TEX__CHECK_NULL(converter, HTML2TEX_ERR_NULL,
         "Converter initialization failed.");
 
     LaTeXConverter* clone = calloc(1, sizeof(LaTeXConverter));
-    HTML2TEX__CHECK_NULL(clone, HTML2TEX_ERR_NOMEM, 
+    HTML2TEX__CHECK_NULL(clone, HTML2TEX_ERR_NOMEM,
         "Clone converter memory allocation failed.");
+
+    /* initialize to safe defaults before any allocations */
+    clone->buffer = NULL;
+    clone->current_css = NULL;
+    clone->store = NULL;
+    clone->image_output_dir = NULL;
+    clone->state.table_caption = NULL;
 
     /* copy primitive fields */
     clone->state = converter->state;
     clone->download_images = converter->download_images;
     clone->image_counter = converter->image_counter;
+
+    /* clear pointers in cloned state */
+    clone->state.table_caption = NULL;
 
     /* copy string fields with duplication */
     if (converter->state.table_caption) {
@@ -78,25 +89,43 @@ LaTeXConverter* html2tex_copy(LaTeXConverter* converter) {
             "copy is NULL.");
     }
 
+    /* copy image storage if present */
+    if (converter->store) {
+        clone->store = copy_image_storage(converter->store);
+
+        if (!clone->store) {
+            html2tex_destroy(clone);
+            return NULL;
+        }
+    }
+
     /* copy buffer contents if present */
     if (converter->buffer && converter->buffer->data) {
         clone->buffer = string_buffer_create(converter->buffer->capacity);
-        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, 
-            "String buffer is NULL.");
+        if (!clone->buffer || string_buffer_has_error(clone->buffer)) {
+            html2tex_destroy(clone);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "String buffer creation failed.");
+            return NULL;
+        }
 
         if (string_buffer_append(clone->buffer,
             converter->buffer->data,
             converter->buffer->length) != 0) {
             html2tex_destroy(clone);
-            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW, 
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_BUF_OVERFLOW,
                 "Buffer copy failed.");
             return NULL;
         }
     }
     else {
         clone->buffer = string_buffer_create(1024);
-        HTML2TEX__CHECK_NULL(clone->buffer, HTML2TEX_ERR_NOMEM, 
-            "String buffer is NULL.");
+        if (!clone->buffer || string_buffer_has_error(clone->buffer)) {
+            html2tex_destroy(clone);
+            HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+                "String buffer creation failed.");
+            return NULL;
+        }
     }
 
     return clone;
@@ -297,6 +326,9 @@ void html2tex_destroy(LaTeXConverter* converter) {
 
     if (converter->image_output_dir)
         free(converter->image_output_dir);
+
+    if (converter->store != NULL)
+        destroy_image_storage(converter->store);
 
     free(converter);
 }

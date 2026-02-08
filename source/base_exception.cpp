@@ -15,9 +15,17 @@ namespace {
         std::time_t now = std::time(nullptr);
         char buf[64];
 
+#if defined(_MSC_VER)
+        struct tm time_info;
+        localtime_s(&time_info, &now);
+        std::strftime(buf, sizeof(buf),
+            "%Y-%m-%d %H:%M:%S",
+            &time_info);
+#else
         std::strftime(buf, sizeof(buf),
             "%Y-%m-%d %H:%M:%S",
             std::localtime(&now));
+#endif
 
         return buf;
     }

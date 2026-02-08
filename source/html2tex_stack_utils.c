@@ -29,6 +29,64 @@ int stack_push(Stack** top, void* data) {
     return 1;
 }
 
+void** stack_to_array(Stack** top, size_t* count) {
+    /* clear the error context */
+    html2tex_err_clear();
+
+    /* validate input parameters */
+    if (!top) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Stack double pointer is NULL"
+            " for array conversion.");
+        return NULL;
+    }
+
+    if (!count) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NULL,
+            "Count pointer is NULL for array"
+            " conversion.");
+        return NULL;
+    }
+
+    /* initialize output count */
+    size_t element_count = stack_size(*top);
+    if (!element_count) return NULL;
+    
+    /* allocate array with exact size */
+    void** array = (void**)malloc(element_count * sizeof(void*));
+
+    if (!array) {
+        HTML2TEX__SET_ERR(HTML2TEX_ERR_NOMEM,
+            "Failed to allocate array of %zu"
+            " elements for stack conversion.",
+            element_count);
+        return NULL;
+    }
+
+    /* get a reference to the top stack */
+    const Stack* current = *top;
+
+    /* pop elements and fill array */
+    size_t index = 0;
+
+    while (current) {
+        void* data = current->data;
+
+        if (data) {
+            array[element_count - index - 1] = data;
+            index++;
+        }
+
+        current = current->next;
+    }
+
+    /* destroy empty stack nodes (transfer ownership to array) */
+    stack_cleanup(top);
+
+    *count = element_count;
+    return array;
+}
+
 void* stack_pop(Stack** top) {
     /* clear the error context */
     html2tex_err_clear();

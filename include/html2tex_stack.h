@@ -78,6 +78,15 @@ extern "C" {
 	 */
 	void stack_destroy(Stack** top, void (*cleanup)(void*));
 
+	/**
+	 * @brief Converts a stack to a dynamically allocated array while preserving element order.
+	 * @param top Double pointer to the stack to convert (stack ownership transferred)
+	 * @param count Output parameter for the number of elements in the returned array
+	 * @return Success: Pointer to heap-allocated array of void* elements
+	 * @return Failure: NULL with error state set appropriately
+	 */
+	void** stack_to_array(Stack** top, size_t* count);
+
 #ifdef __cplusplus
 }
 #endif
