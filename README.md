@@ -18,19 +18,27 @@ Located in `/source` and `/include/html2tex.h`.
 Features:
 * High-performance *HTML5* subset parsing
 
-* Inline *CSS* 2.1 core support (colors, weight, alignment, spacing, etc.)
+* Ensure clean rollback on any allocation failure
 
-* **T**e**X**/**L**a**T**e**X** code generation
+* Fast and memory efficient **T**e**X**/**L**a**T**e**X** conversion
+
+* Inline *CSS* 2.1 core support (colors, weight, alignment, spacing, etc.)
 
 * Optional static `libcurl` integration (image downloading or external resources)
 
+* Secure HTML DOM manipulation and LaTeX conversion with guaranteed memory integrity
+
+* Boosts critical conversion & HTML parsing through real-time optimization
+
+* Efficient and strong error system for advanced diagnosis
+
 * No external dependencies besides optional `libcurl`
 
-* Fully cross-platform
+* Fully cross-platform: Windows OS, Linux OS, Mac OSX, FreeBSD
 
 ### 🔹 html2tex_cpp — Modern C++14 Wrapper
 
-Located in `/source` and `/include/htmltex.h`.
+Located in `/source` and `/include/html2tex.hpp`.
 Features:
 
 * RAII interface over the C library
@@ -38,6 +46,14 @@ Features:
 * Easier integration into C++ applications
 
 * Clean OOP API (`HtmlParser`, `HtmlTeXConverter`)
+
+* Advanced `HtmlDocument` API for efficient HTML DOM traversal
+
+* Very efficient task pooling (`ImageManager`) for fast image downloading
+
+* Exception Bridge for C/C++: Safe runtime error propagation across language boundaries
+  
+* Asynchronous batch download for queued images (lazy download)
 
 * Statically links against `html2tex_c`<br/>
 
@@ -70,7 +86,8 @@ char* read_file(const char* filename) {
     FILE* file = fopen(filename, "r");
 
     if (!file) {
-        fprintf(stderr, "Error: Cannot open file %s.\n", filename);
+        fprintf(stderr, "Error: Cannot "
+			"open file %s.\n", filename);
         return NULL;
     }
 
@@ -84,13 +101,15 @@ char* read_file(const char* filename) {
     char* content = malloc(file_size + 1);
 
     if (!content) {
-        fprintf(stderr, "Error: Memory allocation failed\n");
+        fprintf(stderr, "Error: Memory "
+			"allocation failed.\n");
         fclose(file);
         return NULL;
     }
 
     /* read file content */
-    size_t bytes_read = fread(content, 1, file_size, file);
+    size_t bytes_read = fread(content,
+		1, file_size, file);
     content[bytes_read] = '\0';
 
     fclose(file);
@@ -100,7 +119,8 @@ char* read_file(const char* filename) {
 int main(int argc, char** argv) {
    /* check command line arguments */
     if (argc != 4) {
-        fprintf(stderr, "Usage: %s <output_image_directory> <html_file_path> <latex_file_path>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <output_image_directory>"
+			" <html_file_path> <latex_file_path>\n", argv[0]);
         return 1;
     }
 
@@ -113,8 +133,8 @@ int main(int argc, char** argv) {
 
     if (latex) {
         FILE* output = fopen(argv[3], "w");
-		fwrite(latex, sizeof(char), strlen(latex), output);
-		
+		fwrite(latex, sizeof(char),
+			strlen(latex), output);	
         free(latex); 
 		fclose(output);
     }
@@ -127,7 +147,7 @@ int main(int argc, char** argv) {
 ### C++ API (`html2tex_cpp`)
 
 ```cpp
-#include "htmltex.h"
+#include "html2tex.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -135,7 +155,8 @@ int main(int argc, char** argv) {
 int main(int argc, char** argv) {
     /* check command line arguments */
     if (argc != 4) {
-        std::cerr << "Usage: " << argv[0] << " <output_image_directory> <html_file_path> <latex_file_path>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <output_image_directory>"
+			" <html_file_path> <latex_file_path>" << std::endl;
         return 1;
     }
 
@@ -161,23 +182,58 @@ int main(int argc, char** argv) {
 ```css
 html2tex/
 ├── include/
-│   ├── html2tex.h       # C API
-│   └── htmltex.h        # C++ API wrapper
+│   ├── html2tex.h             # C API
+│   ├── css_properties.h       # C API
+│   ├── dom_tree.h             # C API
+│   ├── dom_tree_visitor.h     # C API
+│   ├── html2tex_errors.h      # C API
+│   ├── html2tex_processor.h   # C API
+│   ├── html2tex_queue.h       # C API
+│   ├── html2tex_stack.h       # C API
+│   ├── image_storage.h        # C API
+│   ├── image_utils.h          # C API
+│   ├── string_buffer.h        # C API
+│   ├── base_exception.hpp     # C++ API wrapper
+│   ├── html2tex_defs.hpp      # C++ API wrapper
+│   ├── html_exception.hpp     # C++ API wrapper
+│   ├── html_parser.hpp        # C++ API wrapper
+│   ├── htmltex_converter.hpp  # C++ API wrapper
+│   ├── image_exception.hpp    # C++ API wrapper
+│   ├── latex_exception.hpp    # C++ API wrapper
+│   ├── ext/html_document.hpp   # C++ API wrapper
+│   ├── ext/image_manager.hpp   # C++ API wrapper
+│   └── html2tex.hpp           # C++ API wrapper
 ├── source/
 │   ├── html2tex.c
 │   ├── html2tex_css.c
+│   ├── html2tex_dom_tree.c
+│   ├── html2tex_dom_tree_visitor.c
+│   ├── html2tex_errors.c
+│   ├── html2tex_generator.c
+│   ├── html2tex_image_storage.c
+│   ├── html2tex_image_utils.c
+│   ├── html2tex_processor.c
+│   ├── html2tex_queue_utils.c
+│   ├── html2tex_stack_utils.c
+│   ├── html2tex_string_buffer.c
+│   ├── html2tex_utils.c
 │   ├── html_parser.c
 │   ├── html_minify.c
 │   ├── html_prettify.c
-│   ├── tex_gen.c
 │   ├── tex_image_utils.c
+│   ├── image_manager.cpp
+│   ├── image_exception.cpp
+│   ├── base_exception.cpp
+│   ├── html_document.cpp
+│   ├── latex_exception.cpp
+│   ├── html_exception.cpp
 │   ├── html_converter.cpp
 │   └── html_parser.cpp
 ├── cmake/
 │   └── html2texConfig.cmake.in
-├── LICENSE
-├── README.md
-└── CMakeLists.txt
+├── CMakeLists.txt
+├── LICENSE README.md
+└── README.md
 ```
 
 ## 🔧 Integration Options
@@ -185,7 +241,7 @@ html2tex/
 ### 1. Direct Inclusion (simplest)<br/>
 Copy these interfaces (C/C++):<br/>
 * `include/html2tex.h`
-* `include/htmltex.h`<br/>
+* `include/html2tex.hpp`<br/>
 
 The built libraries:
 * `html2tex_c.lib/.a`
@@ -223,7 +279,7 @@ Installed structure:<br/>
 
 ```bash
 include/html2tex.h
-include/htmltex.h
+include/html2tex.hpp
 bin/<Debug|Release>/<x64|x86>/libhtml2tex_c.a
 bin/<Debug|Release>/<x64|x86>/lib/libhtml2tex_cpp.a
 cmake/html2tex/html2texConfig.cmake
@@ -274,9 +330,14 @@ cmake --install . --prefix "C:\Libraries\html2tex"
 
 ## 🎯 Why html2tex?
 * 🔄 Lightweight Dependencies - Pure C/C++ core, uses libcurl for image downloads
-* ⚡ High Performance - Optimized parsing and conversion
-* 🎯 Cross-Platform - Consistent behavior everywhere
-* 🔧 Dual Interface - C API + modern C++14 wrapper
+* ⚡ High Performance - Optimized parsing and conversion with low memory usage
+* 🧩 Extensible LaTeX Processor - Modular design for future rich conversion features
+* 🚀 Fast DOM Navigation - High-speed traversal via direct HtmlDocument manipulation
+* 🛡️ Guarded Error Recovery - Strong error system with automatic rollback for safe state restoration
+* 📦 Asynchronous Batch Downloads - Queued lazy image downloading with background processing
+* 🎯 Cross-Platform - Consistent behavior everywhere (Windows OS, Linux, Mac OSX, FreeBSD)
+* 🧠 Memory Guaranteed - Safe DOM & LaTeX operations with integrity protection
+* 🔧 Dual Interface - C99 API + modern C++14 wrapper
 * 📦 Static Linking - Single binary deployment<br/>
 
 ## 🛡️ Compatibility Notes
@@ -286,6 +347,11 @@ cmake --install . --prefix "C:\Libraries\html2tex"
 - 🏗️ **Nested Element Support** - Robust scope management
 - 🌐 **Cross-Platform Consistency** - Identical behavior everywhere
 - 🔧 **Extensible Mappings** - Custom conversions via source code
-- 💡 **Graceful Degradation** - Unsupported elements preserved as content<br/>
+- 💡 **Graceful Degradation** - Unsupported elements preserved as content
+- 🧠 **Memory Guaranteed** - Safe DOM & LaTeX operations with integrity protection
+- 🧩 **Extensible LaTeX Processor** - Modular design for future rich conversion features
+- 📦 **Asynchronous Batch Downloads** - Queued lazy image downloading with background processing
+- 🛡️ **Guarded Error Recovery** - Strong error system with automatic rollback for safe state restoration
+<br/>
 
 **Note:** Unsupported **HTML** elements are gracefully ignored while preserving all content.
