@@ -80,9 +80,9 @@ public:
     struct DownloadResult {
         std::string url;           ///< Original source URL
         std::string local_path;    ///< Path to downloaded file (if successful)
-        bool success;              ///< Whether download succeeded
+        bool success = false;              ///< Whether download succeeded
         std::string error;         ///< Error description if failed
-        int sequence_number;       ///< Request sequence number
+        int sequence_number = 0;       ///< Request sequence number
     };
 
     /**
