@@ -133,7 +133,7 @@ std::vector<ImageManager::DownloadRequest> HtmlTeXConverter::getImages() {
             for (size_t i = 0; i < count; i++) {
                 std::string full_path = std::string(filenames[i]);
                 std::free(filenames[i]);
-                ImageManager::DownloadRequest req{ full_path, image_directory, i + 1 };
+                ImageManager::DownloadRequest req{ full_path, image_directory, (int)(i + 1) };
                 batch.emplace_back(req);
             }
 
