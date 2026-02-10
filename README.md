@@ -6,6 +6,8 @@ Static, cross-platform, dependency-light libraries for fast document transformat
 [![C99](https://img.shields.io/badge/C-99-blue.svg)](https://en.wikipedia.org/wiki/C99)
 [![C++14](https://img.shields.io/badge/C++-14-blue.svg)](https://en.cppreference.com/w/cpp/14)
 [![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://en.wikipedia.org/wiki/Cross-platform)
+[![CHANGELOG](https://img.shields.io/badge/CHANGELOG-v2.0.0-blue)](CHANGELOG.md)
+[![LICENSE](https://img.shields.io/badge/LICENSE-MIT-green)](LICENSE)
 
 ## 📚 Architecture Overview
 
@@ -232,7 +234,8 @@ html2tex/
 ├── cmake/
 │   └── html2texConfig.cmake.in
 ├── CMakeLists.txt
-├── LICENSE README.md
+├── LICENSE
+├── CHANGELOG.md
 └── README.md
 ```
 
