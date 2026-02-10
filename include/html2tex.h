@@ -10,6 +10,9 @@
 #include "html2tex_queue.h"
 #include "css_properties.h"
 #include "html2tex_processor.h"
+#include "image_downloader.h"
+#include "html2tex_thread.h"
+#include "atomic_types.h"
 #include "dom_tree_visitor.h"
 #include "html2tex_errors.h"
 #include <stdlib.h>
